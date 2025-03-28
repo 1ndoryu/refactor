@@ -1,0 +1,8 @@
+# Para leer variables de entorno desde .env
+python-dotenv
+
+# Para interactuar con la API de Gemini (oficial)
+google-generativeai
+
+# (Alternativa si prefieres hacer llamadas REST directas)
+requests

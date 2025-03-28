@@ -1,0 +1,21 @@
+# Archivos de entorno (contiene secretos!)
+.env
+
+# Directorios de virtual environment
+venv/
+*.venv/
+
+# Archivos compilados de Python y caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+
+# Directorio donde clonaremos temporalmente el proyecto a refactorizar
+clonProyecto/
+
+# Archivos de configuración de IDEs (opcional)
+.idea/
+.vscode/
