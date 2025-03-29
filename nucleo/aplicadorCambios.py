@@ -2,6 +2,7 @@
 import os
 import logging
 import shutil
+import codecs # <-- Añadido para decodificar escapes unicode
 
 log = logging.getLogger(__name__)
 
@@ -220,6 +221,23 @@ def aplicarCambio(accion, rutaBase):
                 log.error(f"{logPrefix} {err_msg}")
                 return False, err_msg
 
+            # ---> INICIO: MODIFICACIÓN PARA DECODIFICAR ESCAPES UNICODE <---
+            try:
+                # Usar codecs.decode con 'unicode_escape' para convertir \uXXXX a caracteres literales
+                codigoAMoverDecoded = codecs.decode(codigoAMover, 'unicode_escape')
+                # Loguear solo si hubo un cambio real para evitar ruido
+                if codigoAMoverDecoded != codigoAMover:
+                    log.info(f"{logPrefix} Decodificando secuencias de escape Unicode en 'codigo_a_mover'.")
+                    log.debug(f"{logPrefix} Original (repr): {repr(codigoAMover[:200])}{'...' if len(codigoAMover)>200 else ''}")
+                    codigoAMover = codigoAMoverDecoded # Usar la versión decodificada para el resto del proceso
+                    log.debug(f"{logPrefix} Decodificado (repr): {repr(codigoAMover[:200])}{'...' if len(codigoAMover)>200 else ''}")
+                else:
+                     log.debug(f"{logPrefix} No se detectaron secuencias de escape Unicode que requirieran decodificación en 'codigo_a_mover'.")
+            except Exception as e_decode:
+                log.warning(f"{logPrefix} Falló el intento de decodificar secuencias Unicode en 'codigo_a_mover': {e_decode}. Se usará el valor original.", exc_info=True)
+                # Continuar con el valor original si la decodificación falla
+            # ---> FIN: MODIFICACIÓN PARA DECODIFICAR ESCAPES UNICODE <---
+
             origenAbs = _validar_y_normalizar_ruta(
                 origenRel, rutaBaseNorm, asegurar_existencia=True)
             if not origenAbs:
@@ -241,7 +259,7 @@ def aplicarCambio(accion, rutaBase):
 
             log.info(
                 f"{logPrefix} Moviendo código de '{origenRel}' a '{destinoRel}'")
-            log.debug(f"{logPrefix} Código a mover (primeros 200 chars):\n{codigoAMover[:200]}{'...' if len(codigoAMover)>200 else ''}")
+            log.debug(f"{logPrefix} Código a mover (primeros 200 chars, después de decode):\n{codigoAMover[:200]}{'...' if len(codigoAMover)>200 else ''}")
 
             try:
                 # Leer origen
@@ -249,9 +267,10 @@ def aplicarCambio(accion, rutaBase):
                     contenidoOrigen = f.read()
 
                 # Verificar si el código a mover existe EXACTAMENTE en el origen
+                # --- Esta verificación ahora usa la variable `codigoAMover` potencialmente decodificada ---
                 if codigoAMover not in contenidoOrigen:
                     # --- LOGGING MEJORADO PARA 'codigoAMover' NO ENCONTRADO ---
-                    err_msg = f"El 'codigo_a_mover' NO SE ENCONTRÓ textualmente en el archivo origen '{origenRel}'."
+                    err_msg = f"El 'codigo_a_mover' (después de decodificar escapes si los hubo) NO SE ENCONTRÓ textualmente en el archivo origen '{origenRel}'."
                     log.error(f"{logPrefix} {err_msg}")
                     log.debug(f"{logPrefix} Código buscado (repr, primeros 200): {repr(codigoAMover[:200])}{'...' if len(codigoAMover)>200 else ''}")
                     # Intentar mostrar snippet del origen donde podría estar
@@ -290,6 +309,7 @@ def aplicarCambio(accion, rutaBase):
                     codigoAMover.strip() + "\n"
 
                 # Preparar nuevo contenido para el origen (eliminar primera ocurrencia)
+                # --- Esta operación también usa la variable `codigoAMover` potencialmente decodificada ---
                 contenidoOrigenModificado = contenidoOrigen.replace(
                     codigoAMover, "", 1)
 
