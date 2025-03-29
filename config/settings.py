@@ -27,7 +27,7 @@ MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-thinking-exp-01-21")
 N_HISTORIAL_CONTEXTO = 30  # Cuántas entradas recientes del historial enviar a Gemini
 
 # --- Configuracion de Analisis (Opcional - No se usa por ahora) ---
-# DIRECTORIOANALISIS = None # Ejemplo: "src/mi_modulo"
+DIRECTORIOANALISIS = "app/" # Ejemplo: "src/mi_modulo"
 # ARCHIVOSANALISIS = None # Ejemplo: ["src/main.py", "src/utils.py"]
 EXTENSIONESPERMITIDAS = ['.php', '.js', '.py', '.md']
 DIRECTORIOS_IGNORADOS = ['vendor', 'node_modules', '.git', '.github', 'docs'] 
