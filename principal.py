@@ -109,8 +109,8 @@ def parsearSugerencia(sugerenciaJson):
         "crear_archivo",
         "eliminar_archivo",
         "crear_directorio",
+        "mover_codigo",  # <-- Nueva acción añadida
         "no_accion"
-        # Si añades más lógica en aplicadorCambios.py, añádelas aquí.
     ]
 
     # Aquí sí usamos logging. directamente, está bien
@@ -135,20 +135,9 @@ def parsearSugerencia(sugerenciaJson):
         return None
     # ----------------------------------------
 
-    # # (Opcional: Mantener si necesitas validación de detalles para acciones específicas)
-    # accionesConDetallesObligatorios = [
-    #     "modificar_archivo", "mover_archivo", "crear_archivo", "eliminar_archivo", "crear_directorio"]
-    # # Si la acción requiere detalles y no los tiene (y no es 'no_accion')
-    # if accion in accionesConDetallesObligatorios and not detalles and accion != "no_accion":
-    #     logging.error(
-    #         f"{logPrefix} Acción '{accion}' requiere 'detalles' no vacíos, pero está vacío o ausente. JSON: {sugerenciaJson}")
-    #     return None
-
     if accion == "no_accion":
         logging.info(
             f"{logPrefix} Sugerencia 'no_accion' recibida y parseada.")
-    # El warning anterior sobre acciones no reconocidas ya no es necesario
-    # porque ahora las rechazamos explícitamente con el error de arriba.
 
     logging.info(
         f"{logPrefix} Sugerencia parseada exitosamente. Acción: {accion}")
@@ -167,11 +156,6 @@ def ejecutarProcesoPrincipal():
         logging.critical(
             f"{logPrefix} Configuración esencial faltante (GEMINI_API_KEY o REPOSITORIOURL). Verifique .env y config/settings.py. Abortando.")
         return False
-
-    # Permitir la URL de ejemplo para pruebas iniciales, pero mantener la advertencia.
-    # if "github.com/usuario/repo.git" in settings.REPOSITORIOURL:
-    #     logging.warning(
-    #         f"{logPrefix} La URL del repositorio parece ser la de ejemplo ('{settings.REPOSITORIOURL}'). Asegúrese que es correcta.")
 
     # --- PASOS DEL PROCESO ---
     try:
@@ -272,13 +256,10 @@ def ejecutarProcesoPrincipal():
         mensajeCommit = accionParseada.get(
             'descripcion', 'Refactorización automática AI')
         # Truncar mensaje si es muy largo para evitar problemas con Git
-        # Límite generoso, Git suele ser más estricto con la línea del asunto
         if len(mensajeCommit.encode('utf-8')) > 4000:
-            # Cortar a una longitud segura
             mensajeCommit = mensajeCommit[:1000] + "... (truncado)"
             logging.warning(
                 f"{logPrefix} Mensaje de commit truncado por longitud excesiva.")
-        # Advertir si la primera línea (asunto) es larga
         elif len(mensajeCommit.splitlines()[0]) > 72:
             logging.warning(
                 f"{logPrefix} La primera línea del mensaje de commit supera los 72 caracteres.")
@@ -286,13 +267,8 @@ def ejecutarProcesoPrincipal():
         exitoCommit = manejadorGit.hacerCommit(
             settings.RUTACLON, mensajeCommit)
         if not exitoCommit:
-            # El commit puede fallar si no hay cambios (ej. si aplicarCambio devolvió True pero no hizo nada)
-            # o por otros errores (hooks, config git). hacerCommit ya loguea advertencias/errores.
             logging.error(
                 f"{logPrefix} Falló el commit o no había nada que commitear. Ver logs de manejadorGit.")
-            # Si falló porque no había cambios, podríamos querer continuar, pero
-            # si falló por otra razón, es mejor detenerse. Por seguridad, detenemos.
-            # Intentamos descartar por si 'git add' dejó algo staged aunque commit fallara
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
@@ -351,8 +327,6 @@ if __name__ == "__main__":
             if args.modo_test:
                 logging.info(
                     "Modo Test activado: Intentando hacer push a origin...")
-                # Asegurarse que RAMATRABAJO está definida en settings
-                # Usar default por si acaso
                 ramaPush = getattr(settings, 'RAMATRABAJO', 'refactor')
                 if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
                     logging.info(
