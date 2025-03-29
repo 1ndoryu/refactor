@@ -210,6 +210,8 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     
     promptPartes.append(
         "8.  **Estamos usando `<?` en vez de `<?php`**: es importanente tenerlo en cuenta para evitar errores en busqueda.")
+    promptPartes.append(
+        "9.  **No olvides colocar `<? echo` cuando llamas una función**: es un error que sueles cometer mucho y que tienes corregir.")
     # <<< FIN: Reglas importantes >>>
 
     if historialCambiosTexto:
