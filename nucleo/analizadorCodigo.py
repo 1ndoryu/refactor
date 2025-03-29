@@ -3,7 +3,6 @@ import os
 import logging
 import json
 import google.generativeai as genai
-# Importar google.api_core.exceptions para manejo específico de errores API
 import google.api_core.exceptions
 from config import settings
 
@@ -11,349 +10,297 @@ log = logging.getLogger(__name__)
 
 geminiConfigurado = False
 
-
 def configurarGemini():
     global geminiConfigurado
     if geminiConfigurado:
         return True
 
-    logPrefix = "configurarGemini:"
-    apiKey = settings.GEMINIAPIKEY
-    if not apiKey:
-        log.critical(
-            f"{logPrefix} API Key de Gemini (GEMINI_API_KEY) no configurada en .env")
+    prefijoLog = "configurarGemini:"
+    claveApi = settings.claveApiGemini
+    if not claveApi:
+        log.critical(f"{prefijoLog} Clave API de Gemini (GEMINI_API_KEY) no configurada en .env")
         return False
     try:
-        genai.configure(api_key=apiKey)
-        log.info(f"{logPrefix} Cliente de Gemini configurado exitosamente.")
+        genai.configure(api_key=claveApi)
+        log.info(f"{prefijoLog} Cliente de Gemini configurado exitosamente.")
         geminiConfigurado = True
         return True
     except Exception as e:
-        log.critical(
-            f"{logPrefix} Error fatal configurando cliente de Gemini: {e}")
+        log.critical(f"{prefijoLog} Error fatal configurando cliente de Gemini: {e}")
         return False
 
-
 def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directoriosIgnorados=None):
-    logPrefix = "listarArchivosProyecto:"
+    prefijoLog = "listarArchivosProyecto:"
     archivosProyecto = []
 
+    # Usar valores de settings si no se proporcionan argumentos
     if extensionesPermitidas is None:
-        extensionesPermitidas = getattr(settings, 'EXTENSIONESPERMITIDAS',
-                                        ['.php', '.js', '.py','.md', '.txt'])
-        extensionesPermitidas = [ext.lower() for ext in extensionesPermitidas]
-        log.debug(
-            f"{logPrefix} Usando extensiones permitidas: {extensionesPermitidas}")
+        extensionesPermitidas = getattr(settings, 'extensionesPermitidas', ['.php']) # Default a .php si no está en settings
+    # Asegurar que sean minúsculas para comparación
+    extensionesPermitidas = [ext.lower() for ext in extensionesPermitidas]
+    log.debug(f"{prefijoLog} Usando extensiones permitidas: {extensionesPermitidas}")
 
     if directoriosIgnorados is None:
-        directoriosIgnorados = getattr(settings, 'DIRECTORIOS_IGNORADOS',
-                                       ['.git', '.hg', '.svn', 'node_modules', 'vendor', 'dist', 'build', '__pycache__'])
-        log.debug(
-            f"{logPrefix} Usando directorios ignorados: {directoriosIgnorados}")
+        directoriosIgnorados = getattr(settings, 'directoriosIgnorados', ['.git', 'vendor', 'node_modules']) # Defaults básicos
+    log.debug(f"{prefijoLog} Usando directorios ignorados: {directoriosIgnorados}")
 
     try:
-        log.info(f"{logPrefix} Listando archivos en: {rutaProyecto}")
-        numArchivos = 0
-        numDirectorios = 0
+        log.info(f"{prefijoLog} Listando archivos en: {rutaProyecto}")
+        numArchivosTotal = 0
+        numDirectoriosTotal = 0
         for raiz, dirs, archivos in os.walk(rutaProyecto, topdown=True):
-            numDirectorios += len(dirs)
+            numDirectoriosTotal += len(dirs)
+            # Filtrar directorios ignorados EN EL LUGAR para evitar recorrerlos
             dirs[:] = [d for d in dirs if d not in directoriosIgnorados]
 
             for nombreArchivo in archivos:
-                numArchivos += 1
+                numArchivosTotal += 1
                 _, ext = os.path.splitext(nombreArchivo)
                 if ext.lower() in extensionesPermitidas:
                     rutaCompleta = os.path.join(raiz, nombreArchivo)
-                    archivosProyecto.append(rutaCompleta)
+                    # Convertir a ruta relativa para consistencia
+                    rutaRelativa = os.path.relpath(rutaCompleta, rutaProyecto)
+                    archivosProyecto.append(rutaRelativa) # Guardar rutas relativas
 
-        log.info(f"{logPrefix} Escaneo completo. Total directorios: {numDirectorios}, Total archivos: {numArchivos}. Archivos relevantes encontrados: {len(archivosProyecto)}")
+        log.info(f"{prefijoLog} Escaneo completo. Directorios: {numDirectoriosTotal}, Archivos: {numArchivosTotal}. Archivos relevantes encontrados: {len(archivosProyecto)}")
         if not archivosProyecto:
-            log.warning(
-                f"{logPrefix} No se encontraron archivos relevantes con las extensiones permitidas en {rutaProyecto}.")
-        return archivosProyecto
+            log.warning(f"{prefijoLog} No se encontraron archivos con extensiones {extensionesPermitidas} en {rutaProyecto} (ignorando {directoriosIgnorados}).")
+        return archivosProyecto # Devuelve lista de rutas relativas
     except Exception as e:
-        log.error(
-            f"{logPrefix} Error crítico listando archivos en {rutaProyecto}: {e}")
+        log.error(f"{prefijoLog} Error crítico listando archivos en {rutaProyecto}: {e}")
         return None
 
-
-def leerArchivos(listaArchivos, rutaBase):
-    logPrefix = "leerArchivos:"
+def leerArchivos(listaArchivosRelativos, rutaBase):
+    prefijoLog = "leerArchivos:"
     contenidoConcatenado = ""
     archivosLeidos = 0
     archivosFallidos = 0
     bytesTotales = 0
 
-    log.info(f"{logPrefix} Leyendo contenido de {len(listaArchivos)} archivos...")
+    log.info(f"{prefijoLog} Leyendo contenido de {len(listaArchivosRelativos)} archivos...")
 
-    for rutaAbsoluta in listaArchivos:
+    for rutaRelativa in listaArchivosRelativos:
+        rutaAbsoluta = os.path.join(rutaBase, rutaRelativa)
         try:
-            rutaRelativa = os.path.relpath(rutaAbsoluta, rutaBase)
+            # Usar ruta relativa en los marcadores
             with open(rutaAbsoluta, 'r', encoding='utf-8', errors='ignore') as f:
                 contenido = f.read()
                 bytesArchivo = len(contenido.encode('utf-8'))
+                # Usar solo nombres de archivo en marcadores para reducir tokens? O rutas relativas completas? Usemos relativas por claridad.
                 contenidoConcatenado += f"--- INICIO ARCHIVO: {rutaRelativa} ---\n"
                 contenidoConcatenado += contenido
                 contenidoConcatenado += f"\n--- FIN ARCHIVO: {rutaRelativa} ---\n\n"
                 archivosLeidos += 1
                 bytesTotales += bytesArchivo
         except FileNotFoundError:
-            log.warning(
-                f"{logPrefix} Archivo no encontrado (quizás eliminado recientemente?): {rutaAbsoluta}")
+            log.warning(f"{prefijoLog} Archivo no encontrado (quizás eliminado recientemente?): {rutaAbsoluta}")
             archivosFallidos += 1
         except Exception as e:
-            log.error(f"{logPrefix} Error leyendo archivo {rutaAbsoluta}: {e}")
+            log.error(f"{prefijoLog} Error leyendo archivo {rutaAbsoluta}: {e}")
             archivosFallidos += 1
 
-    log.info(f"{logPrefix} Lectura completada. Leídos: {archivosLeidos}, Fallidos: {archivosFallidos}. Tamaño total del contexto: {bytesTotales / 1024:.2f} KB")
+    tasaExito = (archivosLeidos / len(listaArchivosRelativos)) * 100 if listaArchivosRelativos else 0
+    log.info(f"{prefijoLog} Lectura completada. Leídos: {archivosLeidos}/{len(listaArchivosRelativos)} ({tasaExito:.1f}%), Fallidos: {archivosFallidos}. Tamaño total contexto: {bytesTotales / 1024:.2f} KB")
+
     if bytesTotales == 0 and archivosLeidos > 0:
-        log.warning(
-            f"{logPrefix} Se leyeron {archivosLeidos} archivos pero el tamaño total es 0 bytes. ¿Archivos vacíos?")
-    elif archivosLeidos == 0 and len(listaArchivos) > 0:
-        log.error(
-            f"{logPrefix} No se pudo leer ningún archivo de la lista proporcionada.")
-        return None
+        log.warning(f"{prefijoLog} Se leyeron {archivosLeidos} archivos pero el tamaño total es 0 bytes. ¿Archivos vacíos?")
+    elif archivosLeidos == 0 and len(listaArchivosRelativos) > 0:
+        log.error(f"{prefijoLog} No se pudo leer ningún archivo de la lista proporcionada.")
+        return None # Devolver None si no se pudo leer nada
 
     return contenidoConcatenado
 
-
 def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
-    logPrefix = "analizarConGemini:"
+    prefijoLog = "analizarConGemini:"
 
     if not configurarGemini():
-        log.error(
-            f"{logPrefix} Cliente Gemini no configurado. Abortando análisis.")
+        log.error(f"{prefijoLog} Cliente Gemini no configurado. Abortando análisis.")
         return None
 
     if not contextoCodigo:
-        log.error(
-            f"{logPrefix} No se proporcionó contexto de código para analizar.")
+        log.error(f"{prefijoLog} No se proporcionó contexto de código para analizar.")
         return None
 
-    nombreModelo = settings.MODELOGEMINI
+    nombreModelo = settings.modeloGemini
     try:
         modelo = genai.GenerativeModel(nombreModelo)
-        log.info(f"{logPrefix} Usando modelo Gemini: {nombreModelo}")
+        log.info(f"{prefijoLog} Usando modelo Gemini: {nombreModelo}")
     except Exception as e:
-        log.error(
-            f"{logPrefix} Error al inicializar el modelo Gemini '{nombreModelo}': {e}")
+        log.error(f"{prefijoLog} Error al inicializar el modelo Gemini '{nombreModelo}': {e}")
         return None
 
     # --- Construcción del Prompt ---
     promptPartes = []
-    promptPartes.append("Eres un asistente experto en refactorización de código PHP y JavaScript, enfocado en mejorar la calidad, legibilidad, mantenibilidad y seguridad de proyectos web, especialmente temas y plugins de WordPress.")
-    promptPartes.append(
-        "Tu tarea es analizar el código fuente proporcionado y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA.")
-    promptPartes.append("Prioriza acciones como: eliminar código muerto o comentado, renombrar variables/funciones para mayor claridad (estilo camelCase para JS, snake_case para PHP si es consistente), extraer pequeñas funciones/métodos, simplificar condicionales complejos, añadir validaciones básicas faltantes (ej. sanitizar inputs, escapar outputs en PHP/WordPress), o mover funciones a archivos más apropiados si la estructura es evidente.")
-    promptPartes.append(
-        "NO propongas cambios masivos de arquitectura, reescrituras completas de archivos, o adición de librerías externas.")
-    promptPartes.append(
-        "El objetivo es hacer mejoras incrementales y seguras.")
+    promptPartes.append("Eres un asistente experto en refactorización de código PHP y JavaScript, enfocado en mejorar calidad, legibilidad, mantenibilidad y seguridad en proyectos WordPress.")
+    promptPartes.append("Analiza el código fuente y propone UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA.")
+    promptPartes.append("Prioriza: eliminar código muerto/comentado, simplificar lógica, añadir validaciones básicas (sanitizar/escapar en WordPress), extraer funciones/métodos PEQUEÑOS y CLAROS, o mover código a archivos más apropiados si la estructura lo justifica claramente.")
+    promptPartes.append("Sé MUY CAUTELOSO al renombrar variables/funciones existentes; solo hazlo si estás seguro de que no romperá dependencias (preferiblemente evita renombres complejos).")
+    promptPartes.append("NO propongas cambios masivos, reescrituras completas, ni añadir librerías externas.")
+    promptPartes.append("Objetivo: mejoras incrementales y seguras.")
 
     if historialCambiosTexto:
-        promptPartes.append(
-            "\n--- HISTORIAL DE CAMBIOS RECIENTES (Últimos aplicados por ti) ---")
+        promptPartes.append("\n--- HISTORIAL DE CAMBIOS RECIENTES (aplicados por ti) ---")
         promptPartes.append(historialCambiosTexto)
         promptPartes.append("--- FIN HISTORIAL ---")
-        promptPartes.append(
-            "Evita proponer cambios idénticos o revertir acciones recientes del historial.")
+        promptPartes.append("Considera el historial para evitar repeticiones o revertir cambios recientes.")
 
-    promptPartes.append("\n--- CÓDIGO FUENTE A ANALIZAR ---")
+    promptPartes.append("\n--- CÓDIGO FUENTE A ANALIZAR (con rutas relativas) ---")
     tamanoContextoKB = len(contextoCodigo.encode('utf-8')) / 1024
-    log.info(
-        f"{logPrefix} Tamaño del contexto a enviar a Gemini: {tamanoContextoKB:.2f} KB")
-    # Aumentar umbral de advertencia ligeramente, los límites pueden variar
-    if tamanoContextoKB > 3000:
-        log.warning(
-            f"{logPrefix} El tamaño del contexto ({tamanoContextoKB:.2f} KB) es muy grande y puede exceder los límites de la API o causar timeouts/errores.")
+    log.info(f"{prefijoLog} Tamaño del contexto a enviar a Gemini: {tamanoContextoKB:.2f} KB")
+    if tamanoContextoKB > 3000: # Umbral de advertencia
+        log.warning(f"{prefijoLog} Tamaño del contexto ({tamanoContextoKB:.2f} KB) es muy grande, puede causar errores/timeouts.")
     promptPartes.append(contextoCodigo)
     promptPartes.append("--- FIN CÓDIGO ---")
 
-    # <<< INICIO: Nuevas instrucciones de validación >>>
     promptPartes.append("\n--- VALIDACIÓN ANTES DE RESPONDER ---")
-    promptPartes.append("Antes de generar el JSON, verifica rigurosamente:")
-    promptPartes.append("- Que TODAS las rutas de archivo en 'detalles' sean RELATIVAS a la raíz del proyecto y EXISTENTES dentro de la estructura de archivos proporcionada (excepto para 'crear_archivo', 'crear_directorio', o el 'archivo_destino' en 'mover_archivo').")
-    promptPartes.append("- Para 'mover_archivo', asegúrate ABSOLUTAMENTE que el 'archivo_origen' especificado existe y contiene el elemento mencionado en 'descripcion'. Verifica también que la ruta 'archivo_destino' sea válida (no necesariamente existente aún).")
-    promptPartes.append("- Para 'modificar_archivo' con 'buscar', asegúrate que el texto a buscar REALMENTE existe en el archivo especificado.")
-    promptPartes.append("Si alguna de estas validaciones falla, o si el archivo o elemento a modificar/mover ya no parece existir o está en otro lugar, responde OBLIGATORIAMENTE con 'no_accion' y explica el motivo de la validación fallida en 'razonamiento'.")
-    # <<< FIN: Nuevas instrucciones de validación >>>
+    promptPartes.append("Verifica rigurosamente ANTES de generar el JSON:")
+    promptPartes.append("1. RUTAS: ¿Son todas las rutas en 'detalles' RELATIVAS a la raíz y VÁLIDAS según la estructura de archivos proporcionada?")
+    promptPartes.append("2. EXISTENCIA (Modificar/Eliminar/Mover Origen): ¿EXISTE el archivo/directorio especificado en el contexto?")
+    promptPartes.append("3. EXISTENCIA (Mover Código): ¿EXISTE 'codigo_a_mover' EXACTAMENTE en 'archivo_origen'?")
+    promptPartes.append("4. NO EXISTENCIA (Crear/Mover Destino): ¿NO EXISTE ya el archivo/directorio destino? (Para mover_codigo, ¿NO EXISTE 'codigo_a_mover' en 'archivo_destino'?)")
+    promptPartes.append("5. MODIFICAR (buscar): ¿EXISTE el texto 'buscar' EXACTAMENTE en el archivo?")
+    promptPartes.append("Si alguna validación falla o el elemento ya no está donde esperas, RESPONDE OBLIGATORIAMENTE con 'no_accion' y explica por qué en 'razonamiento'.")
 
     promptPartes.append("\n--- INSTRUCCIONES PARA TU RESPUESTA ---")
-    promptPartes.append(
-        "1. Identifica UNA sola acción de refactorización concreta y bien definida basada en el código Y las validaciones anteriores.")
-    promptPartes.append(
-        "2. Describe la acción CLARAMENTE en el campo 'descripcion' para usarla como mensaje de commit (ej: 'Refactor: Mueve funcion miFuncion de utils.php a helpers/general.php').")
-    promptPartes.append(
-        "3. Proporciona TODOS los detalles necesarios en el campo 'detalles' para aplicar el cambio AUTOMÁTICAMENTE.")
-    promptPartes.append(
-        "4. RESPONDE ÚNICAMENTE EN FORMATO JSON VÁLIDO y COMPLETO, sin texto introductorio ni explicaciones fuera del JSON. La estructura debe ser:")
+    promptPartes.append("1. Identifica UNA acción basada en el código y las validaciones.")
+    promptPartes.append("2. Describe la acción CLARAMENTE en 'descripcion' (para commit).")
+    promptPartes.append("3. Proporciona TODOS los detalles necesarios en 'detalles' para la ejecución automática.")
+    promptPartes.append("4. RESPONDE ÚNICAMENTE EN FORMATO JSON VÁLIDO y COMPLETO. Estructura:")
     promptPartes.append("""
 ```json
 {
   "accion": "TIPO_ACCION",
-  "descripcion": "Descripción clara y concisa para mensaje de commit.",
+  "descripcion": "Descripción clara y concisa (ej: Refactor: Mueve miFuncion de utils.php a helpers/general.php).",
   "detalles": {
-    // --- Campos para accion "modificar_archivo" ---
-    // "archivo": "ruta/relativa/al/archivo.php", // Obligatorio, DEBE EXISTIR
-    // "buscar": "CODIGO_O_TEXTO_EXACTO_A_BUSCAR", // Obligatorio si no se usa codigo_nuevo, DEBE EXISTIR EN EL ARCHIVO
-    // "reemplazar": "CODIGO_O_TEXTO_DE_REEMPLAZO", // Obligatorio si se usa buscar
-    // "codigo_nuevo": "CONTENIDO_COMPLETO_DEL_ARCHIVO", // Usar con PRECAUCIÓN
-    // --- Campos para accion "mover_archivo" ---
-    // "archivo_origen": "ruta/relativa/origen.php", // Obligatorio, DEBE EXISTIR
-    // "archivo_destino": "nueva/ruta/relativa/destino.php" // Obligatorio, la ruta debe ser válida
-    // --- Campos para accion "crear_archivo" ---
-    // "archivo": "nueva/ruta/relativa/archivo.js", // Obligatorio, NO DEBE EXISTIR
-    // "contenido": "CONTENIDO_INICIAL_DEL_ARCHIVO" // Obligatorio
-    // --- Campos para accion "eliminar_archivo" ---
-    // "archivo": "ruta/relativa/a/eliminar.txt" // Obligatorio, DEBE EXISTIR
-    // --- Campos para accion "crear_directorio" ---
-    // "directorio": "nueva/ruta/relativa/directorio" // Obligatorio, NO DEBE EXISTIR como archivo
+    // acción "modificar_archivo":
+    //   "archivo": "ruta/relativa/existente.php", // REQUERIDO
+    //   "buscar": "CODIGO_EXACTO_A_BUSCAR", // REQUERIDO si no usa codigo_nuevo, DEBE EXISTIR
+    //   "reemplazar": "NUEVO_CODIGO", // REQUERIDO con buscar
+    //   "codigo_nuevo": "CONTENIDO_COMPLETO_ARCHIVO" // USAR CON CUIDADO EXTREMO
+    // acción "mover_archivo":
+    //   "archivo_origen": "ruta/relativa/origen.php", // REQUERIDO, DEBE EXISTIR
+    //   "archivo_destino": "nueva/ruta/relativa/destino.php" // REQUERIDO, RUTA VALIDA, NO DEBE EXISTIR
+    // acción "crear_archivo":
+    //   "archivo": "nueva/ruta/relativa/archivo.js", // REQUERIDO, NO DEBE EXISTIR
+    //   "contenido": "CONTENIDO_INICIAL" // REQUERIDO
+    // acción "eliminar_archivo":
+    //   "archivo": "ruta/relativa/a/eliminar.php" // REQUERIDO, DEBE EXISTIR
+    // acción "crear_directorio":
+    //   "directorio": "nueva/ruta/relativa/directorio" // REQUERIDO, NO DEBE EXISTIR
+    // acción "mover_codigo":
+    //   "archivo_origen": "ruta/relativa/origen.php", // REQUERIDO, DEBE EXISTIR
+    //   "archivo_destino": "ruta/relativa/destino.php", // REQUERIDO, DEBE EXISTIR
+    //   "codigo_a_mover": "BLOQUE_DE_CODIGO_EXACTO_A_MOVER", // REQUERIDO, DEBE EXISTIR EN ORIGEN, NO EN DESTINO
+    //   "codigo_a_eliminar": "BLOQUE_DE_CODIGO_EXACTO_A_ELIMINAR_DE_ORIGEN" // REQUERIDO (puede ser igual a mover)
   },
-  "razonamiento": "Explicación breve del beneficio del cambio (opcional, o motivo de 'no_accion')."
+  "razonamiento": "Breve explicación del beneficio o motivo de 'no_accion' si validación falló."
 }
 ```""")
-    promptPartes.append(
-        "TIPOS DE ACCION VÁLIDOS: `modificar_archivo`, `mover_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`.")
-    promptPartes.append(
-        "Para `modificar_archivo`, prefiere usar `buscar` y `reemplazar` para cambios pequeños y específicos.")
-    # <<< INICIO: Instrucción reforzada sobre rutas >>>
-    promptPartes.append(
-        "ASEGÚRATE que las rutas de archivo en 'detalles' sean RELATIVAS a la raíz del proyecto, sean EXACTAS y VÁLIDAS según la estructura de archivos proporcionada en el contexto.")
-    # <<< FIN: Instrucción reforzada sobre rutas >>>
-    promptPartes.append(
-        "5. Si después de un análisis cuidadoso y pasar las validaciones, no encuentras ninguna refactorización pequeña, segura e inmediata que proponer, responde OBLIGATORIAMENTE con este JSON:")
-    promptPartes.append("`{\"accion\": \"no_accion\", \"descripcion\": \"No se identificaron acciones de refactorización inmediatas.\", \"detalles\": {}, \"razonamiento\": \"El código actual parece razonable o las validaciones pre-respuesta fallaron.\"}`")
-    promptPartes.append(
-        "6. Valida internamente que tu respuesta sea un JSON perfecto antes de enviarla.")
+    promptPartes.append("TIPOS DE ACCION VÁLIDOS: `modificar_archivo`, `mover_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`, `mover_codigo`, `no_accion`.")
+    promptPartes.append("Para `modificar_archivo`, prefiere `buscar`/`reemplazar` para cambios pequeños.")
+    promptPartes.append("Para `mover_codigo`, asegúrate que `codigo_a_mover` y `codigo_a_eliminar` sean EXACTOS, incluyendo indentación y saltos de línea, para que el reemplazo funcione. Verifica que el código no exista ya en el destino.")
+    promptPartes.append("ASEGÚRATE que todas las rutas de archivo sean RELATIVAS y VÁLIDAS según el contexto.")
+    promptPartes.append("5. Si no encuentras refactorización segura/inmediata O falla una validación, responde OBLIGATORIAMENTE con `no_accion` y explica en 'razonamiento'.")
+    promptPartes.append("`{\"accion\": \"no_accion\", \"descripcion\": \"No se identificaron acciones inmediatas / Validación fallida.\", \"detalles\": {}, \"razonamiento\": \"[Tu explicación aquí]\"}`")
+    promptPartes.append("6. Valida internamente que tu respuesta sea JSON perfecto.")
 
     promptCompleto = "\n".join(promptPartes)
 
-    log.info(f"{logPrefix} Enviando solicitud a Gemini...")
-    log.debug(f"{logPrefix} Inicio del Prompt:\n{promptCompleto[:500]}...")
-    log.debug(f"{logPrefix} ...Fin del Prompt:\n...{promptCompleto[-500:]}")
+    log.info(f"{prefijoLog} Enviando solicitud a Gemini...")
+    log.debug(f"{prefijoLog} Inicio del Prompt:\n{promptCompleto[:500]}...")
+    log.debug(f"{prefijoLog} ...Fin del Prompt:\n...{promptCompleto[-500:]}")
 
     try:
-        safety_settings = {
-            # Podrías necesitar ajustar esto si Gemini es muy restrictivo con el código
-            # 'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-            # 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-            # 'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
-            # 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-        }
+        # Configuraciones de seguridad (ajustar si es necesario)
+        safety_settings = {} # Usar defaults por ahora
 
         respuesta = modelo.generate_content(
             promptCompleto,
             generation_config=genai.types.GenerationConfig(
-                # response_mime_type="application/json", # Descomentar si el modelo lo soporta y funciona bien
-                temperature=0.4 # Bajar un poco más para fomentar precisión sobre creatividad
+                # response_mime_type="application/json", # Puede ayudar si el modelo lo soporta bien
+                temperature=0.3 # Más determinista para tareas de código
             ),
             safety_settings=safety_settings if safety_settings else None
         )
 
-        log.info(f"{logPrefix} Respuesta recibida de Gemini.")
+        log.info(f"{prefijoLog} Respuesta recibida de Gemini.")
 
         textoRespuesta = ""
+        # Acceso robusto al texto de la respuesta
         try:
-            # Manejo robusto de candidatos y partes
-            if respuesta.parts:
+            if hasattr(respuesta, 'text'):
+                textoRespuesta = respuesta.text
+            elif respuesta.parts:
                  textoRespuesta = "".join(part.text for part in respuesta.parts)
-            elif hasattr(respuesta, 'text'):
-                 textoRespuesta = respuesta.text
-            else:
-                # Si no hay 'parts' ni 'text', intentar obtener de candidatos si existen
-                if respuesta.candidates and respuesta.candidates[0].content and respuesta.candidates[0].content.parts:
-                     textoRespuesta = "".join(part.text for part in respuesta.candidates[0].content.parts)
+            elif respuesta.candidates and respuesta.candidates[0].content and respuesta.candidates[0].content.parts:
+                 textoRespuesta = "".join(part.text for part in respuesta.candidates[0].content.parts)
 
             if not textoRespuesta:
-                 # Comprobar feedback si no se obtuvo texto
+                 razonBloqueo = "Razón desconocida"
                  if hasattr(respuesta, 'prompt_feedback') and respuesta.prompt_feedback.block_reason:
-                     log.error(f"{logPrefix} La respuesta de Gemini fue bloqueada. Razón: {respuesta.prompt_feedback.block_reason}")
-                     if respuesta.prompt_feedback.safety_ratings:
-                         log.error(f"{logPrefix} Safety Ratings: {respuesta.prompt_feedback.safety_ratings}")
-                 # Comprobar finish_reason de candidatos
+                     razonBloqueo = respuesta.prompt_feedback.block_reason
                  elif respuesta.candidates and respuesta.candidates[0].finish_reason != "STOP":
-                      log.error(f"{logPrefix} Finalización inesperada de Gemini. Razón: {respuesta.candidates[0].finish_reason}")
-                      if respuesta.candidates[0].safety_ratings:
-                          log.error(f"{logPrefix} Safety Ratings: {respuesta.candidates[0].safety_ratings}")
-                 else:
-                      log.error(f"{logPrefix} La respuesta de Gemini está vacía o no se pudo extraer texto.")
+                     razonBloqueo = f"Finalización: {respuesta.candidates[0].finish_reason}"
+                 log.error(f"{prefijoLog} Respuesta de Gemini vacía o bloqueada. Razón: {razonBloqueo}")
+                 # Loguear ratings de seguridad si existen
+                 if hasattr(respuesta, 'prompt_feedback') and respuesta.prompt_feedback.safety_ratings:
+                     log.error(f"{prefijoLog} Safety Ratings (Prompt): {respuesta.prompt_feedback.safety_ratings}")
+                 if respuesta.candidates and respuesta.candidates[0].safety_ratings:
+                      log.error(f"{prefijoLog} Safety Ratings (Candidate): {respuesta.candidates[0].safety_ratings}")
                  return None
 
-        except ValueError as e: # Captura si .text falla por algún motivo interno
-            log.error(f"{logPrefix} Error interno al acceder a '.text' de la respuesta: {e}")
-            if hasattr(respuesta, 'prompt_feedback'):
-                log.error(f"{logPrefix} Prompt Feedback: {respuesta.prompt_feedback}")
+        except (ValueError, AttributeError, IndexError) as e:
+            log.error(f"{prefijoLog} Error accediendo al contenido de la respuesta de Gemini: {e}")
+            if hasattr(respuesta, 'prompt_feedback'): log.error(f"{prefijoLog} Prompt Feedback: {respuesta.prompt_feedback}")
             return None
-        except Exception as e:
-            log.error(f"{logPrefix} Error inesperado al acceder al contenido de la respuesta: {e}")
+        except Exception as e: # Captura genérica por si acaso
+            log.error(f"{prefijoLog} Error inesperado extrayendo texto de respuesta: {e}")
             return None
 
+        # Limpiar posible formato markdown de bloque de código JSON
         textoLimpio = textoRespuesta.strip()
-
         if textoLimpio.startswith("```json"):
             textoLimpio = textoLimpio[7:]
         elif textoLimpio.startswith("```"):
-            textoLimpio = textoLimpio[3:]
+             textoLimpio = textoLimpio[3:]
         if textoLimpio.endswith("```"):
             textoLimpio = textoLimpio[:-3]
         textoLimpio = textoLimpio.strip()
 
-        log.debug(f"{logPrefix} Respuesta JSON (limpia):\n{textoLimpio}")
+        log.debug(f"{prefijoLog} Respuesta JSON (limpia):\n{textoLimpio}")
 
         try:
             sugerenciaJson = json.loads(textoLimpio)
-            log.info(
-                f"{logPrefix} Sugerencia JSON parseada correctamente. Acción: {sugerenciaJson.get('accion')}")
-            if "accion" not in sugerenciaJson or "detalles" not in sugerenciaJson or "descripcion" not in sugerenciaJson:
-                log.error(
-                    f"{logPrefix} JSON parseado pero le faltan campos obligatorios (accion, detalles, descripcion). JSON: {sugerenciaJson}")
-                # Podrías intentar extraer el razonamiento si existe para entender por qué faltan campos
-                if "razonamiento" in sugerenciaJson:
-                    log.error(f"{logPrefix} Razonamiento proporcionado: {sugerenciaJson.get('razonamiento')}")
+            log.info(f"{prefijoLog} Sugerencia JSON parseada. Acción: {sugerenciaJson.get('accion')}")
+            # Validación básica de estructura
+            if not all(k in sugerenciaJson for k in ["accion", "descripcion", "detalles"]):
+                log.error(f"{prefijoLog} JSON parseado pero faltan campos obligatorios (accion, descripcion, detalles). JSON: {sugerenciaJson}")
                 return None
             return sugerenciaJson
         except json.JSONDecodeError as e:
-            log.error(
-                f"{logPrefix} Error crítico al parsear JSON de Gemini: {e}")
-            log.error(
-                f"{logPrefix} Respuesta recibida (puede estar mal formada):\n{textoRespuesta}")
+            log.error(f"{prefijoLog} Error crítico al parsear JSON de Gemini: {e}")
+            log.error(f"{prefijoLog} Respuesta recibida (puede estar mal formada):\n{textoRespuesta}")
             return None
         except Exception as e:
-            log.error(
-                f"{logPrefix} Error inesperado procesando/parseando respuesta JSON: {e}")
+            log.error(f"{prefijoLog} Error inesperado procesando/parseando JSON: {e}")
             return None
 
+    # Manejo de errores específicos de la API
     except google.api_core.exceptions.ResourceExhausted as e:
-        log.error(f"{logPrefix} Error de cuota de API Gemini (ResourceExhausted): {e}. Revisa tus límites o reduce la frecuencia/tamaño de las solicitudes.")
+        log.error(f"{prefijoLog} Error de cuota API Gemini (ResourceExhausted): {e}.")
         return None
     except google.api_core.exceptions.InvalidArgument as e:
-        log.error(f"{logPrefix} Error de argumento inválido en API Gemini (InvalidArgument): {e}. Probablemente el contexto es demasiado grande o el prompt tiene problemas.")
+        log.error(f"{prefijoLog} Error argumento inválido API Gemini (InvalidArgument): {e}. ¿Contexto muy grande?")
         return None
-    # Captura errores específicos de la librería google-generativeai si ocurren
     except google.generativeai.types.BlockedPromptException as e:
-         log.error(f"{logPrefix} El prompt fue bloqueado por Gemini antes de generar respuesta: {e}")
-         # Intenta obtener más info si está disponible en la excepción o en la 'respuesta' (aunque podría no existir)
-         try:
-             if respuesta and hasattr(respuesta, 'prompt_feedback'):
-                 log.error(f"{logPrefix} Prompt Feedback: {respuesta.prompt_feedback}")
-         except NameError: pass
+         log.error(f"{prefijoLog} Prompt bloqueado por Gemini: {e}")
+         if hasattr(respuesta, 'prompt_feedback'): log.error(f"{prefijoLog} Prompt Feedback: {respuesta.prompt_feedback}")
          return None
     except google.generativeai.types.StopCandidateException as e:
-         log.error(f"{logPrefix} La generación de Gemini fue detenida inesperadamente: {e}")
-         try:
-             if respuesta and respuesta.candidates:
-                  log.error(f"{logPrefix} Razón de finalización: {respuesta.candidates[0].finish_reason}")
-                  if respuesta.candidates[0].safety_ratings:
-                     log.error(f"{logPrefix} Safety Ratings: {respuesta.candidates[0].safety_ratings}")
-         except NameError: pass
+         log.error(f"{prefijoLog} Generación detenida inesperadamente por Gemini: {e}")
+         if respuesta.candidates: log.error(f"{prefijoLog} Razón finalización: {respuesta.candidates[0].finish_reason}, Ratings: {respuesta.candidates[0].safety_ratings}")
          return None
-    except Exception as e:
-        log.error(
-            f"{logPrefix} Error durante la llamada a la API de Gemini: {type(e).__name__} - {e}", exc_info=True) # Añadir exc_info para trazabilidad completa
-        try:
-            if respuesta and hasattr(respuesta, 'prompt_feedback'):
-                log.error(
-                    f"{logPrefix} Prompt Feedback: {respuesta.prompt_feedback}")
-        except NameError:
-            pass
+    except Exception as e: # Captura genérica final
+        log.error(f"{prefijoLog} Error durante llamada API Gemini: {type(e).__name__} - {e}", exc_info=False) # exc_info=False para no ser tan verboso aquí
+        if 'respuesta' in locals() and hasattr(respuesta, 'prompt_feedback'): log.error(f"{prefijoLog} Prompt Feedback: {respuesta.prompt_feedback}")
         return None

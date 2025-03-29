@@ -3,57 +3,48 @@ import os
 import logging
 from dotenv import load_dotenv
 
-# Cargar variables de entorno desde .env al inicio
 load_dotenv()
 
 # --- Configuracion Esencial ---
-GEMINIAPIKEY = os.getenv("GEMINI_API_KEY")
-REPOSITORIOURL = "https://github.com/2upra/v4.git"
+# Mantenemos el nombre de la variable de entorno como está en .env
+claveApiGemini = os.getenv("GEMINI_API_KEY")
+urlRepositorio = "https://github.com/2upra/v4.git" # Ejemplo, asegúrate que sea la correcta
 
 # --- Configuracion de Rutas ---
-# __file__ es la ruta de settings.py
-# os.path.dirname(__file__) es el directorio config/
-# os.path.dirname(os.path.dirname(__file__)) es la raíz del proyecto 1ndoryu-refactor/
-RUTA_BASE_PROYECTO = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
-RUTACLON = os.path.join(RUTA_BASE_PROYECTO, 'clonProyecto')
-RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
+rutaBaseProyecto = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+rutaClon = os.path.join(rutaBaseProyecto, 'clonProyecto')
+rutaHistorial = os.path.join(rutaBaseProyecto, 'historial_refactor.log')
 
 # --- Configuracion de Git ---
-RAMATRABAJO = "refactor"  # Nombre de la rama donde se aplicarán los cambios
+ramaTrabajo = "refactor"
 
 # --- Configuracion de Gemini ---
 MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-thinking-exp-01-21")
 N_HISTORIAL_CONTEXTO = 30  # Cuántas entradas recientes del historial enviar a Gemini
 
-# --- Configuracion de Analisis (Opcional - No se usa por ahora) ---
-DIRECTORIOANALISIS = "app/" # Ejemplo: "src/mi_modulo"
-# ARCHIVOSANALISIS = None # Ejemplo: ["src/main.py", "src/utils.py"]
-EXTENSIONESPERMITIDAS = ['.php', '.js', '.py', '.md']
-DIRECTORIOS_IGNORADOS = ['vendor', 'node_modules', '.git', '.github', 'docs'] 
+# --- Configuracion de Analisis ---
+# directorioAnalisis = "app/" # Ya no se usa directamente
+extensionesPermitidas = ['.php', '.js', '.py', '.md'] # Mantenerlas en minúscula
+directoriosIgnorados = ['vendor', 'node_modules', '.git', '.github', 'docs', 'cache', 'logs', 'tmp', 'temp'] # Lista más completa
 
-# --- Logging de Configuracion ---
-# Asegurarse que el logger se configure antes si es posible, o usar print aquí
-# Idealmente, configurar logging en principal.py antes de importar settings si se quiere loguear esto.
-# Usaremos print por simplicidad aquí asumiendo que logging no está listo aún.
-
+# --- Logging de Configuracion (usando print antes de que logging esté listo) ---
 print(f"settings: Cargando configuración...")
-if not GEMINIAPIKEY:
+if not claveApiGemini:
     print("settings: ERROR - GEMINI_API_KEY no encontrada. Asegúrate que exista en .env")
 else:
-    # Solo mostrar una parte por seguridad si se loguea
-    print(
-        f"settings: GEMINI_API_KEY cargada (parcial: ...{GEMINIAPIKEY[-4:]}).")
+    print(f"settings: GEMINI_API_KEY cargada (parcial: ...{claveApiGemini[-4:]}).")
 
-print(f"settings: Repositorio URL: {REPOSITORIOURL}")
-print(f"settings: Ruta Clon: {RUTACLON}")
-print(f"settings: Ruta Historial: {RUTAHISTORIAL}")
-print(f"settings: Rama de Trabajo: {RAMATRABAJO}")
-print(f"settings: Modelo Gemini: {MODELOGEMINI}")
-print(f"settings: Entradas de Historial para Contexto: {N_HISTORIAL_CONTEXTO}")
+print(f"settings: Repositorio URL: {urlRepositorio}")
+print(f"settings: Ruta Clon: {rutaClon}")
+print(f"settings: Ruta Historial: {rutaHistorial}")
+print(f"settings: Rama de Trabajo: {ramaTrabajo}")
+print(f"settings: Modelo Gemini: {modeloGemini}")
+print(f"settings: Entradas de Historial para Contexto: {numHistorialContexto}")
+print(f"settings: Extensiones Permitidas: {extensionesPermitidas}")
+print(f"settings: Directorios Ignorados: {directoriosIgnorados}")
 
 # Configurar logger aquí si es necesario para mensajes posteriores de settings
-# o confiar en que principal.py lo haga. Para evitar duplicados, es mejor
-# que principal.py lo configure una vez.
+# o confiar en que principal.py lo haga.
 log = logging.getLogger(__name__)
-log.info("settings: Configuración cargada (los mensajes anteriores pueden ser via print).")
+# No loguear info aquí para evitar duplicados si principal.py ya lo hace.
+# log.info("settings: Configuración cargada.")
