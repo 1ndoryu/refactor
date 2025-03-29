@@ -8,7 +8,7 @@ load_dotenv()
 
 # --- Configuracion Esencial ---
 GEMINIAPIKEY = os.getenv("GEMINI_API_KEY")
-REPOSITORIOURL = "https://github.com/2upra/v4.git"
+REPOSITORIOURL = "git@github.com:2upra/v4.git"
 
 # --- Configuracion de Rutas ---
 # __file__ es la ruta de settings.py
