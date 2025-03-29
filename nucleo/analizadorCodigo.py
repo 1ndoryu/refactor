@@ -207,6 +207,9 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
 
     promptPartes.append(
         "7.  **AGREGA COMENTARIOS INDICADO TUS CAMBIOS**: Si escribes código nuevo, agrega un comentario indicando que los cambios fueron automáticos con IA.")
+    
+    promptPartes.append(
+        "8.  **Estamos usando `<?` en vez de `<?php`**: es importanente tenerlo en cuenta para evitar errores en busqueda.")
     # <<< FIN: Reglas importantes >>>
 
     if historialCambiosTexto:
