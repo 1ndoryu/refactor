@@ -163,7 +163,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     log.info(
         f"{logPrefix} Tamaño del contexto a enviar a Gemini: {tamanoContextoKB:.2f} KB")
     # Aumentar umbral de advertencia ligeramente, los límites pueden variar
-    if tamanoContextoKB > 1500:
+    if tamanoContextoKB > 3000:
         log.warning(
             f"{logPrefix} El tamaño del contexto ({tamanoContextoKB:.2f} KB) es muy grande y puede exceder los límites de la API o causar timeouts/errores.")
     promptPartes.append(contextoCodigo)
