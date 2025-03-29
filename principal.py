@@ -38,6 +38,8 @@ def configurarLogging():
 
     log_raiz.setLevel(nivelLog)
     logging.info("="*50)
+    logging.info("="*50)
+    logging.info("="*50)
     logging.info("configurarLogging: Sistema de logging configurado.")
     logging.info(f"configurarLogging: Nivel de log establecido a {logging.getLevelName(log_raiz.level)}")
 
