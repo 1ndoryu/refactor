@@ -10,3 +10,5 @@ El objectivo es crear una programa (lo mas razonable parece ser llamarlo agente)
 6. Obviamente la capacidad de crear archivos, borrar, mover, crear carpetas. 
 7. Usar la gemini api. 
 8. Usará una rama propia llamada refactor. 
+9. Solo debe leer los archivos .php , por el momento es la prioridad. debe entender la estructura, la ubicacion de cada archivo, etc.
+10. Dentro del prompt, obviamente tiene que ver todas las carpetas y nombres de archivo porque le será ulti. 
