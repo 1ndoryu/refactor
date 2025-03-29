@@ -151,13 +151,13 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         "El objetivo es hacer mejoras incrementales y seguras.")
 
     if historialCambiosTexto:
-        promptPartes.append("\n--- HISTORIAL DETALLADO DE CAMBIOS RECIENTES (Formato: [Num] [Timestamp] Accion: Tipo | Desc: Descripcion | Detalles: {json}) ---")
+        promptPartes.append(
+            "\n--- HISTORIAL DE CAMBIOS RECIENTES (Últimos aplicados por ti) ---")
         promptPartes.append(historialCambiosTexto)
         promptPartes.append("--- FIN HISTORIAL ---")
-        promptPartes.append("Analiza CUIDADOSAMENTE cada entrada del historial, prestando atención a 'Accion' y 'Detalles' para entender la operación exacta realizada.")
-        promptPartes.append("Por ejemplo, si la última acción fue 'mover_archivo' de A a B, el siguiente paso lógico podría ser eliminar referencias a la función/elemento en A, o eliminar A si quedó vacío. NO vuelvas a proponer mover el mismo elemento.")
-        promptPartes.append("Evita proponer cambios redundantes o revertir acciones recientes basándote en esta información detallada.")
-    
+        promptPartes.append(
+            "Evita proponer cambios idénticos o revertir acciones recientes del historial.")
+
     promptPartes.append("\n--- CÓDIGO FUENTE A ANALIZAR ---")
     tamanoContextoKB = len(contextoCodigo.encode('utf-8')) / 1024
     log.info(
