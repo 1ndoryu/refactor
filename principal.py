@@ -15,20 +15,18 @@ from nucleo import aplicadorCambios
 def configurarLogging():
     # Usar logging.getLogger() directamente aquí para configurar el logger raíz
     log_raiz = logging.getLogger()
-    if log_raiz.handlers:  # Evitar añadir handlers múltiples si ya está configurado
+    if log_raiz.handlers:
         logging.info("configurarLogging: Logging ya configurado.")
         return
 
-    nivelLog = logging.INFO  # Nivel por defecto INFO
+    nivelLog = logging.INFO
     formatoLog = '%(asctime)s - %(levelname)s - %(name)s.%(funcName)s: %(message)s'
     fechaFormato = '%Y-%m-%d %H:%M:%S'
 
-    # Configurar salida a consola
     consolaHandler = logging.StreamHandler(sys.stdout)
     consolaHandler.setFormatter(logging.Formatter(formatoLog, fechaFormato))
     log_raiz.addHandler(consolaHandler)
 
-    # Configurar salida a archivo
     try:
         rutaLogArchivo = os.path.join(settings.RUTA_BASE_PROYECTO, "refactor.log")
         os.makedirs(os.path.dirname(rutaLogArchivo), exist_ok=True)
@@ -46,6 +44,7 @@ def configurarLogging():
 
 # Funciones para manejar el historial persistente
 def cargarHistorial():
+    # ... (no changes needed here) ...
     logPrefix = "cargarHistorial:"
     historial = []
     rutaArchivoHistorial = settings.RUTAHISTORIAL
@@ -62,8 +61,8 @@ def cargarHistorial():
         historial = []
     return historial
 
-
 def guardarHistorial(historial):
+    # ... (no changes needed here) ...
     logPrefix = "guardarHistorial:"
     rutaArchivoHistorial = settings.RUTAHISTORIAL
     try:
@@ -79,6 +78,7 @@ def guardarHistorial(historial):
 
 # Función para parsear y validar la sugerencia JSON de Gemini
 def parsearSugerencia(sugerenciaJson):
+    # ... (no changes needed here) ...
     logPrefix = "parsearSugerencia:"
     accionesSoportadas = [
         "modificar_archivo", "mover_archivo", "crear_archivo",
@@ -107,17 +107,19 @@ def parsearSugerencia(sugerenciaJson):
     logging.info(f"{logPrefix} Sugerencia parseada exitosamente. Acción: {accion}")
     return sugerenciaJson
 
-# Función principal que orquesta el proceso de refactorización.
+# *** MODIFIED FUNCTION TO HANDLE ERRORS AND HISTORY ***
 def ejecutarProcesoPrincipal():
     logPrefix = "ejecutarProcesoPrincipal:"
     logging.info(f"{logPrefix} ===== INICIO CICLO DE REFACTORIZACIÓN =====")
-    huboCommitExitoso = False # Inicia como False
-
-    if not settings.GEMINIAPIKEY or not settings.REPOSITORIOURL:
-        logging.critical(f"{logPrefix} Configuración esencial faltante (GEMINI_API_KEY o REPOSITORIOURL). Abortando.")
-        return False
+    cicloExitosoConCommit = False # Flag for final return status
+    historialRefactor = [] # Initialize here to ensure it's always available
+    accionParseada = None # Initialize action info
 
     try:
+        if not settings.GEMINIAPIKEY or not settings.REPOSITORIOURL:
+            logging.critical(f"{logPrefix} Configuración esencial faltante (GEMINI_API_KEY o REPOSITORIOURL). Abortando.")
+            return False # Cannot proceed
+
         # 2. Cargar historial
         historialRefactor = cargarHistorial()
 
@@ -133,13 +135,13 @@ def ejecutarProcesoPrincipal():
         extensiones = getattr(settings, 'EXTENSIONESPERMITIDAS', None)
         ignorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', None)
         archivos = analizadorCodigo.listarArchivosProyecto(settings.RUTACLON, extensiones, ignorados)
-        if archivos is None: return False # Error ya logueado
+        if archivos is None: return False
         if not archivos:
             logging.warning(f"{logPrefix} No se encontraron archivos relevantes. Terminando ciclo.")
             return False
 
         codigoAAnalizar = analizadorCodigo.leerArchivos(archivos, settings.RUTACLON)
-        if not codigoAAnalizar: return False # Error ya logueado
+        if not codigoAAnalizar: return False
         tamanoBytes = len(codigoAAnalizar.encode('utf-8'))
         tamanoKB = tamanoBytes / 1024
         logging.info(f"{logPrefix} Código fuente leído ({len(archivos)} archivos, {tamanoKB:.2f} KB).")
@@ -151,6 +153,9 @@ def ejecutarProcesoPrincipal():
         if not sugerenciaJson:
             logging.error(f"{logPrefix} No se recibió sugerencia válida de Gemini. Abortando ciclo.")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
+            # *** Record Gemini failure in history? Maybe not, as no action was attempted. ***
+            # Consider adding if needed: historialRefactor.append("[ERROR] No se pudo obtener sugerencia de Gemini.")
+            # guardarHistorial(historialRefactor)
             return False
 
         # 6. Parsear sugerencia
@@ -159,111 +164,153 @@ def ejecutarProcesoPrincipal():
         if not accionParseada:
             logging.error(f"{logPrefix} Sugerencia inválida o no soportada. Abortando ciclo.")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
+            # *** Record Parsing failure in history? ***
+            # historialRefactor.append(f"[ERROR] Sugerencia de Gemini inválida o no soportada: {sugerenciaJson}")
+            # guardarHistorial(historialRefactor)
             return False
 
         if accionParseada.get("accion") == "no_accion":
             logging.info(f"{logPrefix} Gemini sugirió 'no_accion': {accionParseada.get('descripcion', '')}. Terminando ciclo.")
-            return False # No hubo commit
+            # *** Record 'no_action' in history? Optional, can be noisy. ***
+            # razonamientoNoAccion = accionParseada.get('razonamiento', 'Sin razonamiento.')
+            # historialRefactor.append(f"[INFO] Acción 'no_accion' sugerida. Razón: {razonamientoNoAccion}")
+            # guardarHistorial(historialRefactor)
+            return False # No commit was made
+
+        # --- Intento de Aplicación y Commit ---
+        descripcionIntento = accionParseada.get('descripcion', 'Acción sin descripción')
+        razonamientoIntento = accionParseada.get('razonamiento', 'Sin razonamiento proporcionado.')
 
         # 7. Aplicar cambios
-        logging.info(f"{logPrefix} Aplicando cambios sugeridos...")
-        # *** CAMBIO: Capturar y verificar el resultado de aplicarCambio ***
-        exitoAplicar = aplicadorCambios.aplicarCambio(accionParseada, settings.RUTACLON)
+        logging.info(f"{logPrefix} Aplicando cambios sugeridos: {descripcionIntento}")
+        exitoAplicar, mensajeErrorAplicar = aplicadorCambios.aplicarCambio(accionParseada, settings.RUTACLON)
+
         if not exitoAplicar:
-            # El error específico ya se habrá logueado dentro de aplicarCambio
-            logging.error(f"{logPrefix} Falló la aplicación de cambios sugeridos por Gemini. Intentando descartar...")
+            # --- Caso: Aplicación Fallida ---
+            logging.error(f"{logPrefix} Falló la aplicación de cambios: {mensajeErrorAplicar}")
+            # Construir entrada de historial de error
+            entradaHistorialError = f"[ERROR] Aplicación fallida: {descripcionIntento}. Razón: {mensajeErrorAplicar}. Razonamiento original: {razonamientoIntento}"
+            historialRefactor.append(entradaHistorialError)
+
+            logging.info(f"{logPrefix} Intentando descartar cambios locales tras fallo...")
             if not manejadorGit.descartarCambiosLocales(settings.RUTACLON):
                 logging.critical(f"{logPrefix} ¡FALLO CRÍTICO! No se aplicaron cambios Y no se pudieron descartar. ¡Revisión manual requerida en {settings.RUTACLON}!")
             else:
                 logging.info(f"{logPrefix} Cambios locales (si los hubo) descartados tras fallo en aplicación.")
-            return False # Indicar que el ciclo falló y no hubo commit
+
+            # Guardar historial CON el error y salir
+            guardarHistorial(historialRefactor)
+            return False # Indicar fallo del ciclo
 
         # Si llegamos aquí, exitoAplicar fue True
         logging.info(f"{logPrefix} Cambios aplicados localmente con éxito.")
 
         # 8. Hacer commit
         logging.info(f"{logPrefix} Realizando commit en rama '{settings.RAMATRABAJO}'...")
-        mensajeCommit = accionParseada.get('descripcion', 'Refactorización automática AI')
+        mensajeCommit = descripcionIntento # Usar la descripción ya obtenida
         if len(mensajeCommit.encode('utf-8')) > 4000:
              mensajeCommit = mensajeCommit[:1000] + "... (truncado)"
              logging.warning(f"{logPrefix} Mensaje de commit truncado.")
         elif len(mensajeCommit.splitlines()[0]) > 72:
              logging.warning(f"{logPrefix} La primera línea del mensaje de commit supera los 72 caracteres.")
 
-        # *** CAMBIO: Capturar y verificar el resultado de hacerCommit ***
-        # Nota: hacerCommit devuelve True si el comando 'commit' tiene éxito O si no había nada que commitear.
+        # Intentar commit
         exitoCommitIntento = manejadorGit.hacerCommit(settings.RUTACLON, mensajeCommit)
-        if not exitoCommitIntento:
-            # Esto solo debería ocurrir si el comando 'git commit' falló (ej. config git user mal, hooks, etc.)
-            # El caso "no hay cambios" es manejado por hacerCommit devolviendo True.
-            logging.error(f"{logPrefix} Falló el comando 'git commit'. Intentando descartar cambios staged...")
-            manejadorGit.descartarCambiosLocales(settings.RUTACLON) # Intentar limpiar
-            return False # Indicar fallo
 
-        # *** CAMBIO: Verificar explícitamente si hubo cambios reales en el commit ***
-        # Usamos 'git diff HEAD~1 HEAD --quiet'. Devuelve 0 si NO hay cambios, 1 si SÍ hay cambios.
+        if not exitoCommitIntento:
+            # --- Caso: Comando 'git commit' falló ---
+            # hacerCommit ya loguea el error
+            logging.error(f"{logPrefix} Falló el comando 'git commit'.")
+             # Construir entrada de historial de error
+            entradaHistorialError = f"[ERROR] Cambios aplicados, pero 'git commit' falló. Intento: {descripcionIntento}. Razonamiento: {razonamientoIntento}"
+            historialRefactor.append(entradaHistorialError)
+
+            logging.info(f"{logPrefix} Intentando descartar cambios locales tras fallo de commit...")
+            manejadorGit.descartarCambiosLocales(settings.RUTACLON) # Intentar limpiar
+
+             # Guardar historial CON el error y salir
+            guardarHistorial(historialRefactor)
+            return False # Indicar fallo del ciclo
+
+        # Verificar si el commit tuvo cambios reales
         comandoCheckDiff = ['git', 'diff', 'HEAD~1', 'HEAD', '--quiet']
         commitTuvoCambios = False
+        errorVerificandoCommit = False
         try:
-            # Ejecutamos sin check=True para capturar el código de retorno
             resultadoCheck = subprocess.run(comandoCheckDiff, cwd=settings.RUTACLON, capture_output=True)
             if resultadoCheck.returncode == 1:
-                # Código 1 significa que SÍ hubo diferencias -> Commit efectivo
                 logging.info(f"{logPrefix} Commit realizado con éxito y contiene cambios.")
                 commitTuvoCambios = True
             elif resultadoCheck.returncode == 0:
-                 # Código 0 significa que NO hubo diferencias -> Commit vacío o la lógica anterior falló
-                 # Esto puede pasar si aplicarCambio tuvo éxito pero no cambió nada (ej. reemplazar con lo mismo)
-                 # O si hacerCommit dijo que no había nada staged (aunque esto no debería pasar si exitoAplicar=True)
                  logging.warning(f"{logPrefix} Aunque 'git commit' no dio error, no se detectaron cambios efectivos en el último commit. La acción no tuvo efecto real.")
-                 # Intentar deshacer el commit vacío si es posible (reset suave)
+                 # Intentar deshacer el commit vacío
                  try:
                      manejadorGit.ejecutarComando(['git', 'reset', '--soft', 'HEAD~1'], cwd=settings.RUTACLON)
-                     manejadorGit.descartarCambiosLocales(settings.RUTACLON) # Limpiar working dir
-                     logging.info(f"{logPrefix} Intento de revertir commit vacío realizado.")
+                     manejadorGit.descartarCambiosLocales(settings.RUTACLON)
+                     logging.info(f"{logPrefix} Intento de revertir commit vacío/sin efecto realizado.")
                  except Exception as e_revert:
-                      logging.error(f"{logPrefix} No se pudo revertir el commit potencialmente vacío: {e_revert}")
-                 commitTuvoCambios = False # Confirmar que no hubo éxito real
+                      logging.error(f"{logPrefix} No se pudo revertir el commit potencialmente vacío/sin efecto: {e_revert}")
             else:
-                 # Otro código de error inesperado
                  stderr_log = resultadoCheck.stderr.decode('utf-8', errors='ignore').strip()
                  logging.error(f"{logPrefix} Error inesperado al verificar diferencias del commit (código {resultadoCheck.returncode}). Stderr: {stderr_log}")
-                 commitTuvoCambios = False
+                 errorVerificandoCommit = True
 
         except FileNotFoundError:
              logging.error(f"{logPrefix} Error: Comando 'git' no encontrado al verificar commit.")
-             commitTuvoCambios = False
+             errorVerificandoCommit = True
         except Exception as e:
              logging.error(f"{logPrefix} Error inesperado verificando el último commit: {e}")
-             commitTuvoCambios = False
+             errorVerificandoCommit = True
 
-        # Continuar solo si el commit tuvo cambios efectivos
-        if not commitTuvoCambios:
-            logging.warning(f"{logPrefix} El ciclo finaliza porque no se realizó un commit con cambios efectivos.")
-            # No intentar guardar historial si no hubo cambio real
-            return False # Indicar fallo (o falta de acción)
+        # --- Decidir estado final y guardar historial ---
+        if commitTuvoCambios:
+            # --- Caso: Éxito Real ---
+            cicloExitosoConCommit = True
+            logging.info(f"{logPrefix} Actualizando y guardando historial de éxito.")
+            entradaHistorialExito = f"[ÉXITO] {descripcionIntento}"
+            if razonamientoIntento and razonamientoIntento != 'Sin razonamiento proporcionado.':
+                entradaHistorialExito += f" Razonamiento: {razonamientoIntento}"
+            historialRefactor.append(entradaHistorialExito)
+            guardarHistorial(historialRefactor)
+            logging.info(f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
+            return True # Éxito final
 
-        # Si llegamos aquí, commitTuvoCambios es True
-        huboCommitExitoso = True
+        else:
+            # --- Caso: Cambios Aplicados pero Commit Sin Efecto o Falló Verificación ---
+            razonFalloCommit = "No se detectaron cambios efectivos tras el commit."
+            if errorVerificandoCommit:
+                razonFalloCommit = "Error al verificar los cambios del commit."
+            elif not exitoCommitIntento: # Redundante por chequeo anterior, pero seguro
+                 razonFalloCommit = "El comando 'git commit' falló previamente."
 
-        # 9. Actualizar y guardar historial (SOLO SI huboCommitExitoso es True)
-        logging.info(f"{logPrefix} Actualizando y guardando historial.")
-        historialRefactor.append(accionParseada.get('descripcion', 'Acción sin descripción'))
-        if not guardarHistorial(historialRefactor):
-             logging.error(f"{logPrefix} Falló el guardado del historial, pero el commit ya está hecho.")
-             # No devolver False aquí, el commit es lo principal
+            logging.warning(f"{logPrefix} El ciclo finaliza porque no se realizó un commit con cambios efectivos. Razón: {razonFalloCommit}")
+            entradaHistorialError = f"[ERROR] Cambios aplicados, pero sin commit efectivo. Intento: {descripcionIntento}. Razón: {razonFalloCommit}. Razonamiento: {razonamientoIntento}"
+            historialRefactor.append(entradaHistorialError)
 
-        logging.info(f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
-        return True # Devuelve True solo si hubo un commit real y exitoso
+            # Guardar historial CON el error y salir
+            guardarHistorial(historialRefactor)
+            return False # Indicar fallo del ciclo
 
     except Exception as e:
+        # --- Caso: Error Inesperado General ---
         logging.critical(f"{logPrefix} Error inesperado durante la ejecución principal: {e}", exc_info=True)
+        # Intentar grabar un error genérico en el historial si es posible
+        if historialRefactor is not None and accionParseada is not None:
+             descripcionIntento = accionParseada.get('descripcion', 'Acción desconocida por error temprano')
+             entradaHistorialError = f"[ERROR CRÍTICO] Error inesperado durante el proceso. Intento: {descripcionIntento}. Detalle: {e}"
+             historialRefactor.append(entradaHistorialError)
+             guardarHistorial(historialRefactor)
+        elif historialRefactor is not None:
+             historialRefactor.append(f"[ERROR CRÍTICO] Error inesperado antes de procesar acción. Detalle: {e}")
+             guardarHistorial(historialRefactor)
+
         try:
             logging.info(f"{logPrefix} Intentando descartar cambios locales debido a error inesperado...")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
         except Exception as e_clean:
             logging.error(f"{logPrefix} Falló intento de limpieza tras error: {e_clean}")
-        return False
+        return False # Indicar fallo
+
 
 # Punto de entrada principal del script
 if __name__ == "__main__":
@@ -282,10 +329,12 @@ if __name__ == "__main__":
     logging.info(f"Iniciando script principal. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
 
     try:
-        commitRealizado = ejecutarProcesoPrincipal() # Ahora devuelve True solo si hubo commit efectivo
+        # ejecutarProcesoPrincipal ahora devuelve True solo si hubo commit efectivo Y guardó historial éxito
+        # Devuelve False si hubo algún error (y guarda historial de error) o si no hubo commit efectivo
+        commitRealizado = ejecutarProcesoPrincipal()
 
         if commitRealizado:
-            logging.info("Proceso principal completado: Se realizó un commit con cambios.")
+            logging.info("Proceso principal completado: Se realizó un commit con cambios y se guardó historial.")
             if args.modo_test:
                 logging.info("Modo Test activado: Intentando hacer push a origin...")
                 ramaPush = getattr(settings, 'RAMATRABAJO', 'refactor')
@@ -294,15 +343,27 @@ if __name__ == "__main__":
                     sys.exit(0) # Éxito total
                 else:
                     logging.error(f"Modo Test: Falló el push a la rama '{ramaPush}'.")
+                    # *** Considerar grabar este fallo de PUSH en historial? ***
+                    # Podría ser útil, pero complica el flujo de retorno. Por ahora, solo log y exit(1).
+                    # historial = cargarHistorial()
+                    # historial.append(f"[ERROR] Commit realizado localmente, pero PUSH falló a rama {ramaPush}")
+                    # guardarHistorial(historial)
                     sys.exit(1) # Salir con error (commit hecho, push falló)
             else:
                 logging.info("Modo Test desactivado. Commit realizado localmente, no se hizo push.")
                 sys.exit(0) # Éxito (commit local)
         else:
-            # Si ejecutarProcesoPrincipal devuelve False, ya se loguearon los detalles
-            logging.warning("Proceso principal finalizó sin realizar un commit efectivo.")
-            sys.exit(1) # Salir con error leve/advertencia
+            # Si devuelve False, ya se loguearon los detalles Y se guardó historial de error/no acción
+            logging.warning("Proceso principal finalizó sin realizar un commit efectivo o con errores (ver historial y logs).")
+            sys.exit(1) # Salir con código de error/advertencia
 
     except Exception as e:
         logging.critical(f"Error fatal no manejado en el bloque principal: {e}", exc_info=True)
-        sys.exit(2)
+        # Intentar grabar historial de error fatal si es posible
+        try:
+            historial = cargarHistorial() # Recargar por si acaso
+            historial.append(f"[ERROR FATAL] Error no manejado en __main__: {e}")
+            guardarHistorial(historial)
+        except:
+            pass # Evitar errores al intentar loguear el error final
+        sys.exit(2) # Código de error grave

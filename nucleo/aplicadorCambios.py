@@ -6,164 +6,163 @@ import shutil
 log = logging.getLogger(__name__)
 
 # Helper para validar rutas y evitar salida de la base
+# (No necesita cambiar su retorno, el error se genera en el llamador)
 def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False):
     logPrefix = "_validar_y_normalizar_ruta:"
     if not rutaRelativa or not isinstance(rutaRelativa, str) or '..' in rutaRelativa.split(os.sep):
         log.error(f"{logPrefix} Ruta relativa inválida o sospechosa: '{rutaRelativa}'")
         return None
-    # Normalizar y unir
     rutaAbs = os.path.normpath(os.path.join(rutaBase, rutaRelativa))
-    # Comprobar que sigue dentro de rutaBase
     if not rutaAbs.startswith(os.path.normpath(rutaBase) + os.sep) and rutaAbs != os.path.normpath(rutaBase):
          log.error(f"{logPrefix} Ruta calculada '{rutaAbs}' intenta salir de la base '{rutaBase}' (originó de '{rutaRelativa}')")
          return None
-    # Comprobar existencia si se requiere
     if asegurar_existencia and not os.path.exists(rutaAbs):
         log.error(f"{logPrefix} La ruta requerida no existe: '{rutaAbs}' (originó de '{rutaRelativa}')")
         return None
-
-    # Devolver ruta absoluta normalizada
     return rutaAbs
 
+# *** MODIFIED FUNCTION SIGNATURE AND RETURN VALUES ***
 def aplicarCambio(accion, rutaBase):
-    # Aplica la acción de refactorización descrita en 'accion' dentro de 'rutaBase'.
-    # Devuelve True si se aplicó con éxito, False en caso contrario.
+    """
+    Aplica la acción de refactorización descrita en 'accion' dentro de 'rutaBase'.
+    Devuelve:
+        (True, None) si se aplicó con éxito.
+        (False, "Mensaje de error") si falló.
+    """
     logPrefix = "aplicarCambio:"
 
     tipoAccion = accion.get("accion")
     detalles = accion.get("detalles", {})
-    descripcionLog = accion.get("descripcion", "Descripción no proporcionada") # Usar get con default
+    descripcionLog = accion.get("descripcion", "Descripción no proporcionada")
 
     if not tipoAccion:
-        log.error(f"{logPrefix} Acción inválida: falta 'accion'. Data: {accion}")
-        return False
+        err_msg = f"Acción inválida: falta 'accion'. Data: {accion}"
+        log.error(f"{logPrefix} {err_msg}")
+        return False, err_msg
     if not isinstance(detalles, dict):
-         log.error(f"{logPrefix} Acción inválida: 'detalles' no es un dict. Data: {accion}")
-         return False
+         err_msg = f"Acción inválida: 'detalles' no es un dict. Data: {accion}"
+         log.error(f"{logPrefix} {err_msg}")
+         return False, err_msg
 
     log.info(f"{logPrefix} Intentando aplicar acción '{tipoAccion}': {descripcionLog}")
-    rutaBaseNorm = os.path.normpath(rutaBase) # Normalizar una vez
+    rutaBaseNorm = os.path.normpath(rutaBase)
 
     try:
-        # --- Implementar lógica para cada tipo de acción ---
-
         if tipoAccion == "modificar_archivo":
             archivoRel = detalles.get("archivo")
             archivoAbs = _validar_y_normalizar_ruta(archivoRel, rutaBaseNorm, asegurar_existencia=True)
-            if not archivoAbs: return False # Error ya logueado en helper
+            if not archivoAbs:
+                err_msg = f"Ruta de archivo inválida o no encontrada: '{archivoRel}'"
+                # El helper ya logueó detalles, pero retornamos mensaje aquí
+                return False, err_msg
 
             codigoNuevo = detalles.get("codigo_nuevo")
             buscar = detalles.get("buscar")
             reemplazar = detalles.get("reemplazar") # Permitir None o vacío
 
-            # Validar que sea un archivo
             if not os.path.isfile(archivoAbs):
-                log.error(f"{logPrefix} La ruta para modificar no es un archivo: {archivoAbs}")
-                return False
+                err_msg = f"La ruta para modificar no es un archivo: {archivoAbs}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
             if isinstance(codigoNuevo, str):
-                # Opción 1: Reemplazo total (Peligroso)
                 log.warning(f"{logPrefix} Modificando archivo [REEMPLAZO TOTAL]: {archivoRel}")
                 try:
-                    # No es necesario makedirs aquí porque el archivo ya existe
                     with open(archivoAbs, 'w', encoding='utf-8') as f:
                         f.write(codigoNuevo)
                     log.info(f"{logPrefix} Archivo sobrescrito exitosamente: {archivoRel}")
-                    return True
+                    return True, None # Success
                 except Exception as e:
-                    log.error(f"{logPrefix} Error al sobrescribir archivo {archivoRel}: {e}")
-                    return False
+                    err_msg = f"Error al sobrescribir archivo {archivoRel}: {e}"
+                    log.error(f"{logPrefix} {err_msg}")
+                    return False, err_msg
 
-            elif isinstance(buscar, str) and reemplazar is not None: # reemplazar puede ser ""
-                # Opción 2: Buscar y reemplazar (Preferido)
+            elif isinstance(buscar, str) and reemplazar is not None:
                 log.info(f"{logPrefix} Modificando archivo [buscar/reemplazar]: {archivoRel}")
                 try:
                     with open(archivoAbs, 'r', encoding='utf-8', errors='ignore') as f:
                         contenidoOriginal = f.read()
 
-                    # Realizar el reemplazo
                     contenidoModificado = contenidoOriginal.replace(buscar, reemplazar)
 
                     if contenidoModificado == contenidoOriginal:
-                        # *** CAMBIO CLAVE: ERROR y FALLO si no hubo cambio ***
-                        log.error(f"{logPrefix} Texto a buscar no encontrado o el reemplazo no cambió el contenido en {archivoRel}. La acción falló. Revisar 'buscar': '{buscar[:100]}...'")
-                        # Devolver False para indicar fallo en la aplicación del cambio
-                        return False
+                        err_msg = f"Texto a buscar no encontrado o el reemplazo no cambió el contenido en {archivoRel}. Revisar 'buscar': '{buscar[:100]}...'"
+                        log.error(f"{logPrefix} {err_msg}")
+                        return False, err_msg # Failure because no change occurred
                     else:
-                        # Guardar el contenido modificado
                          with open(archivoAbs, 'w', encoding='utf-8') as f:
                              f.write(contenidoModificado)
                          log.info(f"{logPrefix} Archivo modificado exitosamente (buscar/reemplazar): {archivoRel}")
-                         return True
+                         return True, None # Success
                 except Exception as e:
-                    log.error(f"{logPrefix} Error durante buscar/reemplazar en {archivoRel}: {e}")
-                    return False
+                    err_msg = f"Error durante buscar/reemplazar en {archivoRel}: {e}"
+                    log.error(f"{logPrefix} {err_msg}")
+                    return False, err_msg
             else:
-                log.error(f"{logPrefix} Detalles insuficientes o inválidos para modificar_archivo. Se requiere 'codigo_nuevo' o ('buscar' y 'reemplazar'). Detalles: {detalles}")
-                return False
+                err_msg = f"Detalles insuficientes o inválidos para modificar_archivo. Se requiere 'codigo_nuevo' o ('buscar' y 'reemplazar'). Detalles: {detalles}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
-        # <<< INICIO: Acción mover_codigo (sin cambios respecto a la versión anterior) >>>
         elif tipoAccion == "mover_codigo":
             origenRel = detalles.get("archivo_origen")
             destinoRel = detalles.get("archivo_destino")
             codigoAMover = detalles.get("codigo_a_mover")
 
-            # Validación de parámetros
             if not isinstance(origenRel, str) or not isinstance(destinoRel, str) or not isinstance(codigoAMover, str):
-                log.error(f"{logPrefix} Faltan o son inválidos 'archivo_origen', 'archivo_destino' o 'codigo_a_mover' para mover_codigo.")
-                return False
+                err_msg = f"Faltan o son inválidos 'archivo_origen', 'archivo_destino' o 'codigo_a_mover' para mover_codigo."
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
             if not codigoAMover:
-                log.error(f"{logPrefix} El 'codigo_a_mover' no puede estar vacío.")
-                return False
+                err_msg = f"El 'codigo_a_mover' no puede estar vacío."
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
-            # Validar rutas (origen debe existir, destino no necesariamente pero debe ser válida)
             origenAbs = _validar_y_normalizar_ruta(origenRel, rutaBaseNorm, asegurar_existencia=True)
-            if not origenAbs: return False
-            destinoAbs = _validar_y_normalizar_ruta(destinoRel, rutaBaseNorm, asegurar_existencia=False) # Destino podría no existir aún
-            if not destinoAbs: return False
+            if not origenAbs:
+                return False, f"Archivo origen inválido o no encontrado: '{origenRel}'"
+            destinoAbs = _validar_y_normalizar_ruta(destinoRel, rutaBaseNorm, asegurar_existencia=False)
+            if not destinoAbs:
+                return False, f"Ruta destino inválida: '{destinoRel}'"
 
-             # Validar que origen y destino sean archivos (o vayan a serlo)
             if not os.path.isfile(origenAbs):
-                log.error(f"{logPrefix} El origen para mover_codigo no es un archivo: {origenAbs}")
-                return False
+                err_msg = f"El origen para mover_codigo no es un archivo: {origenAbs}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
             if os.path.exists(destinoAbs) and not os.path.isfile(destinoAbs):
-                log.error(f"{logPrefix} El destino para mover_codigo existe pero no es un archivo: {destinoAbs}")
-                return False
+                err_msg = f"El destino para mover_codigo existe pero no es un archivo: {destinoAbs}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
             log.info(f"{logPrefix} Moviendo código de '{origenRel}' a '{destinoRel}'")
 
             try:
-                # --- Leer Origen ---
                 with open(origenAbs, 'r', encoding='utf-8', errors='ignore') as f:
                     contenidoOrigen = f.read()
 
-                # --- Verificar que el código a mover existe en origen ---
                 if codigoAMover not in contenidoOrigen:
-                    log.error(f"{logPrefix} El 'codigo_a_mover' NO SE ENCONTRÓ en {origenRel}. Abortando.")
+                    err_msg = f"El 'codigo_a_mover' NO SE ENCONTRÓ textualmente en {origenRel}."
+                    log.error(f"{logPrefix} {err_msg}")
                     log.debug(f"{logPrefix} Código buscado (primeros 200 chars):\n{codigoAMover[:200]}")
-                    return False
+                    return False, err_msg
 
-                # --- Leer o preparar Destino ---
                 contenidoDestino = ""
                 if os.path.exists(destinoAbs):
                     with open(destinoAbs, 'r', encoding='utf-8', errors='ignore') as f:
                         contenidoDestino = f.read()
                 else:
-                    # Asegurar directorio destino si el archivo no existe
                     os.makedirs(os.path.dirname(destinoAbs), exist_ok=True)
                     log.info(f"{logPrefix} Archivo destino '{destinoRel}' no existe, se creará.")
 
-                # --- Añadir código al Destino (al final, con separadores) ---
                 contenidoDestinoModificado = contenidoDestino.rstrip() + "\n\n" + codigoAMover.strip() + "\n"
-
-                # --- Eliminar código del Origen (reemplazo simple) ---
-                contenidoOrigenModificado = contenidoOrigen.replace(codigoAMover, "", 1) # Reemplazar solo la primera ocurrencia
+                contenidoOrigenModificado = contenidoOrigen.replace(codigoAMover, "", 1)
 
                 if contenidoOrigenModificado == contenidoOrigen:
-                    log.error(f"{logPrefix} ¡ERROR INESPERADO! El código se encontró pero el replace() no modificó el origen {origenRel}. Revisar código y contenido.")
-                    return False
+                    # This should theoretically not happen if `codigoAMover in contenidoOrigen` was true,
+                    # unless there are weird encoding/whitespace issues. Treat as error.
+                    err_msg = f"¡ERROR INESPERADO! El código se encontró pero replace() no modificó el origen {origenRel}. Verificar código y contenido."
+                    log.error(f"{logPrefix} {err_msg}")
+                    return False, err_msg
 
-                # --- Escribir ambos archivos ---
                 with open(destinoAbs, 'w', encoding='utf-8') as f:
                     f.write(contenidoDestinoModificado)
                 log.info(f"{logPrefix} Código añadido a {destinoRel}")
@@ -173,53 +172,60 @@ def aplicarCambio(accion, rutaBase):
                 log.info(f"{logPrefix} Código eliminado de {origenRel}")
 
                 log.info(f"{logPrefix} Acción 'mover_codigo' completada exitosamente.")
-                return True
+                return True, None # Success
 
             except Exception as e:
-                log.error(f"{logPrefix} Error durante la acción 'mover_codigo' ({origenRel} -> {destinoRel}): {e}", exc_info=True)
-                return False
-        # <<< FIN: Acción mover_codigo >>>
+                err_msg = f"Error durante la acción 'mover_codigo' ({origenRel} -> {destinoRel}): {e}"
+                log.error(f"{logPrefix} {err_msg}", exc_info=True)
+                return False, err_msg
 
-        # ... (Resto de acciones: mover_archivo, crear_archivo, eliminar_archivo, crear_directorio - sin cambios) ...
         elif tipoAccion == "mover_archivo":
             origenRel = detalles.get("archivo_origen")
             destinoRel = detalles.get("archivo_destino")
 
             origenAbs = _validar_y_normalizar_ruta(origenRel, rutaBaseNorm, asegurar_existencia=True)
-            if not origenAbs: return False
+            if not origenAbs:
+                return False, f"Archivo origen inválido o no encontrado: '{origenRel}'"
             destinoAbs = _validar_y_normalizar_ruta(destinoRel, rutaBaseNorm, asegurar_existencia=False)
-            if not destinoAbs: return False
+            if not destinoAbs:
+                return False, f"Ruta destino inválida: '{destinoRel}'"
 
             if not os.path.isfile(origenAbs):
-                 log.error(f"{logPrefix} El origen a mover no es un archivo: {origenAbs}")
-                 return False
+                 err_msg = f"El origen a mover no es un archivo: {origenAbs}"
+                 log.error(f"{logPrefix} {err_msg}")
+                 return False, err_msg
             if os.path.exists(destinoAbs):
-                log.error(f"{logPrefix} Archivo destino ya existe, no se sobrescribirá: {destinoAbs} (rel: {destinoRel})")
-                return False
+                err_msg = f"Archivo destino ya existe, no se sobrescribirá: {destinoAbs} (rel: {destinoRel})"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
             log.info(f"{logPrefix} Moviendo archivo de '{origenRel}' a '{destinoRel}'")
             try:
                 os.makedirs(os.path.dirname(destinoAbs), exist_ok=True)
                 shutil.move(origenAbs, destinoAbs)
                 log.info(f"{logPrefix} Archivo movido exitosamente.")
-                return True
+                return True, None # Success
             except Exception as e:
-                 log.error(f"{logPrefix} Error al mover archivo {origenRel} a {destinoRel}: {e}")
-                 return False
+                 err_msg = f"Error al mover archivo {origenRel} a {destinoRel}: {e}"
+                 log.error(f"{logPrefix} {err_msg}")
+                 return False, err_msg
 
         elif tipoAccion == "crear_archivo":
             archivoRel = detalles.get("archivo")
             contenido = detalles.get("contenido", "")
 
             archivoAbs = _validar_y_normalizar_ruta(archivoRel, rutaBaseNorm, asegurar_existencia=False)
-            if not archivoAbs: return False
+            if not archivoAbs:
+                return False, f"Ruta de archivo inválida: '{archivoRel}'"
 
             if not isinstance(contenido, str):
-                 log.error(f"{logPrefix} El 'contenido' para crear_archivo debe ser una cadena.")
-                 return False
+                 err_msg = f"El 'contenido' para crear_archivo debe ser una cadena."
+                 log.error(f"{logPrefix} {err_msg}")
+                 return False, err_msg
             if os.path.exists(archivoAbs):
-                 log.error(f"{logPrefix} Archivo a crear ya existe: {archivoAbs} (rel: {archivoRel})")
-                 return False
+                 err_msg = f"Archivo a crear ya existe: {archivoAbs} (rel: {archivoRel})"
+                 log.error(f"{logPrefix} {err_msg}")
+                 return False, err_msg
 
             log.info(f"{logPrefix} Creando archivo: {archivoRel}")
             try:
@@ -227,62 +233,77 @@ def aplicarCambio(accion, rutaBase):
                 with open(archivoAbs, 'w', encoding='utf-8') as f:
                     f.write(contenido)
                 log.info(f"{logPrefix} Archivo creado exitosamente.")
-                return True
+                return True, None # Success
             except Exception as e:
-                log.error(f"{logPrefix} Error al crear archivo {archivoRel}: {e}")
-                return False
+                err_msg = f"Error al crear archivo {archivoRel}: {e}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
         elif tipoAccion == "eliminar_archivo":
             archivoRel = detalles.get("archivo")
             archivoAbs = _validar_y_normalizar_ruta(archivoRel, rutaBaseNorm, asegurar_existencia=False)
-            if not archivoAbs: return False
+            # No fallar si la validación inicial falla, pero sí si no existe al intentar borrar
+            if not archivoAbs:
+                 return False, f"Ruta de archivo inválida: '{archivoRel}'"
 
             log.info(f"{logPrefix} Eliminando archivo: {archivoRel}")
             if not os.path.exists(archivoAbs):
-                log.warning(f"{logPrefix} Archivo a eliminar no encontrado (¿ya borrado?): {archivoAbs} (rel: {archivoRel})")
-                return True
+                # Considerar esto éxito si el objetivo es que no exista
+                log.warning(f"{logPrefix} Archivo a eliminar no encontrado (¿ya borrado?): {archivoAbs} (rel: {archivoRel}). Considerando éxito.")
+                return True, None
             if not os.path.isfile(archivoAbs):
-                 log.error(f"{logPrefix} La ruta a eliminar no es un archivo: {archivoAbs}")
-                 return False
+                 err_msg = f"La ruta a eliminar no es un archivo: {archivoAbs}"
+                 log.error(f"{logPrefix} {err_msg}")
+                 return False, err_msg
 
             try:
                 os.remove(archivoAbs)
                 log.info(f"{logPrefix} Archivo eliminado exitosamente.")
-                return True
+                return True, None # Success
             except Exception as e:
-                log.error(f"{logPrefix} Error al eliminar archivo {archivoRel}: {e}")
-                return False
+                err_msg = f"Error al eliminar archivo {archivoRel}: {e}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
         elif tipoAccion == "crear_directorio":
             dirRel = detalles.get("directorio")
             dirAbs = _validar_y_normalizar_ruta(dirRel, rutaBaseNorm, asegurar_existencia=False)
-            if not dirAbs: return False
+            if not dirAbs:
+                return False, f"Ruta de directorio inválida: '{dirRel}'"
 
             log.info(f"{logPrefix} Creando directorio: {dirRel}")
             if os.path.exists(dirAbs):
                 if os.path.isdir(dirAbs):
-                     log.warning(f"{logPrefix} El directorio a crear ya existe: {dirAbs} (rel: {dirRel})")
-                     return True
+                     log.warning(f"{logPrefix} El directorio a crear ya existe: {dirAbs} (rel: {dirRel}). Considerando éxito.")
+                     return True, None # Success (already exists)
                 else:
-                     log.error(f"{logPrefix} Existe un archivo con el mismo nombre que el directorio a crear: {dirAbs}")
-                     return False
+                     err_msg = f"Existe un archivo con el mismo nombre que el directorio a crear: {dirAbs}"
+                     log.error(f"{logPrefix} {err_msg}")
+                     return False, err_msg
 
             try:
-                os.makedirs(dirAbs, exist_ok=True)
+                os.makedirs(dirAbs, exist_ok=True) # exist_ok=True handles race conditions slightly better
                 log.info(f"{logPrefix} Directorio creado exitosamente (o ya existía).")
-                return True
+                return True, None # Success
             except Exception as e:
-                log.error(f"{logPrefix} Error al crear directorio {dirRel}: {e}")
-                return False
+                err_msg = f"Error al crear directorio {dirRel}: {e}"
+                log.error(f"{logPrefix} {err_msg}")
+                return False, err_msg
 
         elif tipoAccion == "no_accion":
             log.info(f"{logPrefix} Acción 'no_accion' recibida. No se aplican cambios.")
-            return True
+            # Consider 'no_accion' a success in terms of applying the suggestion (which was to do nothing)
+            # But it shouldn't lead to a commit or history entry other than maybe debug logs.
+            # The caller (principal.py) should handle this.
+            # For consistency, return True, None.
+            return True, None # Success (no action needed)
 
         else:
-            log.error(f"{logPrefix} Tipo de acción NO SOPORTADO encontrado: '{tipoAccion}'. Acción completa: {accion}")
-            return False
+            err_msg = f"Tipo de acción NO SOPORTADO encontrado: '{tipoAccion}'. Acción completa: {accion}"
+            log.error(f"{logPrefix} {err_msg}")
+            return False, err_msg
 
     except Exception as e:
-        log.error(f"{logPrefix} Error INESPERADO aplicando acción '{tipoAccion}' en {rutaBaseNorm}: {e}", exc_info=True)
-        return False
+        err_msg = f"Error INESPERADO aplicando acción '{tipoAccion}' en {rutaBaseNorm}: {e}"
+        log.error(f"{logPrefix} {err_msg}", exc_info=True)
+        return False, err_msg
