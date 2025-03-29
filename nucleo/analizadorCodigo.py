@@ -161,6 +161,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     promptPartes.append(
         "Tu tarea es analizar el código fuente proporcionado y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA.")
     promptPartes.append("Prioriza acciones como: eliminar código muerto o comentado, simplificar condicionales, añadir validaciones básicas (sanitizar inputs, escapar outputs), usar funciones existentes para reducir duplicación, o mover fragmentos de código (funciones, clases pequeñas) a archivos más apropiados si mejora la organización, si el codigo no tiene una arquitectura, intenta mantener una sencilla, no rompas la logica de wordpress.")
+    promptPartes.append("Algunas cosas interesantes sobre este proyecto: primero, el codigo es preferible que sea en español, las variables o funciones nuevas en vez de funcion_nombre, mejor funcionNombre, comentarios en español, el proyecto carece de arquitectura y organización, el seo es importante, la seguridad y optimización tambien son importantes")
 
     # <<< INICIO: Reglas importantes >>>
     promptPartes.append("\n--- REGLAS IMPORTANTES ---")
