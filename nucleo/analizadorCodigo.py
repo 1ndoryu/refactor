@@ -112,7 +112,8 @@ def leerArchivos(listaArchivos, rutaBase):
             log.error(f"{logPrefix} Error leyendo archivo {rutaAbsoluta}: {e}")
             archivosFallidos += 1
 
-    log.info(f"{logPrefix} Lectura completada. Leídos: {archivosLeidos}, Fallidos: {archivosFallidos}. Tamaño total del contexto: {bytesTotales / 1024:.2f} KB")
+    tamanoKB = bytesTotales / 1024
+    log.info(f"{logPrefix} Lectura completada. Leídos: {archivosLeidos}, Fallidos: {archivosFallidos}. Tamaño total del contexto: {tamanoKB:.2f} KB")
     if bytesTotales == 0 and archivosLeidos > 0:
         log.warning(
             f"{logPrefix} Se leyeron {archivosLeidos} archivos pero el tamaño total es 0 bytes. ¿Archivos vacíos?")
@@ -151,7 +152,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     promptPartes.append("Eres un asistente experto en refactorización de código PHP y JavaScript, enfocado en mejorar la calidad, legibilidad, mantenibilidad y seguridad de proyectos web, especialmente temas y plugins de WordPress.")
     promptPartes.append(
         "Tu tarea es analizar el código fuente proporcionado y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA.")
-    promptPartes.append("Prioriza acciones como: eliminar código muerto o comentado, simplificar condicionales, añadir validaciones básicas (sanitizar inputs, escapar outputs), o mover fragmentos de código (funciones, clases pequeñas) a archivos más apropiados si mejora la organización.")
+    promptPartes.append("Prioriza acciones como: eliminar código muerto o comentado, simplificar condicionales, añadir validaciones básicas (sanitizar inputs, escapar outputs), usar funciones existentes para reducir duplicación, o mover fragmentos de código (funciones, clases pequeñas) a archivos más apropiados si mejora la organización.") # Added detail on using existing functions
 
     # <<< INICIO: Reglas importantes >>>
     promptPartes.append("\n--- REGLAS IMPORTANTES ---")
@@ -160,13 +161,14 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     promptPartes.append("3.  **VALIDACIÓN PREVIA**: ANTES de proponer una acción, verifica mentalmente:")
     promptPartes.append("    -   ¿Existe realmente el archivo/código que quieres modificar/mover?")
     promptPartes.append("    -   ¿Las rutas de archivo son CORRECTAS y RELATIVAS a la raíz del proyecto?")
-    promptPartes.append("    -   Para `mover_codigo`, ¿el `codigo_a_mover` es EXACTO y está presente en `archivo_origen`?")
-    promptPartes.append("    -   Para `mover_codigo`, ¿el `archivo_destino` es apropiado? (Normalmente debe existir, a menos que sea parte de una refactorización mayor que implique crearlo).")
+    promptPartes.append("    -   Para `modificar_archivo` con `buscar`/`reemplazar`: ¿El valor de `buscar` es un SUBSTRING LITERAL y EXACTO del contenido del archivo `archivo`? NO incluyas comentarios, etiquetas `<?php`, `?>`, espacios en blanco iniciales/finales u otro código circundante que NO sea parte ÍNTEGRA y CONTIGUA del bloque que quieres encontrar. ¡LA PRECISIÓN ES CRÍTICA!") # <<< MODIFIED/ADDED RULE
+    promptPartes.append("    -   Para `mover_codigo`: ¿El `codigo_a_mover` es EXACTO y está presente en `archivo_origen`?")
+    promptPartes.append("    -   Para `mover_codigo`: ¿El `archivo_destino` es apropiado? (Normalmente debe existir, a menos que sea parte de una refactorización mayor que implique crearlo).")
     promptPartes.append("    -   ¿El cambio propuesto podría romper referencias o dependencias? Si es así, NO lo propongas o advierte sobre ello.")
     promptPartes.append("4.  **NO RENOMBRES SIN ESTAR SEGURO**: Evita renombrar funciones o variables automáticamente. Si es necesario, propónlo como una acción `modificar_archivo` separada y justifica por qué es seguro.")
     promptPartes.append("5.  **CONSIDERA EL HISTORIAL**: Revisa el historial reciente. No repitas acciones, no reviertas cambios inmediatamente, y ten en cuenta la dirección general de la refactorización.")
-    promptPartes.append("6.  **SI LA VALIDACIÓN FALLA**: Si alguna verificación previa falla (ej: el código a mover ya no existe donde esperabas), responde OBLIGATORIAMENTE con `no_accion` y explica el motivo en 'razonamiento'.")
-    promptPartes.append("7.  **AGREGA COMENTARIOS INDICADO TUS CAMBIOS**: Si escribes codigo nuevo, siempre agrega un comentario indicando tus cambios e indica que los cambios fueron automaticos con IA.")
+    promptPartes.append("6.  **SI LA VALIDACIÓN FALLA**: Si alguna verificación previa falla (ej: el código a mover/buscar ya no existe donde esperabas), responde OBLIGATORIAMENTE con `no_accion` y explica el motivo en 'razonamiento'.")
+    promptPartes.append("7.  **AGREGA COMENTARIOS INDICADO TUS CAMBIOS**: Si escribes código nuevo, agrega un comentario indicando que los cambios fueron automáticos con IA.")
     # <<< FIN: Reglas importantes >>>
 
 
@@ -182,9 +184,9 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     tamanoContextoKB = len(contextoCodigo.encode('utf-8')) / 1024
     log.info(
         f"{logPrefix} Tamaño del contexto a enviar a Gemini: {tamanoContextoKB:.2f} KB")
-    if tamanoContextoKB > 3000: # Umbral de advertencia
+    if tamanoContextoKB > 1800: # Reducido ligeramente el umbral de advertencia por si acaso
         log.warning(
-            f"{logPrefix} El tamaño del contexto ({tamanoContextoKB:.2f} KB) es muy grande y puede exceder límites.")
+            f"{logPrefix} El tamaño del contexto ({tamanoContextoKB:.2f} KB) es grande y puede acercarse a límites o afectar rendimiento/calidad.")
     promptPartes.append(contextoCodigo)
     promptPartes.append("--- FIN CÓDIGO ---")
 
@@ -198,7 +200,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         "3. Proporciona TODOS los detalles necesarios en 'detalles' para aplicar el cambio AUTOMÁTICAMENTE. Usa rutas RELATIVAS.")
     promptPartes.append(
         "4. RESPONDE ÚNICAMENTE EN FORMATO JSON VÁLIDO, sin texto fuera del JSON. Estructura:")
-    # *** CAMBIO: Refinamiento en la descripción del campo "buscar" ***
+    # *** MANTENEMOS la estructura JSON como estaba ***
     promptPartes.append("""
 ```json
 {
@@ -207,9 +209,9 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
   "detalles": {
     // --- Campos para "modificar_archivo" ---
     // "archivo": "ruta/relativa/al/archivo.php", // Obligatorio
-    // "buscar": "CODIGO_O_TEXTO_EXACTO_A_BUSCAR", // Obligatorio si se usa reemplazar. ¡DEBE SER LA CADENA LITERAL DEL ARCHIVO, SIN COMENTARIOS O TAGS EXTERNOS SI NO SON PARTE ÍNTEGRA DEL BLOQUE A ENCONTRAR!
+    // "buscar": "CODIGO_O_TEXTO_LITERAL_EXACTO_A_BUSCAR", // Obligatorio si se usa reemplazar. ¡DEBE SER LA CADENA LITERAL EXACTA DEL ARCHIVO, SIN CÓDIGO EXTERNO NI ESPACIOS EXTRAÑOS! ¡Verifica que existe EXACTAMENTE así!
     // "reemplazar": "CODIGO_O_TEXTO_DE_REEMPLAZO", // Obligatorio si se usa buscar. Usa "" para eliminar.
-    // "codigo_nuevo": "CONTENIDO_COMPLETO_DEL_ARCHIVO", // ¡USAR CON EXTREMA PRECAUCIÓN!
+    // "codigo_nuevo": "CONTENIDO_COMPLETO_DEL_ARCHIVO", // ¡USAR CON EXTREMA PRECAUCIÓN! Solo si reemplazar no es viable.
     // --- Campos para "mover_archivo" (Mueve fichero ENTERO) ---
     // "archivo_origen": "ruta/relativa/origen.php", // Obligatorio, DEBE EXISTIR
     // "archivo_destino": "nueva/ruta/relativa/destino.php", // Obligatorio, la ruta padre debe ser válida
@@ -231,17 +233,17 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     promptPartes.append(
         "TIPOS DE ACCION VÁLIDOS: `modificar_archivo`, `mover_archivo`, `mover_codigo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`.")
     promptPartes.append(
-        "Para `modificar_archivo`, prefiere `buscar`/`reemplazar` para cambios pequeños.")
-    # *** CAMBIO: Instrucción adicional sobre "buscar" ***
+        "Para `modificar_archivo`, prefiere `buscar`/`reemplazar` para cambios pequeños y específicos.")
+    # *** NUEVA INSTRUCCIÓN REFORZADA ***
     promptPartes.append(
-        "Para `modificar_archivo` con `buscar`/`reemplazar`: ASEGÚRATE de que el valor de `buscar` sea la cadena de texto *exacta* tal como aparece en el archivo. Evita incluir comentarios, etiquetas `<?php` o espacios en blanco circundantes que no formen parte intrínseca del bloque específico que necesitas encontrar.")
+        "**MUY IMPORTANTE** para `modificar_archivo` con `buscar`/`reemplazar`: El valor de `buscar` DEBE ser el texto *exactamente* como aparece en el archivo. Encuentra el bloque de código más pequeño y único que necesitas modificar. NO incluyas NADA fuera de ese bloque (ni `<?php`, ni comentarios no relacionados, ni espacios en blanco iniciales/finales que no sean parte del bloque). Si dudas, es mejor ser más específico y pequeño con `buscar`. Verifica TU MISMO que la cadena `buscar` existe literalmente en el archivo antes de proponerla.")
     promptPartes.append(
         "Para `mover_codigo`, asegúrate que `codigo_a_mover` es el fragmento EXACTO y COMPLETO que debe moverse.")
     promptPartes.append(
         "ASEGÚRATE que las rutas de archivo en 'detalles' sean RELATIVAS a la raíz del proyecto, EXACTAS y VÁLIDAS según la estructura proporcionada.")
     promptPartes.append(
-        "5. Si tras un análisis cuidadoso y aplicar las validaciones, no encuentras una refactorización segura y útil, o si la validación falla, responde OBLIGATORIAMENTE con:")
-    promptPartes.append("`{\"accion\": \"no_accion\", \"descripcion\": \"No se identificaron acciones de refactorización inmediatas o la validación previa falló.\", \"detalles\": {}, \"razonamiento\": \"[Explica brevemente por qué no hay acción o qué validación falló]\"}`")
+        "5. Si tras un análisis cuidadoso y aplicar las validaciones, no encuentras una refactorización segura y útil, o si la validación falla (especialmente si no puedes encontrar un `buscar` exacto), responde OBLIGATORIAMENTE con:") # Reforzado
+    promptPartes.append("`{\"accion\": \"no_accion\", \"descripcion\": \"No se identificaron acciones de refactorización inmediatas o la validación previa falló.\", \"detalles\": {}, \"razonamiento\": \"[Explica brevemente por qué no hay acción o qué validación falló, ej: 'No se encontró el texto exacto a buscar en el archivo X']\"}`") # Ejemplo en razonamiento
     promptPartes.append(
         "6. Valida internamente que tu respuesta sea un JSON perfecto antes de enviarla.")
 
@@ -260,7 +262,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
             promptCompleto,
             generation_config=genai.types.GenerationConfig(
                 # temperature=0.3 # Más determinista si es necesario
-                temperature=0.4 # Un poco más bajo para precisión
+                temperature=0.4 # Mantenemos T=0.4
             ),
             safety_settings=safety_settings if safety_settings else None
         )
@@ -268,9 +270,8 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         log.info(f"{logPrefix} Respuesta recibida de Gemini.")
 
         textoRespuesta = ""
-        # Extracción robusta del texto de la respuesta
+        # Extracción robusta del texto de la respuesta (sin cambios aquí)
         try:
-            # Intenta acceder a la respuesta de la forma más común y robusta
             if hasattr(respuesta, 'text') and respuesta.text:
                  textoRespuesta = respuesta.text
             elif respuesta.parts:
@@ -279,9 +280,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
                  textoRespuesta = "".join(part.text for part in respuesta.candidates[0].content.parts)
 
             if not textoRespuesta:
-                # Loguear razones si no hay texto (bloqueo, etc.)
                 block_reason = getattr(getattr(respuesta, 'prompt_feedback', None), 'block_reason', None)
-                # Acceder a finish_reason y safety_ratings a través de candidates si existen
                 finish_reason = None
                 safety_ratings = None
                 if respuesta.candidates:
@@ -290,8 +289,6 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
                     safety_ratings = getattr(candidate, 'safety_ratings', None)
 
                 log.error(f"{logPrefix} La respuesta de Gemini está vacía o no se pudo extraer texto. Block Reason: {block_reason}, Finish Reason: {finish_reason}, Safety Ratings: {safety_ratings}")
-                # Intentar loguear el objeto de respuesta completo para depuración si no hay texto
-                # log.debug(f"{logPrefix} Objeto Respuesta Completo (sin texto): {respuesta}")
                 return None
 
         except (ValueError, AttributeError, IndexError) as e:
@@ -301,21 +298,19 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
             log.error(f"{logPrefix} Error inesperado extrayendo texto de la respuesta: {e}", exc_info=True)
             return None
 
-        # Limpiar posible formato markdown de bloque de código
+        # Limpiar posible formato markdown (sin cambios aquí)
         textoLimpio = textoRespuesta.strip()
         if textoLimpio.startswith("```json"):
-            # Quita ```json al inicio y ``` al final
             textoLimpio = textoLimpio[7:]
             if textoLimpio.endswith("```"):
                 textoLimpio = textoLimpio[:-3]
         elif textoLimpio.startswith("```"):
-            # Quita ``` al inicio y al final si no tiene 'json'
              textoLimpio = textoLimpio[3:]
              if textoLimpio.endswith("```"):
                 textoLimpio = textoLimpio[:-3]
         textoLimpio = textoLimpio.strip()
 
-        # Validación básica antes de parsear
+        # Validación básica antes de parsear (sin cambios aquí)
         if not textoLimpio.startswith("{") or not textoLimpio.endswith("}"):
              log.error(f"{logPrefix} Respuesta de Gemini no parece ser un JSON válido (no empieza/termina con {{}}). Respuesta (limpia):\n{textoLimpio}\nRespuesta Original:\n{textoRespuesta}")
              return None
@@ -325,7 +320,6 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         try:
             sugerenciaJson = json.loads(textoLimpio)
             log.info(f"{logPrefix} Sugerencia JSON parseada correctamente. Acción: {sugerenciaJson.get('accion')}")
-            # Validar campos clave básicos
             if "accion" not in sugerenciaJson or "detalles" not in sugerenciaJson or "descripcion" not in sugerenciaJson:
                 log.error(f"{logPrefix} JSON parseado pero le faltan campos obligatorios (accion, detalles, descripcion). JSON: {sugerenciaJson}")
                 if "razonamiento" in sugerenciaJson:
@@ -341,7 +335,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
             log.error(f"{logPrefix} Error inesperado procesando/parseando respuesta JSON: {e}", exc_info=True)
             return None
 
-    # Manejo de errores específicos de la API
+    # Manejo de errores específicos de la API (sin cambios aquí)
     except google.api_core.exceptions.ResourceExhausted as e:
         log.error(f"{logPrefix} Error de cuota de API Gemini (ResourceExhausted): {e}. Revisa límites.")
         return None
@@ -350,7 +344,6 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         return None
     except google.generativeai.types.BlockedPromptException as e:
          log.error(f"{logPrefix} El prompt fue bloqueado por Gemini: {e}")
-         # Intentar obtener feedback si está disponible
          if hasattr(respuesta, 'prompt_feedback'):
               log.error(f"{logPrefix} Prompt Feedback: {respuesta.prompt_feedback}")
          else:
@@ -358,7 +351,6 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
          return None
     except google.generativeai.types.StopCandidateException as e:
          log.error(f"{logPrefix} Generación detenida inesperadamente por safety u otra razón: {e}")
-         # Intentar obtener detalles del candidato si existen
          if respuesta and respuesta.candidates:
              candidate = respuesta.candidates[0]
              finish_reason = getattr(candidate, 'finish_reason', 'Desconocida')
@@ -369,7 +361,6 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
          return None
     except Exception as e: # Captura genérica para cualquier otro error de API
         log.error(f"{logPrefix} Error durante la llamada a la API de Gemini: {type(e).__name__} - {e}", exc_info=True)
-        # Intentar obtener feedback si está disponible en la respuesta (aunque pueda no haberse formado completamente)
         if 'respuesta' in locals() and hasattr(respuesta, 'prompt_feedback'):
              log.error(f"{logPrefix} Prompt Feedback (si disponible): {respuesta.prompt_feedback}")
         return None
