@@ -1,4 +1,9 @@
-# Objectivo 
+# 29 de marzo
+
+1. [BIEN] Parece mover codigo correctamente de un documento a otro. 
+2. [MAL] Suele tener un error como este "Texto a buscar no encontrado o la primera ocurrencia ya coincidía con el reemplazo en TemplateFeedSample.php."
+
+# Objectivo iniciales
 
 El objectivo es crear una programa (lo mas razonable parece ser llamarlo agente) que clone un repositorio para un determinado proyecto, y refactorice, organice, resuelva problemas, mejore la legibilidad. Sera para un proyecto en especificos, hay algunas cosas a tener en cuenta. 
 
