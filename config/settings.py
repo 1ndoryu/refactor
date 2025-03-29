@@ -8,7 +8,7 @@ load_dotenv()
 
 # --- Configuracion Esencial ---
 GEMINIAPIKEY = os.getenv("GEMINI_API_KEY")
-REPOSITORIOURL = "git@github.com:2upra/2upra3v.git"  # Reemplaza con tu URL real
+REPOSITORIOURL = "git@github.com:2upra/2upra3v.git"  
 
 # --- Configuracion de Rutas ---
 # __file__ es la ruta de settings.py
@@ -23,7 +23,7 @@ RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 RAMATRABAJO = "refactor"  # Nombre de la rama donde se aplicarán los cambios
 
 # --- Configuracion de Gemini ---
-MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-1.5-pro-latest")
+MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-thinking-exp-01-21")
 N_HISTORIAL_CONTEXTO = 30  # Cuántas entradas recientes del historial enviar a Gemini
 
 # --- Configuracion de Analisis (Opcional - No se usa por ahora) ---
