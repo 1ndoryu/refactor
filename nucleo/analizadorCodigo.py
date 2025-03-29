@@ -168,7 +168,8 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         "    -   ¿Existe realmente el archivo/código que quieres modificar/mover?")
     promptPartes.append(
         "    -   ¿Las rutas de archivo son CORRECTAS y RELATIVAS a la raíz del proyecto?")
-    promptPartes.append("    -   Para `modificar_archivo` con `buscar`/`reemplazar`: ¿El valor de `buscar` es un SUBSTRING LITERAL y EXACTO del contenido del archivo `archivo`? NO incluyas comentarios, etiquetas `<?php`, `?>`, espacios en blanco iniciales/finales u otro código circundante que NO sea parte ÍNTEGRA y CONTIGUA del bloque que quieres encontrar. ¡LA PRECISIÓN ES CRÍTICA!")  # <<< MODIFIED/ADDED RULE
+    promptPartes.append(
+        "    -   Para `modificar_archivo` con `buscar`/`reemplazar`: ¿El valor de `buscar` es un SUBSTRING LITERAL y EXACTO del contenido del archivo `archivo`? NO incluyas comentarios, etiquetas `<?php`, `?>`, espacios en blanco iniciales/finales u otro código circundante que NO sea parte ÍNTEGRA y CONTIGUA del bloque que quieres encontrar. **IMPORTANTE: Si el texto en `buscar` aparece MÚLTIPLES VECES en el archivo, la acción solo modificará la PRIMERA ocurrencia. Asegúrate de que esto sea lo deseado. Si necesitas modificar otra ocurrencia o todas, considera si `buscar` puede hacerse más específico o si es necesaria otra acción.** ¡LA PRECISIÓN ES CRÍTICA!") 
     promptPartes.append(
         "    -   Para `mover_codigo`: ¿El `codigo_a_mover` es EXACTO y está presente en `archivo_origen`?")
     promptPartes.append(
