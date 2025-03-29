@@ -3,86 +3,120 @@ import logging
 import sys
 import os
 import json
-import argparse
+import argparse  # Para argumentos de línea de comando
 from config import settings
+# Importar módulos del núcleo
 from nucleo import manejadorGit
 from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 
+# Configuración del logging (mover a una función para claridad)
+
+
 def configurarLogging():
-    logRaiz = logging.getLogger()
-    if logRaiz.handlers:
-        logging.info("configurarLogging: Sistema de logging ya configurado.")
+    # Usar logging.getLogger() directamente aquí para configurar el logger raíz
+    log_raiz = logging.getLogger()
+    if log_raiz.handlers:  # Evitar añadir handlers múltiples si ya está configurado
+        # Usar logging porque log_raiz es local a esta función
+        logging.info("configurarLogging: Logging ya configurado.")
         return
 
-    nivelLog = logging.INFO
+    nivelLog = logging.INFO  # Nivel por defecto INFO
     formatoLog = '%(asctime)s - %(levelname)s - %(name)s.%(funcName)s: %(message)s'
     fechaFormato = '%Y-%m-%d %H:%M:%S'
 
+    # Configurar salida a consola
     consolaHandler = logging.StreamHandler(sys.stdout)
     consolaHandler.setFormatter(logging.Formatter(formatoLog, fechaFormato))
-    logRaiz.addHandler(consolaHandler)
+    log_raiz.addHandler(consolaHandler)
 
+    # Configurar salida a archivo
     try:
-        rutaLogArchivo = os.path.join(settings.rutaBaseProyecto, "refactor.log")
+        # Asegurarse que la ruta base existe para el log de refactorización
+        rutaLogArchivo = os.path.join(
+            settings.RUTA_BASE_PROYECTO, "refactor.log")
         os.makedirs(os.path.dirname(rutaLogArchivo), exist_ok=True)
         archivoHandler = logging.FileHandler(rutaLogArchivo, encoding='utf-8')
-        archivoHandler.setFormatter(logging.Formatter(formatoLog, fechaFormato))
-        logRaiz.addHandler(archivoHandler)
+        archivoHandler.setFormatter(
+            logging.Formatter(formatoLog, fechaFormato))
+        log_raiz.addHandler(archivoHandler)
     except Exception as e:
-        logging.error(f"configurarLogging: No se pudo crear el archivo de log '{rutaLogArchivo}': {e}")
+        # Usar logging aquí porque log_raiz puede no estar completamente listo si falla el archivo
+        logging.error(
+            f"configurarLogging: No se pudo crear el archivo de log '{rutaLogArchivo}': {e}")
 
-    logRaiz.setLevel(nivelLog)
+    log_raiz.setLevel(nivelLog)
+    # Log inicial después de configurar handlers (usando logging)
     logging.info("="*50)
     logging.info("configurarLogging: Sistema de logging configurado.")
-    logging.info(f"configurarLogging: Nivel de log establecido a {logging.getLevelName(logRaiz.level)}")
+    logging.info(
+        f"configurarLogging: Nivel de log establecido a {logging.getLevelName(log_raiz.level)}")
 
+
+# Funciones para manejar el historial persistente
 def cargarHistorial():
-    prefijoLog = "cargarHistorial:"
+    logPrefix = "cargarHistorial:"
     historial = []
-    rutaArchivoHistorial = settings.rutaHistorial
+    rutaArchivoHistorial = settings.RUTAHISTORIAL
     if not os.path.exists(rutaArchivoHistorial):
-        logging.info(f"{prefijoLog} Archivo de historial no encontrado en {rutaArchivoHistorial}. Iniciando historial vacío.")
+        # CORRECCIÓN: Usar logging.info en lugar de log.info
+        logging.info(
+            f"{logPrefix} Archivo de historial no encontrado en {rutaArchivoHistorial}. Iniciando historial vacío.")
         return historial
 
     try:
         with open(rutaArchivoHistorial, 'r', encoding='utf-8') as f:
-            historial = [linea.strip() for linea in f if linea.strip()]
-        logging.info(f"{prefijoLog} Historial cargado desde {rutaArchivoHistorial} ({len(historial)} entradas).")
+            historial = [line.strip() for line in f if line.strip()]
+        # CORRECCIÓN: Usar logging.info en lugar de log.info
+        logging.info(
+            f"{logPrefix} Historial cargado desde {rutaArchivoHistorial} ({len(historial)} entradas).")
     except Exception as e:
-        logging.error(f"{prefijoLog} Error crítico cargando historial desde {rutaArchivoHistorial}: {e}. Se procederá con historial vacío.")
+        # CORRECCIÓN: Usar logging.error en lugar de log.error
+        logging.error(
+            f"{logPrefix} Error crítico cargando historial desde {rutaArchivoHistorial}: {e}. Se procederá con historial vacío.")
         historial = []
 
     return historial
 
+
 def guardarHistorial(historial):
-    prefijoLog = "guardarHistorial:"
-    rutaArchivoHistorial = settings.rutaHistorial
+    logPrefix = "guardarHistorial:"
+    rutaArchivoHistorial = settings.RUTAHISTORIAL
     try:
         os.makedirs(os.path.dirname(rutaArchivoHistorial), exist_ok=True)
         with open(rutaArchivoHistorial, 'w', encoding='utf-8') as f:
             for entrada in historial:
                 f.write(entrada + "\n")
-        logging.info(f"{prefijoLog} Historial guardado en {rutaArchivoHistorial} ({len(historial)} entradas).")
+        # CORRECCIÓN: Usar logging.info en lugar de log.info
+        logging.info(
+            f"{logPrefix} Historial guardado en {rutaArchivoHistorial} ({len(historial)} entradas).")
         return True
     except Exception as e:
-        logging.error(f"{prefijoLog} Error crítico guardando historial en {rutaArchivoHistorial}: {e}")
+        # CORRECCIÓN: Usar logging.error en lugar de log.error
+        logging.error(
+            f"{logPrefix} Error crítico guardando historial en {rutaArchivoHistorial}: {e}")
         return False
 
+# Función para parsear y validar la sugerencia JSON de Gemini
+
+
 def parsearSugerencia(sugerenciaJson):
-    prefijoLog = "parsearSugerencia:"
+    logPrefix = "parsearSugerencia:"
+    # --- Lista de acciones EXPLÍCITAMENTE soportadas por aplicadorCambios.py ---
     accionesSoportadas = [
         "modificar_archivo",
         "mover_archivo",
         "crear_archivo",
         "eliminar_archivo",
         "crear_directorio",
-        "mover_codigo", # Nueva acción potencial
         "no_accion"
+        # Si añades más lógica en aplicadorCambios.py, añádelas aquí.
     ]
 
+    # Aquí sí usamos logging. directamente, está bien
     if not isinstance(sugerenciaJson, dict):
-        logging.error(f"{prefijoLog} La sugerencia recibida no es un diccionario JSON válido. Tipo: {type(sugerenciaJson)}. Valor: {sugerenciaJson}")
+        logging.error(
+            f"{logPrefix} La sugerencia recibida no es un diccionario JSON válido. Tipo: {type(sugerenciaJson)}. Valor: {sugerenciaJson}")
         return None
 
     accion = sugerenciaJson.get("accion")
@@ -90,124 +124,210 @@ def parsearSugerencia(sugerenciaJson):
     descripcion = sugerenciaJson.get("descripcion")
 
     if not accion or not isinstance(detalles, dict) or not descripcion:
-        logging.error(f"{prefijoLog} Formato JSON inválido. Faltan 'accion', 'detalles' o 'descripcion', o 'detalles' no es un dict. JSON: {sugerenciaJson}")
+        logging.error(
+            f"{logPrefix} Formato JSON inválido. Faltan 'accion', 'detalles' o 'descripcion', o 'detalles' no es un dict. JSON: {sugerenciaJson}")
         return None
 
+    # --- Validación Estricta de la Acción ---
     if accion not in accionesSoportadas:
-        logging.error(f"{prefijoLog} Acción '{accion}' NO RECONOCIDA o NO SOPORTADA. Acciones válidas: {accionesSoportadas}. JSON: {sugerenciaJson}")
+        logging.error(
+            f"{logPrefix} Acción '{accion}' NO RECONOCIDA o NO SOPORTADA por el script. Acciones válidas: {accionesSoportadas}. JSON recibido: {sugerenciaJson}")
         return None
+    # ----------------------------------------
+
+    # # (Opcional: Mantener si necesitas validación de detalles para acciones específicas)
+    # accionesConDetallesObligatorios = [
+    #     "modificar_archivo", "mover_archivo", "crear_archivo", "eliminar_archivo", "crear_directorio"]
+    # # Si la acción requiere detalles y no los tiene (y no es 'no_accion')
+    # if accion in accionesConDetallesObligatorios and not detalles and accion != "no_accion":
+    #     logging.error(
+    #         f"{logPrefix} Acción '{accion}' requiere 'detalles' no vacíos, pero está vacío o ausente. JSON: {sugerenciaJson}")
+    #     return None
 
     if accion == "no_accion":
-        logging.info(f"{prefijoLog} Sugerencia 'no_accion' recibida y parseada.")
+        logging.info(
+            f"{logPrefix} Sugerencia 'no_accion' recibida y parseada.")
+    # El warning anterior sobre acciones no reconocidas ya no es necesario
+    # porque ahora las rechazamos explícitamente con el error de arriba.
 
-    logging.info(f"{prefijoLog} Sugerencia parseada exitosamente. Acción: {accion}")
+    logging.info(
+        f"{logPrefix} Sugerencia parseada exitosamente. Acción: {accion}")
     return sugerenciaJson
 
+# Función principal que orquesta el proceso de refactorización.
+
+
 def ejecutarProcesoPrincipal():
-    prefijoLog = "ejecutarProcesoPrincipal:"
-    logging.info(f"{prefijoLog} ===== INICIO CICLO DE REFACTORIZACIÓN =====")
+    logPrefix = "ejecutarProcesoPrincipal:"
+    # Usar logging. directamente está bien
+    logging.info(f"{logPrefix} ===== INICIO CICLO DE REFACTORIZACIÓN =====")
     huboCommitExitoso = False
 
-    if not settings.claveApiGemini or not settings.urlRepositorio:
-        logging.critical(f"{prefijoLog} Configuración esencial faltante (claveApiGemini o urlRepositorio). Verifique .env y config/settings.py. Abortando.")
+    if not settings.GEMINIAPIKEY or not settings.REPOSITORIOURL:
+        logging.critical(
+            f"{logPrefix} Configuración esencial faltante (GEMINI_API_KEY o REPOSITORIOURL). Verifique .env y config/settings.py. Abortando.")
         return False
 
+    # Permitir la URL de ejemplo para pruebas iniciales, pero mantener la advertencia.
+    # if "github.com/usuario/repo.git" in settings.REPOSITORIOURL:
+    #     logging.warning(
+    #         f"{logPrefix} La URL del repositorio parece ser la de ejemplo ('{settings.REPOSITORIOURL}'). Asegúrese que es correcta.")
+
+    # --- PASOS DEL PROCESO ---
     try:
+        # 2. Cargar historial
         historialRefactor = cargarHistorial()
 
-        logging.info(f"{prefijoLog} Preparando repositorio local en '{settings.rutaClon}' en la rama '{settings.ramaTrabajo}'...")
-        if not manejadorGit.clonarOActualizarRepo(settings.urlRepositorio, settings.rutaClon, settings.ramaTrabajo):
-            logging.error(f"{prefijoLog} No se pudo preparar el repositorio. Abortando ciclo.")
+        # 3. Preparar repositorio
+        logging.info(
+            f"{logPrefix} Preparando repositorio local en '{settings.RUTACLON}' en la rama '{settings.RAMATRABAJO}'...")
+        if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO):
+            logging.error(
+                f"{logPrefix} No se pudo preparar el repositorio. Abortando ciclo.")
             return False
-        logging.info(f"{prefijoLog} Repositorio listo y en la rama '{settings.ramaTrabajo}'.")
+        logging.info(
+            f"{logPrefix} Repositorio listo y en la rama '{settings.RAMATRABAJO}'.")
 
-        logging.info(f"{prefijoLog} Analizando código del proyecto en {settings.rutaClon}...")
-        extensiones = getattr(settings, 'extensionesPermitidas', None)
-        ignorados = getattr(settings, 'directoriosIgnorados', None)
-        archivos = analizadorCodigo.listarArchivosProyecto(settings.rutaClon, extensiones, ignorados)
+        # 4. Analizar código
+        logging.info(
+            f"{logPrefix} Analizando código del proyecto en {settings.RUTACLON}...")
+        extensiones = getattr(settings, 'EXTENSIONESPERMITIDAS', None)
+        ignorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', None)
+        archivos = analizadorCodigo.listarArchivosProyecto(
+            settings.RUTACLON, extensiones, ignorados)
 
         if archivos is None:
-            logging.error(f"{prefijoLog} Error al listar archivos. Abortando ciclo.")
+            logging.error(
+                f"{logPrefix} Error al listar archivos. Abortando ciclo.")
             return False
         if not archivos:
-            logging.warning(f"{prefijoLog} No se encontraron archivos relevantes. Terminando ciclo.")
+            logging.warning(
+                f"{logPrefix} No se encontraron archivos relevantes. Terminando ciclo.")
             return False
 
-        codigoAAnalizar = analizadorCodigo.leerArchivos(archivos, settings.rutaClon)
+        codigoAAnalizar = analizadorCodigo.leerArchivos(
+            archivos, settings.RUTACLON)
         if not codigoAAnalizar:
-            logging.error(f"{prefijoLog} No se pudo leer contenido de archivos. Abortando ciclo.")
+            logging.error(
+                f"{logPrefix} No se pudo leer contenido de archivos. Abortando ciclo.")
             return False
         tamanoBytes = len(codigoAAnalizar.encode('utf-8'))
         tamanoKB = tamanoBytes / 1024
-        logging.info(f"{prefijoLog} Código fuente leído ({len(archivos)} archivos, {tamanoKB:.2f} KB).")
+        logging.info(
+            f"{logPrefix} Código fuente leído ({len(archivos)} archivos, {tamanoKB:.2f} KB).")
 
-        logging.info(f"{prefijoLog} Obteniendo sugerencia de Gemini (modelo: {settings.modeloGemini})...")
-        historialRecienteTexto = "\n".join(historialRefactor[-settings.numHistorialContexto:])
-        sugerenciaJson = analizadorCodigo.analizarConGemini(codigoAAnalizar, historialRecienteTexto)
+        # 5. Obtener sugerencia Gemini
+        logging.info(
+            f"{logPrefix} Obteniendo sugerencia de Gemini (modelo: {settings.MODELOGEMINI})...")
+        historialRecienteTexto = "\n".join(
+            historialRefactor[-settings.N_HISTORIAL_CONTEXTO:])
+        sugerenciaJson = analizadorCodigo.analizarConGemini(
+            codigoAAnalizar, historialRecienteTexto)
 
         if not sugerenciaJson:
-            logging.error(f"{prefijoLog} No se recibió sugerencia válida de Gemini. Abortando ciclo.")
-            manejadorGit.descartarCambiosLocales(settings.rutaClon)
+            logging.error(
+                f"{logPrefix} No se recibió sugerencia válida de Gemini. Abortando ciclo.")
+            # Intentar descartar cambios locales por si el análisis previo modificó algo inesperado
+            manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
-        logging.info(f"{prefijoLog} Parseando sugerencia de Gemini...")
-        accionParseada = parsearSugerencia(sugerenciaJson)
+        # 6. Parsear sugerencia (AHORA MÁS ESTRICTO)
+        logging.info(f"{logPrefix} Parseando sugerencia de Gemini...")
+        accionParseada = parsearSugerencia(
+            sugerenciaJson)  # Usa la versión modificada
         if not accionParseada:
-            logging.error(f"{prefijoLog} Sugerencia inválida o no soportada. Abortando ciclo.")
-            manejadorGit.descartarCambiosLocales(settings.rutaClon)
+            # El error ya se logueó dentro de parsearSugerencia
+            logging.error(
+                f"{logPrefix} Sugerencia inválida o no soportada. Abortando ciclo.")
+            # Intentar descartar cambios locales
+            manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
         if accionParseada.get("accion") == "no_accion":
-            logging.info(f"{prefijoLog} Gemini sugirió 'no_accion': {accionParseada.get('descripcion', '')}. Terminando ciclo.")
-            return False
+            logging.info(
+                f"{logPrefix} Gemini sugirió 'no_accion': {accionParseada.get('descripcion', '')}. Terminando ciclo.")
+            # No hubo commit, pero el ciclo terminó "correctamente" según la IA
+            return False  # Devolvemos False porque no hubo commit
 
-        logging.info(f"{prefijoLog} Aplicando cambios sugeridos...")
-        exitoAplicar = aplicadorCambios.aplicarCambio(accionParseada, settings.rutaClon)
+        # 7. Aplicar cambios
+        logging.info(f"{logPrefix} Aplicando cambios sugeridos...")
+        exitoAplicar = aplicadorCambios.aplicarCambio(
+            accionParseada, settings.RUTACLON)
         if not exitoAplicar:
-            logging.error(f"{prefijoLog} Falló la aplicación de cambios. Intentando descartar...")
-            if not manejadorGit.descartarCambiosLocales(settings.rutaClon):
-                logging.critical(f"{prefijoLog} ¡FALLO CRÍTICO! No se aplicaron cambios Y no se pudieron descartar. ¡Revisión manual requerida!")
+            logging.error(
+                f"{logPrefix} Falló la aplicación de cambios. Intentando descartar...")
+            if not manejadorGit.descartarCambiosLocales(settings.RUTACLON):
+                logging.critical(
+                    f"{logPrefix} ¡FALLO CRÍTICO! No se aplicaron cambios Y no se pudieron descartar. ¡Revisión manual requerida!")
             else:
-                logging.info(f"{prefijoLog} Cambios locales descartados tras fallo.")
+                logging.info(
+                    f"{logPrefix} Cambios locales descartados tras fallo.")
             return False
 
-        logging.info(f"{prefijoLog} Cambios aplicados localmente.")
+        logging.info(f"{logPrefix} Cambios aplicados localmente.")
 
-        logging.info(f"{prefijoLog} Realizando commit en rama '{settings.ramaTrabajo}'...")
-        mensajeCommit = accionParseada.get('descripcion', 'Refactorización automática AI')
+        # 8. Hacer commit
+        logging.info(
+            f"{logPrefix} Realizando commit en rama '{settings.RAMATRABAJO}'...")
+        mensajeCommit = accionParseada.get(
+            'descripcion', 'Refactorización automática AI')
+        # Truncar mensaje si es muy largo para evitar problemas con Git
+        # Límite generoso, Git suele ser más estricto con la línea del asunto
         if len(mensajeCommit.encode('utf-8')) > 4000:
+            # Cortar a una longitud segura
             mensajeCommit = mensajeCommit[:1000] + "... (truncado)"
-            logging.warning(f"{prefijoLog} Mensaje de commit truncado por longitud excesiva.")
+            logging.warning(
+                f"{logPrefix} Mensaje de commit truncado por longitud excesiva.")
+        # Advertir si la primera línea (asunto) es larga
         elif len(mensajeCommit.splitlines()[0]) > 72:
-            logging.warning(f"{prefijoLog} La primera línea del mensaje de commit supera los 72 caracteres.")
+            logging.warning(
+                f"{logPrefix} La primera línea del mensaje de commit supera los 72 caracteres.")
 
-        exitoCommit = manejadorGit.hacerCommit(settings.rutaClon, mensajeCommit)
+        exitoCommit = manejadorGit.hacerCommit(
+            settings.RUTACLON, mensajeCommit)
         if not exitoCommit:
-            logging.error(f"{prefijoLog} Falló el commit o no había nada que commitear. Ver logs de manejadorGit.")
-            manejadorGit.descartarCambiosLocales(settings.rutaClon)
+            # El commit puede fallar si no hay cambios (ej. si aplicarCambio devolvió True pero no hizo nada)
+            # o por otros errores (hooks, config git). hacerCommit ya loguea advertencias/errores.
+            logging.error(
+                f"{logPrefix} Falló el commit o no había nada que commitear. Ver logs de manejadorGit.")
+            # Si falló porque no había cambios, podríamos querer continuar, pero
+            # si falló por otra razón, es mejor detenerse. Por seguridad, detenemos.
+            # Intentamos descartar por si 'git add' dejó algo staged aunque commit fallara
+            manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
         huboCommitExitoso = True
-        logging.info(f"{prefijoLog} Commit realizado con éxito.")
+        logging.info(f"{logPrefix} Commit realizado con éxito.")
 
-        logging.info(f"{prefijoLog} Actualizando y guardando historial.")
-        historialRefactor.append(accionParseada.get('descripcion', 'Acción sin descripción'))
+        # 9. Actualizar y guardar historial
+        logging.info(f"{logPrefix} Actualizando y guardando historial.")
+        # Guardar la descripción completa en el historial, no la truncada
+        historialRefactor.append(accionParseada.get(
+            'descripcion', 'Acción sin descripción'))
         guardarHistorial(historialRefactor)
 
-        logging.info(f"{prefijoLog} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
-        return huboCommitExitoso
+        logging.info(
+            f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
+        return huboCommitExitoso  # Devuelve True
 
     except Exception as e:
-        logging.critical(f"{prefijoLog} Error inesperado durante la ejecución principal: {e}", exc_info=True)
+        # Captura cualquier otra excepción inesperada durante el proceso
+        logging.critical(
+            f"{logPrefix} Error inesperado durante la ejecución principal: {e}", exc_info=True)
+        # Intentar limpiar si es posible, pero con cuidado
         try:
-            logging.info(f"{prefijoLog} Intentando descartar cambios locales debido a error inesperado...")
-            manejadorGit.descartarCambiosLocales(settings.rutaClon)
+            logging.info(
+                f"{logPrefix} Intentando descartar cambios locales debido a error inesperado...")
+            manejadorGit.descartarCambiosLocales(settings.RUTACLON)
         except Exception as e_clean:
-            logging.error(f"{prefijoLog} Falló intento de limpieza tras error: {e_clean}")
-        return False
+            logging.error(
+                f"{logPrefix} Falló intento de limpieza tras error: {e_clean}")
+        return False  # Indicar fallo
 
+
+# Punto de entrada principal del script
 if __name__ == "__main__":
-    configurarLogging()
+    configurarLogging()  # Configurar logging primero
 
     parser = argparse.ArgumentParser(
         description="Agente de Refactorización de Código con IA (Gemini).",
@@ -220,7 +340,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    logging.info(f"Iniciando script principal. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
+    logging.info(
+        f"Iniciando script principal. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
 
     try:
         commitRealizado = ejecutarProcesoPrincipal()
@@ -228,21 +349,30 @@ if __name__ == "__main__":
         if commitRealizado:
             logging.info("Proceso principal completado: Se realizó un commit.")
             if args.modo_test:
-                logging.info("Modo Test activado: Intentando hacer push a origin...")
-                ramaPush = getattr(settings, 'ramaTrabajo', 'refactor')
-                if manejadorGit.hacerPush(settings.rutaClon, ramaPush):
-                    logging.info(f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
-                    sys.exit(0)
+                logging.info(
+                    "Modo Test activado: Intentando hacer push a origin...")
+                # Asegurarse que RAMATRABAJO está definida en settings
+                # Usar default por si acaso
+                ramaPush = getattr(settings, 'RAMATRABAJO', 'refactor')
+                if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
+                    logging.info(
+                        f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
+                    sys.exit(0)  # Éxito total
                 else:
-                    logging.error(f"Modo Test: Falló el push a la rama '{ramaPush}'.")
-                    sys.exit(1)
+                    logging.error(
+                        f"Modo Test: Falló el push a la rama '{ramaPush}'.")
+                    sys.exit(1)  # Salir con error (commit hecho, push falló)
             else:
-                logging.info("Modo Test desactivado. Commit realizado localmente, no se hizo push.")
-                sys.exit(0)
+                logging.info(
+                    "Modo Test desactivado. Commit realizado localmente, no se hizo push.")
+                sys.exit(0)  # Éxito (commit local)
         else:
-            logging.warning("Proceso principal finalizó sin realizar un commit.")
-            sys.exit(1)
+            logging.warning(
+                "Proceso principal finalizó sin realizar un commit.")
+            sys.exit(1)  # Salir con error leve/advertencia si no hubo commit
 
     except Exception as e:
-        logging.critical(f"Error fatal no manejado en el bloque principal: {e}", exc_info=True)
-        sys.exit(2)
+        # Captura errores incluso antes de entrar a ejecutarProcesoPrincipal o después
+        logging.critical(
+            f"Error fatal no manejado en el bloque principal: {e}", exc_info=True)
+        sys.exit(2)  # Código de error diferente para fallos muy graves
