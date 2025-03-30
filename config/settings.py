@@ -20,11 +20,11 @@ RUTACLON = os.path.join(RUTA_BASE_PROYECTO, 'clonProyecto')
 RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 
 # --- Configuracion de Git ---
-RAMATRABAJO = "refactor-test-3"  # Nombre de la rama donde se aplicarán los cambios
+RAMATRABAJO = "refactor-test-4"  # Nombre de la rama donde se aplicarán los cambios
 
 # --- Configuracion de Gemini ---
 MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-thinking-exp-01-21")
-N_HISTORIAL_CONTEXTO = 500  # Cuántas entradas recientes del historial enviar a Gemini
+N_HISTORIAL_CONTEXTO = 20  # Cuántas entradas recientes del historial enviar a Gemini
 
 # --- Configuracion de Analisis (Opcional - No se usa por ahora) ---
 DIRECTORIOANALISIS = "app/" # Ejemplo: "src/mi_modulo"
