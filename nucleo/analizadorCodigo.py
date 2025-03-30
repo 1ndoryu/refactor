@@ -154,7 +154,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
 
     # ### MODIFICADO ### Prompt ajustado para JSON Mode (quitando formato explícito)
     promptPartes = []
-    promptPartes.append("Eres un asistente experto en refactorización de código PHP/JS (WordPress). Tu tarea es analizar TODO el código fuente y el historial, y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA.")
+    promptPartes.append("Eres un asistente experto en refactorización de código PHP/JS (WordPress). Tu tarea es analizar TODO el código fuente y el historial, y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA. Es importante que seas detallado con la informacion que generas para que el segundo agente que realiza la accion sepa exactamente que hacer.")
     promptPartes.append("Prioriza: eliminar código muerto, simplificar lógica compleja, añadir validaciones FALTANTES y básicas (ej: `isset`, `!empty`), reducir duplicación MÍNIMA (mover funciones/clases SOLO si es obvio y mejora claramente la organización), mejorar legibilidad (nombres en español `camelCase`). EVITA cambios masivos o reestructuraciones grandes. Puedes organizar funciones, la estructura del proyecto es desordenada, es importante ordenar. No es importante ni necesario que agregues nuevos comentarios a funciones viejas para explicar lo que hacen. Puedes hacer mejoras de optimización, seguridad, simplificación sin arriesgarte a que el codigo falle.")
     promptPartes.append(
         "Considera el historial para NO repetir errores, NO deshacer trabajo anterior y mantener la consistencia.")
