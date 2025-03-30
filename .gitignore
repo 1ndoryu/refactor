@@ -19,3 +19,5 @@ clonProyecto/
 # Archivos de configuración de IDEs (opcional)
 .idea/
 .vscode/
+
+config/.api_key_last_index.txt
