@@ -1,0 +1,14 @@
+[ERROR]
+Acción Decidida: mover_funcion
+Descripción: Refactor: Mueve función `obtenerIdiomaDelNavegador` a `functions.php` para reutilización.
+Razonamiento (Paso 1):
+  1. Observación: La función `obtenerIdiomaDelNavegador()` está duplicada en varios archivos de plantilla (TemplateInicio.php, TemplateFeedSample.php, TemplateBiblioteca.php, TemplateBusqueda.php, TemplateTask.php).
+  2. Justificación: Mover esta función a `functions.php` centralizará la lógica de detección de idioma, reduciendo la duplicación de código y facilitando el mantenimiento futuro. Esto mejora la cohesión del código al agrupar funciones utilitarias en un lugar común.
+  3. Acción Específica: Mover la función `obtenerIdiomaDelNavegador()` desde `TemplateInicio.php` a `functions.php`.
+  4. Impacto Esperado: Se elimina la duplicación de código, mejorando la mantenibilidad y la organización del proyecto. Facilita futuras modificaciones o mejoras en la lógica de detección de idioma.
+  5. Riesgos/Consideraciones: Bajo riesgo. Se debe asegurar que todos los archivos de plantilla que utilizaban esta función ahora la llamen desde `functions.php`. No se espera que esta acción altere la funcionalidad existente.
+  6. Código a Eliminar (si aplica): Eliminar la definición de la función `obtenerIdiomaDelNavegador()` de los archivos `TemplateInicio.php`, `TemplateFeedSample.php`, `TemplateBiblioteca.php`, `TemplateBusqueda.php`, `TemplateTask.php`.
+Parámetros: {"archivo_origen": "TemplateInicio.php", "archivo_destino": "functions.php", "nombre_funcion": "obtenerIdiomaDelNavegador"}
+Archivos Relevantes (Paso 1): ['TemplateInicio.php', 'TemplateFeedSample.php', 'TemplateBiblioteca.php', 'TemplateBusqueda.php', 'TemplateTask.php', 'functions.php']
+Mensaje de Error: Paso 2: No se pudo obtener el resultado de ejecución de Gemini.
+Resultado (Paso 2): Falló antes o durante la ejecución.
