@@ -11,7 +11,7 @@ __pycache__/
 *.pyo
 
 # Logs
-*.log
+
 
 # Directorio donde clonaremos temporalmente el proyecto a refactorizar
 clonProyecto/
