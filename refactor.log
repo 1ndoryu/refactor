@@ -1,0 +1,53 @@
+2025-03-30 05:21:01 - INFO - root.configurarLogging: ==================================================
+2025-03-30 05:21:01 - INFO - root.configurarLogging: ==================================================
+2025-03-30 05:21:01 - INFO - root.configurarLogging: ==================================================
+2025-03-30 05:21:01 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 05:21:01 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 05:21:01 - INFO - root.<module>: Iniciando script principal. Modo Test: Activado
+2025-03-30 05:21:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN =====
+2025-03-30 05:21:01 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (0 entradas).
+2025-03-30 05:21:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local en '/var/www/herramientaRefactor/clonProyecto' en la rama 'refactor-test-4'...
+2025-03-30 05:21:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repositorio git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama objetivo: refactor-test-4)
+2025-03-30 05:21:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando y/o corrigiendo URL del remote 'origin'...
+2025-03-30 05:21:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: URL del remote 'origin' ya está configurada correctamente a git@github.com:2upra/v4.git.
+2025-03-30 05:21:02 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 05:21:02 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado del repositorio local...
+2025-03-30 05:21:02 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Actualizando referencias remotas (fetch)...
+2025-03-30 05:21:04 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Reseteando rama 'main' a 'origin/main'...
+2025-03-30 05:21:04 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando archivos no rastreados (clean)...
+2025-03-30 05:21:04 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo: 'refactor-test-4'
+2025-03-30 05:21:05 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Creando nueva rama local 'refactor-test-4' desde 'main'.
+2025-03-30 05:21:05 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Nueva rama 'refactor-test-4' creada localmente.
+2025-03-30 05:21:05 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio actualizado y en la rama 'refactor-test-4'.
+2025-03-30 05:21:05 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-4'.
+2025-03-30 05:21:05 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código del proyecto en /var/www/herramientaRefactor/clonProyecto...
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Escaneo completo. Total directorios procesados: 51, Total archivos encontrados: 329. Archivos relevantes: 233
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leyendo contenido de 233 archivos...
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Lectura completada. Leídos: 233, Fallidos: 0. Tamaño total del contexto: 1664.14 KB
+2025-03-30 05:21:05 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código fuente leído (233 archivos, 1690.72 KB).
+2025-03-30 05:21:05 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo sugerencia de Gemini (modelo: gemini-2.0-flash-thinking-exp-01-21)...
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado exitosamente.
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.analizarConGemini: analizarConGemini: Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.analizarConGemini: analizarConGemini: Tamaño del contexto a enviar a Gemini: 1690.72 KB
+2025-03-30 05:21:05 - INFO - nucleo.analizadorCodigo.analizarConGemini: analizarConGemini: Enviando solicitud a Gemini...
+2025-03-30 05:21:30 - INFO - nucleo.analizadorCodigo.analizarConGemini: analizarConGemini: Respuesta recibida de Gemini.
+2025-03-30 05:21:30 - INFO - nucleo.analizadorCodigo.analizarConGemini: analizarConGemini: Sugerencia JSON parseada correctamente. Acción: mover_codigo
+2025-03-30 05:21:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando sugerencia de Gemini...
+2025-03-30 05:21:30 - INFO - root.parsearSugerencia: parsearSugerencia: Sugerencia parseada exitosamente. Acción: mover_codigo
+2025-03-30 05:21:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios sugeridos: Refactor: Mueve funcion obtenerIdiomaDelNavegador a functions.php para reutilización.
+2025-03-30 05:21:30 - INFO - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio: Intentando aplicar acción 'mover_codigo': Refactor: Mueve funcion obtenerIdiomaDelNavegador a functions.php para reutilización.
+2025-03-30 05:21:30 - INFO - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio: Decodificando secuencias de escape Unicode en 'codigo_a_mover'.
+2025-03-30 05:21:30 - INFO - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio: Moviendo código de 'TemplateInicio.php' a 'functions.php'
+2025-03-30 05:21:30 - ERROR - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio: El 'codigo_a_mover' (después de decodificar escapes si hubo) NO SE ENCONTRÓ textualmente en el archivo origen 'TemplateInicio.php'.
+2025-03-30 05:21:30 - ERROR - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio: Código buscado (repr, completo): "// FunciÃ³n para obtener el idioma preferido del navegador\nfunction obtenerIdiomaDelNavegador() {\n    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {\n        return 'en';\n    }\n    $accepted_languages = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);\n    foreach ($accepted_languages as $language) {\n        $lang = substr($language, 0, 2);\n        if (in_array($lang, ['es', 'en'])) {\n            return $lang;\n        }\n    }\n    return 'en';\n}"
+2025-03-30 05:21:30 - WARNING - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio: Contexto de debug guardado en:
+2025-03-30 05:21:30 - WARNING - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio:   - Código buscado: /var/www/herramientaRefactor/debug_logs/mover_codigo_buscado_TemplateInicio_php.txt
+2025-03-30 05:21:30 - WARNING - nucleo.aplicadorCambios.aplicarCambio: aplicarCambio:   - Contenido origen: /var/www/herramientaRefactor/debug_logs/mover_codigo_origen_contenido_TemplateInicio_php.txt
+2025-03-30 05:21:30 - ERROR - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Falló la aplicación de cambios: El 'codigo_a_mover' (después de decodificar escapes si hubo) NO SE ENCONTRÓ textualmente en el archivo origen 'TemplateInicio.php'.
+2025-03-30 05:21:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Intentando descartar cambios locales tras fallo...
+2025-03-30 05:21:30 - WARNING - nucleo.manejadorGit.descartarCambiosLocales: descartarCambiosLocales: ¡ATENCIÓN! Intentando descartar todos los cambios locales en /var/www/herramientaRefactor/clonProyecto...
+2025-03-30 05:21:30 - INFO - nucleo.manejadorGit.descartarCambiosLocales: descartarCambiosLocales: Cambios locales descartados exitosamente (reset --hard + clean -fdx).
+2025-03-30 05:21:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios locales (si los hubo) descartados tras fallo en aplicación.
+2025-03-30 05:21:30 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (1 entradas).
+2025-03-30 05:21:30 - WARNING - root.<module>: Proceso principal finalizó sin realizar un commit efectivo o con errores (ver historial y logs).
