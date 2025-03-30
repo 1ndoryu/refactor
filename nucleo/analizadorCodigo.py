@@ -349,6 +349,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
             generation_config=genai.types.GenerationConfig( # O usa dict
                 temperature=0.4,
                 response_mime_type="application/json",
+                max_output_tokens=8192
             ),
             safety_settings={
                 'HATE': 'BLOCK_ONLY_HIGH',
