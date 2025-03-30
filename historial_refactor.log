@@ -1,0 +1,1 @@
+[ÉXITO] Refactor: Mueve función obtenerIdiomaDelNavegador y lógica de título/descripción a functions.php Razonamiento: Reduce la duplicación de código en varios archivos de plantilla al centralizar la lógica de detección de idioma y configuración de título/descripción en functions.php, mejorando la mantenibilidad y consistencia del código.
