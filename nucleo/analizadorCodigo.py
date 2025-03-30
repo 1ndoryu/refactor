@@ -149,7 +149,8 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
     promptPartes.append("    -   `crear_directorio`: `directorio` (ruta relativa).")
     promptPartes.append("4.  **LISTA ARCHIVOS RELEVANTES COMPLETAMENTE**: En `archivos_relevantes`, incluye **TODAS** las rutas relativas de archivos que el Paso 2 **NECESITARÁ LEER** para ejecutar la acción (origen, destino, archivos que usan lo movido si aplica y es fácil de determinar, etc.). ¡Esto es CRUCIAL y debe ser preciso!")
     promptPartes.append("5.  **EXPLICA TU RAZONAMIENTO DETALLADAMENTE**: En `razonamiento`, justifica CLARAMENTE el *por qué* de esta acción (beneficio, problema que resuelve) o la razón específica para `no_accion` (ej: 'Código ya optimizado', 'No se encontraron mejoras seguras', 'Requiere análisis manual').")
-    promptPartes.append("6.  **FORMATO JSON ESTRICTO**: Responde **ÚNICAMENTE** con el JSON. SIN texto introductorio ni explicaciones fuera del JSON.")
+    promptPartes.append("6. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")
+    promptPartes.append("7.  **FORMATO JSON ESTRICTO**: Responde **ÚNICAMENTE** con el JSON. SIN texto introductorio ni explicaciones fuera del JSON.")
     promptPartes.append("""
 ```json
 {
