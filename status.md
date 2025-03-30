@@ -1,4 +1,46 @@
-# 29 de marzo
+# EL BUSCADOR DE CODIGO FUNCIONA MUY MAL 11:00 PM
+
+> EJEMPLO DE LO QUE SIEMPRE SUELE SUCEDER. 
+
+
+Con la accion de "Mueve funcion obtenerIdiomaDelNavegador a functions.php para reutilización"
+
+El codigo_a_mover (Código Buscado): Gemini ha proporcionado el siguiente bloque exacto (según Código buscado (literal)):
+
+<?
+
+// Función para obtener el idioma preferido del navegador
+function obtenerIdiomaDelNavegador() {
+    // ... cuerpo de la función ...
+}
+
+PHP
+Nota clave: Empieza con <?, seguido de dos saltos de línea, y luego el comentario // Función....
+
+El contenidoOrigen (Archivo mover_codigo_origen_contenido_TemplateInicio_php.txt): El contenido real del archivo TemplateInicio.php empieza así:
+
+<?
+/*
+Template Name: Inicio
+*/
+
+// Función para obtener el idioma preferido del navegador
+function obtenerIdiomaDelNavegador() {
+    // ... cuerpo de la función ...
+}
+// ... resto del archivo ...
+?>
+
+Funciona mal porque la cantidad de contexto no deja analizar bien exactamente que tiene que buscar, no porque el codigo este malo sino porque alucina por el contexto grande, por lo tanto alucina y comete errores, lo ideal es cambiar la logica, para que primero gemini analice y tome una decisión, por ejemplo, de que archivo tiene que analizar, que tiene cambiar, que tiene que mover, por que, etc. 
+
+(se resetea el contexto)
+
+Y despues otra solicitud a gemini que haga el cambio que incluya solo el contexto de los archivos que va a modificar, y que haga un cambio del codigo completo, no una parte pequeña porque eso lleva a errores, sino todo el archivo, 
+
+otra solucion eficiente es agregar mas contexto en el historial, diferenciar entre pensamiento (la primera parte que analiza todo el codigo) y decisión (segunda parte en donde el contexto se reduce para que haga el cambio), el pensamiento tiene que ser muy claro y detallado para que la decisión sea lo mas acertada y precisa. 
+
+
+# 29 de marzo 6:00 PM
 
 1. [BIEN] Parece mover codigo correctamente de un documento a otro. 
 2. [MAL] Suele tener un error como este "Texto a buscar no encontrado o la primera ocurrencia ya coincidía con el reemplazo en TemplateFeedSample.php."
