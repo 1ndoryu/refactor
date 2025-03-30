@@ -144,7 +144,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
 ```""")
 
     if historialCambiosTexto:
-        promptPartes.append("\n--- HISTORIAL DE CAMBIOS RECIENTES ---")
+        promptPartes.append("\n--- HISTORIAL DE CAMBIOS RECIENTES REALIZADOS POR TI; EVITA REPETIR DECISIONES O CAER EN BUCLES ---")
         promptPartes.append(historialCambiosTexto)
         promptPartes.append("--- FIN HISTORIAL ---")
         promptPartes.append("¡Evita repetir errores del historial!")
