@@ -41,11 +41,11 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
 
 # --- FUNCIÓN PRINCIPAL (CON CORRECCIÓN DE MOJIBAKE Y ESCAPES) ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
-    """
-    Aplica los cambios sobrescribiendo archivos.
-    Incluye pasos para intentar corregir Mojibake común (UTF-8 mal leído como Latin-1)
-    y procesar secuencias de escape literales (como \n, \uXXXX) antes de escribir.
-    """
+
+    # Aplica los cambios sobrescribiendo archivos.
+    # Incluye pasos para intentar corregir Mojibake común (UTF-8 mal leído como Latin-1)
+    # y procesar secuencias de escape literales (como \n, \uXXXX) antes de escribir.
+
     logPrefix = "aplicarCambiosSobrescritura:"
     log.info(f"{logPrefix} Aplicando cambios para acción original '{accionOriginal}'...")
     rutaBaseNorm = os.path.normpath(rutaBase)
