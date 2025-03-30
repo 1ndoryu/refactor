@@ -2,7 +2,7 @@
 import os
 import logging
 import shutil
-# import codecs # <--- Ya no es necesario
+import codecs # <--- AÑADIDO DE NUEVO: Necesario para 'unicode_escape'
 
 # Obtener logger
 log = logging.getLogger(__name__)
@@ -34,11 +34,12 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
     return rutaAbs
 
 
-# --- FUNCIÓN PRINCIPAL CORREGIDA ---
+# --- FUNCIÓN PRINCIPAL (RESTAURANDO DECODIFICACIÓN) ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     """
     Aplica los cambios sobrescribiendo archivos con el contenido proporcionado por Gemini (Paso 2).
     También maneja acciones como crear_directorio o eliminar_archivo que no modifican contenido.
+    Intenta decodificar secuencias de escape unicode (\uXXXX) antes de escribir.
 
     Args:
         archivos_con_contenido (dict): {rutaRelativa: nuevoContenidoCompleto}
@@ -134,17 +135,29 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             elif not os.path.isdir(dirPadre):
                  raise ValueError(f"La ruta padre '{dirPadre}' para el archivo '{rutaRel}' existe pero no es un directorio.")
 
-            # --- INICIO BLOQUE CORREGIDO ---
-            # Se asume que nuevoContenido ya es una cadena Python Unicode correcta.
-            # No se necesita decodificar con 'unicode_escape'.
-            contenido_a_escribir = nuevoContenido
-
-            # Escribir (sobrescribir) el archivo directamente con UTF-8
-            log.debug(f"{logPrefix} Escribiendo {len(contenido_a_escribir)} bytes en {archivoAbs} con UTF-8")
+            # --- INICIO BLOQUE RESTAURADO ---
+            # Intentar decodificar escapes Unicode literales (\uXXXX) que puedan
+            # estar presentes en la cadena recibida antes de escribir.
             try:
-                # Usar encoding='utf-8' para la escritura final del archivo
+                # codecs.decode interpreta las secuencias de escape DENTRO de la cadena
+                contenido_procesado = codecs.decode(nuevoContenido, 'unicode_escape')
+                # Loguear solo si hubo un cambio real para evitar ruido
+                if contenido_procesado != nuevoContenido:
+                    log.info(f"{logPrefix} Secuencias de escape Unicode decodificadas para '{rutaRel}'.")
+                else:
+                    # Si no hubo cambios, es probable que no hubiera escapes literales que decodificar
+                    log.debug(f"{logPrefix} No se encontraron/decodificaron secuencias de escape Unicode literales en '{rutaRel}'.")
+            except Exception as e_decode:
+                # En caso de error en la decodificación (ej. un \ suelto), loguear y usar el contenido original.
+                log.warning(f"{logPrefix} Falló la decodificación 'unicode_escape' para '{rutaRel}': {e_decode}. Se usará el contenido original.")
+                contenido_procesado = nuevoContenido # Usar el original como fallback
+
+            # Escribir (sobrescribir) el archivo con el contenido procesado y UTF-8
+            log.debug(f"{logPrefix} Escribiendo {len(contenido_procesado)} bytes en {archivoAbs} con UTF-8")
+            try:
+                # Asegurar que la escritura final SIEMPRE sea en UTF-8
                 with open(archivoAbs, 'w', encoding='utf-8') as f:
-                    f.write(contenido_a_escribir) # <-- Escribe el contenido directo
+                    f.write(contenido_procesado) # <-- Escribe el contenido procesado (decodificado si fue posible)
                 log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito correctamente.")
                 archivosProcesados.append(rutaRel)
             except Exception as e_write:
@@ -152,7 +165,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
                  log.error(f"{logPrefix} Error al escribir en archivo '{rutaRel}': {e_write}")
                  # Propagar la excepción para que el bloque exterior la capture
                  raise ValueError(f"Error escribiendo archivo '{rutaRel}': {e_write}") from e_write
-            # --- FIN BLOQUE CORREGIDO ---
+            # --- FIN BLOQUE RESTAURADO ---
 
         log.info(f"{logPrefix} Todos los archivos ({len(archivosProcesados)}) fueron procesados.")
         return True, None # Éxito
