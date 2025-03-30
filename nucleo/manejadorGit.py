@@ -3,6 +3,7 @@ import subprocess
 import os
 import logging
 import shutil
+from typing import Set, Optional # Para type hints
 
 log = logging.getLogger(__name__)
 
@@ -398,11 +399,14 @@ def revertirCommitVacio(rutaRepo):
         return False
 
 # ### NUEVO ### Helper para obtener lista de archivos modificados según 'git status'
-def obtenerArchivosModificadosStatus(rutaRepo):
+def obtenerArchivosModificadosStatus(rutaRepo: str) -> Optional[Set[str]]:
     """
     Obtiene una lista de archivos modificados, nuevos, eliminados, etc.,
     según 'git status --porcelain'. Devuelve un set de rutas relativas.
     Ignora entradas que terminen en '/' (directorios).
+    Maneja correctamente nombres de archivo con espacios o caracteres especiales
+    (escapados o entre comillas en la salida de git).
+    Retorna un set vacío si no hay cambios.
     Retorna None en caso de error del comando git.
     """
     logPrefix = "obtenerArchivosModificadosStatus:"
@@ -414,9 +418,9 @@ def obtenerArchivosModificadosStatus(rutaRepo):
     if not success:
         log.error(
             f"{logPrefix} Falló 'git status --porcelain'. Error: {output}")
-        return None
+        return None # Fallo al ejecutar git status
 
-    archivos_modificados = set()
+    archivos_modificados: Set[str] = set()
     if not output:
         log.info(
             f"{logPrefix} No hay cambios detectados por 'git status --porcelain'.")
@@ -434,32 +438,34 @@ def obtenerArchivosModificadosStatus(rutaRepo):
         # <-- DEBUGGING LINE -->
         log.debug(f"{logPrefix} Procesando línea cruda: '{line_strip}'")
 
-        # Extraer código de estado y parte de la ruta
-        if len(line_strip) < 3:
-             log.warning(f"{logPrefix} Línea inesperada (muy corta): '{line_strip}'. Saltando.")
-             continue
+        # --- Inicio de la corrección: Usar split en lugar de índices fijos ---
+        parts = line_strip.split(maxsplit=1)
+        if len(parts) < 2:
+            log.warning(f"{logPrefix} Línea de status inesperada (formato no reconocido): '{line_strip}'. Saltando.")
+            continue
 
-        status_code = line_strip[:2]  # XY
-        # Asumir que la ruta empieza después de 'XY ' (índice 3)
-        # Necesitamos ser cuidadosos aquí si el formato varía
-        path_part_raw = line_strip[3:]
+        status_codes = parts[0]  # Código(s) de estado (ej: 'M', 'MM', 'R ')
+        path_part_raw = parts[1]  # El resto de la línea, que es la ruta (o 'origen -> destino')
+        # --- Fin de la corrección ---
 
-        # <-- DEBUGGING INITIAL EXTRACTION -->
-        log.debug(f"{logPrefix}   - Status: '{status_code}', Initial path part: '{path_part_raw}'")
+        log.debug(f"{logPrefix}   - Status codes: '{status_codes}', Initial path part: '{path_part_raw}'")
 
         ruta_procesada = path_part_raw # Iniciar con la parte extraída
 
-        # Manejar renombrados/copiados (R او C) : "origen" -> "destino"
-        if status_code.startswith('R') or status_code.startswith('C'):
+        # Manejar renombrados/copiados (R o C) : "origen" -> "destino"
+        # Usamos status_codes para la comprobación
+        if status_codes.startswith('R') or status_codes.startswith('C'):
             try:
+                # Buscar el separador " -> " que usa git status
                 arrow_index = path_part_raw.find(' -> ')
                 if arrow_index != -1:
-                    # El path relevante es el *destino*
+                    # El path relevante es el *destino* (después de " -> ")
                     ruta_destino = path_part_raw[arrow_index + 4:]
                     log.debug(f"{logPrefix}   - Rename/Copy detected. Using destination: '{ruta_destino}'")
                     ruta_procesada = ruta_destino # Actualizar con la ruta destino
                 else:
-                    log.warning(f"{logPrefix}   - Formato rename/copy inesperado: '{path_part_raw}'. Usando como está.")
+                    # Formato inesperado si no encontramos " -> "
+                    log.warning(f"{logPrefix}   - Formato rename/copy inesperado (sin ' -> '): '{path_part_raw}'. Usando como está.")
                     # Continuar con ruta_procesada tal como estaba (path_part_raw)
             except Exception as e_rn:
                 log.warning(f"{logPrefix}   - Error procesando rename/copy: {e_rn}. Usando path part original.")
@@ -467,40 +473,48 @@ def obtenerArchivosModificadosStatus(rutaRepo):
 
         # Quitar comillas y procesar escapes si existen
         ruta_final_unescaped = ruta_procesada # Variable para el resultado de este paso
-        if ruta_procesada.startswith('"') and ruta_procesada.endswith('"'):
-            path_in_quotes = ruta_procesada[1:-1]
-            log.debug(f"{logPrefix}   - Path estaba entre comillas: '{path_in_quotes}'")
-            try:
-                # Intentar decodificar escapes (ej. \t, \n, \ooo)
-                ruta_unescaped = codecs.decode(path_in_quotes, 'unicode_escape')
-                # A veces unicode_escape puede fallar o no ser suficiente si hay escapes complejos
-                # Podríamos necesitar 'string_escape' o manejo manual si esto falla.
+        try:
+            # Git usa comillas si el nombre tiene espacios o caracteres no habituales
+            if ruta_procesada.startswith('"') and ruta_procesada.endswith('"'):
+                path_in_quotes = ruta_procesada[1:-1]
+                log.debug(f"{logPrefix}   - Path estaba entre comillas: '{path_in_quotes}'")
+                # Intentar decodificar escapes C-style (ej. \t, \n, \ooo, \") que Git podría usar dentro de las comillas
+                # 'unicode_escape' es bueno para esto, pero puede ser agresivo.
+                # 'raw_unicode_escape' podría ser otra opción si falla.
+                # Usaremos una protección simple contra barras invertidas literales al final
+                path_to_unescape = path_in_quotes.replace('\\\\', '\\') # Reemplazar \\ escapado por \ literal primero
+                ruta_unescaped = codecs.decode(path_to_unescape, 'unicode_escape')
+                # Alternativa más segura si unicode_escape da problemas:
+                # ruta_unescaped = path_in_quotes.encode('latin-1', 'backslashreplace').decode('unicode-escape')
+
                 log.debug(f"{logPrefix}   - Path después de quitar comillas y procesar escapes: '{ruta_unescaped}'")
                 ruta_final_unescaped = ruta_unescaped
-            except Exception as e_esc:
-                log.warning(f"{logPrefix}   - Falló procesamiento de escapes para '{path_in_quotes}': {e_esc}. Usando solo contenido sin comillas.")
-                ruta_final_unescaped = path_in_quotes # Usar sin escapes si falló
-        else:
-             log.debug(f"{logPrefix}   - Path no estaba entre comillas.")
-             # ruta_final_unescaped ya es ruta_procesada
+            else:
+                 log.debug(f"{logPrefix}   - Path no estaba entre comillas.")
+                 # ruta_final_unescaped ya es ruta_procesada
+
+        except Exception as e_esc:
+            log.warning(f"{logPrefix}   - Falló procesamiento de escapes/comillas para '{ruta_procesada}': {e_esc}. Usando la ruta como estaba antes de este paso.")
+            # En caso de error aquí, ruta_final_unescaped mantiene el valor de ruta_procesada
 
 
         # --- Comprobación de Directorio y Normalización Final ---
+        # Ignorar si parece un directorio (termina en /)
         if ruta_final_unescaped.endswith('/'):
             log.debug(f"{logPrefix}   - Ignorando entrada de directorio: '{ruta_final_unescaped}'")
             continue # Saltar al siguiente 'line'
 
         if ruta_final_unescaped:
-            # Normalizar separadores a '/' para consistencia interna
+            # Normalizar separadores de ruta a '/' para consistencia interna
             ruta_normalizada = ruta_final_unescaped.replace(os.sep, '/')
             log.debug(f"{logPrefix}   - Ruta final normalizada a añadir: '{ruta_normalizada}'")
 
-            # <<< ALERTA ESPECIAL SI DETECTAMOS EL TYPO >>>
-            if ruta_normalizada == "emplateInicio.php":
-                 log.critical(f"{logPrefix} ¡¡¡ALERTA!!! Se detectó 'emplateInicio.php' al procesar la línea: '{line_strip}'. Verificar pasos anteriores del parsing.")
-            elif "emplateInicio.php" in ruta_normalizada:
-                 log.warning(f"{logPrefix} Posible typo detectado: '{ruta_normalizada}' contiene 'emplate'. Línea original: '{line_strip}'")
+            # <<< Mantener la ALERTA ESPECIAL por si acaso, aunque ahora no debería ocurrir >>>
+            if "emplateInicio.php" in ruta_normalizada or "unctions.php" in ruta_normalizada :
+                 # Cambiado a WARNING porque ahora se espera que esto no ocurra
+                 log.warning(f"{logPrefix} Posible typo detectado (o problema residual): '{ruta_normalizada}'. Línea original: '{line_strip}'")
 
+            # Añadir la ruta relativa normalizada al set
             archivos_modificados.add(ruta_normalizada)
         else:
             log.warning(f"{logPrefix}   - No se pudo extraer ruta válida de la línea al final: '{line_strip}'")
