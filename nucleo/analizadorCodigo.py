@@ -5,7 +5,8 @@ import json
 import google.generativeai as genai
 import google.api_core.exceptions
 from config import settings
-from google.generativeai import types  # Asegúrate de importar types
+# Quita la importación específica de types si ya no la usas para Schema
+# from google.generativeai import types
 
 # ... (configurarGemini, listarArchivosProyecto, leerArchivos sin cambios) ...
 log = logging.getLogger(__name__)
@@ -133,9 +134,9 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
     """
     PASO 1: Analiza código COMPLETO e historial para DECIDIR una acción DETALLADA.
     Retorna JSON con ACCIÓN, PARÁMETROS ESPECÍFICOS, RAZONAMIENTO y ARCHIVOS RELEVANTES.
+    Utiliza el modo JSON de Gemini.
     """
     logPrefix = "obtenerDecisionRefactor (Paso 1):"
-    # ... (configuración de Gemini igual) ...
     if not configurarGemini():
         return None
     if not contextoCodigoCompleto:
@@ -151,7 +152,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
             f"{logPrefix} Error inicializando modelo '{nombreModelo}': {e}")
         return None
 
-    # ### MODIFICADO ### Prompt más exigente para Paso 1
+    # ### MODIFICADO ### Prompt ajustado para JSON Mode (quitando formato explícito)
     promptPartes = []
     promptPartes.append("Eres un asistente experto en refactorización de código PHP/JS (WordPress). Tu tarea es analizar TODO el código fuente y el historial, y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA.")
     promptPartes.append("Prioriza: eliminar código muerto, simplificar lógica compleja, añadir validaciones FALTANTES y básicas (ej: `isset`, `!empty`), reducir duplicación MÍNIMA (mover funciones/clases SOLO si es obvio y mejora claramente la organización), mejorar legibilidad (nombres en español `camelCase`). EVITA cambios masivos o reestructuraciones grandes. Puedes organizar funciones, la estructura del proyecto es desordenada, es importante ordenar. No es importante ni necesario que agregues nuevos comentarios a funciones viejas para explicar lo que hacen. Puedes hacer mejoras de optimización, seguridad, simplificación sin arriesgarte a que el codigo falle.")
@@ -159,55 +160,27 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
         "Considera el historial para NO repetir errores, NO deshacer trabajo anterior y mantener la consistencia.")
 
     promptPartes.append(
-        "\n--- REGLAS ESTRICTAS PARA TU RESPUESTA (DECISIÓN) ---")
-    promptPartes.append("1.  **IDENTIFICA LA ACCIÓN**: Elige UNA de: `mover_funcion`, `mover_clase`, `modificar_codigo_en_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`. Si NINGUNA acción es segura/útil/necesaria, USA `no_accion`.")
+        "\n--- REGLAS ESTRICTAS PARA LA ESTRUCTURA JSON DE TU RESPUESTA (DECISIÓN) ---") # Ajustado
+    promptPartes.append("1.  **`accion_propuesta`**: Elige UNA de: `mover_funcion`, `mover_clase`, `modificar_codigo_en_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`. Si NINGUNA acción es segura/útil/necesaria, USA `no_accion`.")
     promptPartes.append(
-        "2.  **DESCRIBE CLARAMENTE**: En `descripcion`, sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a helpers/ui.php').")
+        "2.  **`descripcion`**: Sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a helpers/ui.php').")
     promptPartes.append(
-        "3.  **DETALLA PARÁMETROS SIN AMBIGÜEDAD**: En `parametros_accion`, incluye TODA la información necesaria para que OTRO proceso (Paso 2) realice el cambio SIN DUDAS. Usa rutas RELATIVAS.")
+        "3.  **`parametros_accion`**: Objeto JSON con TODA la información necesaria para ejecutar el cambio SIN DUDAS. Usa rutas RELATIVAS.")
     promptPartes.append(
-        "    -   `mover_funcion`/`mover_clase`: `archivo_origen`, `archivo_destino`, `nombre_funcion`/`nombre_clase`. **IMPORTANTE**: Indica si la función/clase debe ser **BORRADA** del origen.")
-    promptPartes.append("    -   `modificar_codigo_en_archivo`: `archivo`, `descripcion_del_cambio_interno` (MUY detallado: 'Eliminar bloque if comentado entre lineas 80-95', 'Reemplazar bucle for en linea 120 por array_map', 'Añadir `global $wpdb;` al inicio de la función `miQuery()` en linea 30', 'Borrar la declaración completa de la función `funcionObsoleta(arg1)`'). **NO incluyas el código a buscar/reemplazar aquí**, solo la instrucción CLARA.")
+        "    -   `mover_funcion`/`mover_clase`: `archivo_origen`, `archivo_destino`, `nombre_funcion`/`nombre_clase`, `eliminar_de_origen` (boolean).")
+    promptPartes.append("    -   `modificar_codigo_en_archivo`: `archivo`, `descripcion_del_cambio_interno` (MUY detallado: 'Eliminar bloque if comentado entre lineas 80-95', 'Reemplazar bucle for en linea 120 por array_map', 'Añadir `global $wpdb;` al inicio de la función `miQuery()` en linea 30', 'Borrar la declaración completa de la función `funcionObsoleta(arg1)`'). NO incluyas el código aquí.")
     promptPartes.append(
-        "    -   `crear_archivo`: `archivo` (ruta completa relativa), `proposito_del_archivo` (breve, ej: 'Clase para manejar la API externa X').")
+        "    -   `crear_archivo`: `archivo` (ruta completa relativa), `proposito_del_archivo` (breve).")
     promptPartes.append(
         "    -   `eliminar_archivo`: `archivo` (ruta relativa).")
     promptPartes.append(
         "    -   `crear_directorio`: `directorio` (ruta relativa).")
-    promptPartes.append("4.  **LISTA ARCHIVOS RELEVANTES COMPLETAMENTE**: En `archivos_relevantes`, incluye **TODAS** las rutas relativas de archivos que el Paso 2 **NECESITARÁ LEER** para ejecutar la acción (origen, destino, archivos que usan lo movido si aplica y es fácil de determinar, etc.). ¡Esto es CRUCIAL y debe ser preciso!")
-    promptPartes.append("5.  **EXPLICA TU RAZONAMIENTO DETALLADAMENTE**: En `razonamiento`, justifica CLARAMENTE el *por qué* de esta acción (beneficio, problema que resuelve) o la razón específica para `no_accion` (ej: 'Código ya optimizado', 'No se encontraron mejoras seguras', 'Requiere análisis manual').")
+    promptPartes.append("4.  **`archivos_relevantes`**: Lista de strings [ruta1, ruta2, ...] con **TODAS** las rutas relativas de archivos que el Paso 2 NECESITARÁ LEER. ¡CRUCIAL y preciso!")
+    promptPartes.append("5.  **`razonamiento`**: String justificando CLARAMENTE el *por qué* de esta acción o la razón específica para `no_accion`.")
+    promptPartes.append("6.  **`tipo_analisis`**: Incluye siempre el campo `tipo_analisis` con el valor fijo `\"refactor_decision\"`.") # Añadido como regla explícita
     promptPartes.append(
-        "6. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")
-    promptPartes.append(
-        "7.  **FORMATO JSON ESTRICTO**: Responde **ÚNICAMENTE** con el JSON. SIN texto introductorio ni explicaciones fuera del JSON.")
-    promptPartes.append("""
-```json
-{
-  "tipo_analisis": "refactor_decision",
-  "accion_propuesta": "TIPO_ACCION",
-  "descripcion": "Mensaje MUY CLARO y específico para commit.",
-  "parametros_accion": {
-    // --- Ejemplo mover_funcion ---
-    // "archivo_origen": "ruta/relativa/origen.php",
-    // "archivo_destino": "ruta/relativa/destino.php",
-    // "nombre_funcion": "nombreDeLaFuncion",
-    // "eliminar_de_origen": true, // O false si solo se copia
-    // --- Ejemplo modificar_codigo_en_archivo ---
-    // "archivo": "ruta/relativa/archivo.php",
-    // "descripcion_del_cambio_interno": "Eliminar la función completa 'miFuncionVieja(arg)' que empieza cerca de la linea 50. Incluir el comentario anterior.",
-    // --- Ejemplo crear_archivo ---
-    // "archivo": "nueva/ruta/miClaseApi.php",
-    // "proposito_del_archivo": "Contendrá la clase MiClaseApi para interactuar con servicio X"
-    // ... otros ejemplos según acción...
-  },
-  "archivos_relevantes": [
-    "ruta/relativa/origen.php", // Ejemplo mover
-    "ruta/relativa/destino.php", // Ejemplo mover
-    // Lista COMPLETA de archivos a leer en Paso 2
-  ],
-  "razonamiento": "Justificación DETALLADA del cambio o motivo claro de no_accion."
-}
-```""")
+        "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.") # Mantenido
+    # --- ELIMINADO Bloque ```json ... ``` ---
 
     if historialCambiosTexto:
         promptPartes.append(
@@ -219,48 +192,70 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
     promptPartes.append(contextoCodigoCompleto)
     promptPartes.append("--- FIN CÓDIGO ---")
     promptPartes.append(
-        "\nRecuerda: JSON estricto, UNA acción pequeña y segura, parámetros DETALLADOS, razonamiento CLARO, archivos relevantes COMPLETOS.")
+        "\nRecuerda: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores.") # Ajustado
 
     promptCompleto = "\n".join(promptPartes)
-    # ... (llamada a Gemini y parseo igual que antes) ...
-    log.info(f"{logPrefix} Enviando solicitud de DECISIÓN a Gemini...")
-    # Debug corto del prompt
-    log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:200]}...")
-    log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-200:]}")
+    log.info(f"{logPrefix} Enviando solicitud de DECISIÓN a Gemini (MODO JSON)...")
+    # --- COMENTADO Log del prompt ---
+    # log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:200]}...")
+    # log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-200:]}")
 
     try:
         respuesta = modelo.generate_content(
             promptCompleto,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,  # Un poco más determinista para la decisión
-                # max_output_tokens=1024 # Limitar tamaño de respuesta si es necesario
+            generation_config=genai.types.GenerationConfig( # Asegúrate de que genai.types esté disponible o usa dict
+                temperature=0.4,
+                # --- AÑADIDO JSON Mode ---
+                response_mime_type="application/json",
             ),
-            safety_settings={  # Ser un poco más permisivo si bloquea código legítimo
+            safety_settings={
                 'HATE': 'BLOCK_ONLY_HIGH',
                 'HARASSMENT': 'BLOCK_ONLY_HIGH',
                 'SEXUAL': 'BLOCK_ONLY_HIGH',
                 'DANGEROUS': 'BLOCK_ONLY_HIGH'
             }
         )
-        log.info(f"{logPrefix} Respuesta de DECISIÓN recibida.")
+        log.info(f"{logPrefix} Respuesta de DECISIÓN (MODO JSON) recibida.")
+
+        # Extraer y parsear (el limpiador es robusto)
         textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         if not textoRespuesta:
-            return None  # Error ya logueado
+            return None
 
         sugerenciaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
-        if sugerenciaJson and sugerenciaJson.get("tipo_analisis") != "refactor_decision":
+
+        # Validación básica
+        if sugerenciaJson is None:
+             log.error(f"{logPrefix} El parseo/extracción final de JSON falló.")
+             return None # Error ya logueado en _limpiarYParsearJson
+
+        # Verificar tipo esperado
+        if sugerenciaJson.get("tipo_analisis") != "refactor_decision":
             log.error(
-                f"{logPrefix} Respuesta JSON no es del tipo esperado 'refactor_decision'. JSON: {sugerenciaJson}")
+                f"{logPrefix} Respuesta JSON no es del tipo esperado 'refactor_decision'.")
+            # --- AÑADIDO Log del JSON recibido en caso de error de tipo ---
+            try:
+                log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(sugerenciaJson, indent=2, ensure_ascii=False)}")
+            except Exception: # Por si el JSON es inválido para dumps
+                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {sugerenciaJson}")
             return None
+
+        # --- AÑADIDO Log del JSON de decisión generado (formateado) ---
+        log.info(f"{logPrefix} JSON de Decisión Generado:\n{json.dumps(sugerenciaJson, indent=2, ensure_ascii=False)}")
+        # -------------------------------------------------------------
         return sugerenciaJson
 
+    except google.api_core.exceptions.InvalidArgument as e_inv:
+        log.error(f"{logPrefix} Error InvalidArgument durante la generación JSON: {e_inv}. ¿El modelo tuvo problemas para generar el JSON solicitado?", exc_info=True)
+        _manejarExcepcionGemini(e_inv, logPrefix, respuesta if 'respuesta' in locals() else None)
+        return None
     except Exception as e:
         _manejarExcepcionGemini(
             e, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
 
 
-# --- PASO 2: Ejecutar Acción (Prompt Modificado) ---
+# --- PASO 2: Ejecutar Acción (Modificado para Logging) ---
 def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     logPrefix = "ejecutarAccionConGemini (Paso 2):"
     if not configurarGemini():
@@ -278,21 +273,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
             f"{logPrefix} Error inicializando modelo '{nombreModelo}': {e}")
         return None
 
-    # --- QUITA LA DEFINICIÓN DE expected_schema ---
-    # expected_schema = types.Schema(
-    #     type=types.Type.OBJECT,
-    #     properties={
-    #         'tipo_resultado': types.Schema(type=types.Type.STRING),
-    #         'archivos_modificados': types.Schema(
-    #             type=types.Type.OBJECT,
-    #             additional_properties=types.Schema(type=types.Type.STRING)
-    #         )
-    #     },
-    #     required=['tipo_resultado', 'archivos_modificados']
-    # )
-    # --- FIN QUITA ---
-
-    # --- Construye el Prompt (SIN las instrucciones de formato JSON, ya que se usa mime_type) ---
+    # --- Construye el Prompt (ya ajustado para JSON mode) ---
     accion = decisionParseada.get("accion_propuesta")
     descripcion = decisionParseada.get("descripcion")
     params = decisionParseada.get("parametros_accion", {})
@@ -314,7 +295,6 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
         "\nSe te proporciona el contenido ACTUAL de los archivos relevantes (si aplica).")
     promptPartes.append(
         "**TU ÚNICA TAREA:** Realizar la acción descrita en los 'Parámetros Detallados'.")
-    # <-- Instrucción explícita
     promptPartes.append(
         "**RESPUESTA ESPERADA:** Responde ÚNICAMENTE con un objeto JSON que tenga la siguiente estructura:")
     promptPartes.append("""
@@ -359,21 +339,18 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
 
     log.info(
         f"{logPrefix} Enviando solicitud de EJECUCIÓN a Gemini (MODO JSON)...")
-    log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:200]}...")
-    log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-200:]}")
+    # --- COMENTADO Log del prompt ---
+    # log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:200]}...")
+    # log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-200:]}")
 
     try:
         respuesta = modelo.generate_content(
             promptCompleto,
-            generation_config=genai.types.GenerationConfig(  # <-- Usa genai.types aquí si así lo tienes importado
-                temperature=0.4,  # Puedes ajustar
-                # --- ¡Aquí está la clave! ---
+            generation_config=genai.types.GenerationConfig( # O usa dict
+                temperature=0.4,
                 response_mime_type="application/json",
-                # --- QUITA response_schema ---
-                # response_schema=expected_schema
-                # ---------------------------
             ),
-            safety_settings={  # Mantén tus safety settings
+            safety_settings={
                 'HATE': 'BLOCK_ONLY_HIGH',
                 'HARASSMENT': 'BLOCK_ONLY_HIGH',
                 'SEXUAL': 'BLOCK_ONLY_HIGH',
@@ -382,71 +359,74 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
         )
         log.info(f"{logPrefix} Respuesta de EJECUCIÓN (MODO JSON) recibida.")
 
-        # --- El parseo ahora es MÁS IMPORTANTE como fallback ---
-        # Idealmente, .text contendrá el JSON puro, pero el limpiador es bueno tenerlo
         textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         if not textoRespuesta:
             return None
 
-        # Usar el limpiador/parser que ya tienes es una buena práctica
         resultadoJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
-        # --- Validación post-parseo (igual que antes) ---
         if resultadoJson is None:
             log.error(f"{logPrefix} El parseo/extracción final de JSON falló.")
             return None
 
-        # Comprobar el tipo esperado explícitamente mencionado en el prompt
+        # Validación (como estaba antes)
         if resultadoJson.get("tipo_resultado") != "ejecucion_cambio":
             log.warning(
-                f"{logPrefix} Respuesta JSON no tiene 'tipo_resultado'=\"ejecucion_cambio\" esperado. Verificando estructura. JSON: {resultadoJson}")
-            # Podrías añadir más validaciones aquí si es necesario,
-            # como verificar que 'archivos_modificados' existe y es un dict.
+                f"{logPrefix} Respuesta JSON no tiene 'tipo_resultado'=\"ejecucion_cambio\" esperado. Verificando estructura.")
             if "archivos_modificados" not in resultadoJson or not isinstance(resultadoJson.get("archivos_modificados"), dict):
-                log.error(
-                    f"{logPrefix} Falta 'archivos_modificados' o no es un diccionario.")
+                log.error(f"{logPrefix} Falta 'archivos_modificados' o no es un diccionario.")
+                 # --- AÑADIDO Log del JSON recibido en caso de error de tipo/estructura ---
+                try:
+                    log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+                except Exception:
+                     log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
                 return None
-            # Si la estructura básica está, podemos intentar continuar, pero marcamos que falta el tipo
-            # Forzarlo si la estructura parece correcta
             resultadoJson["tipo_resultado"] = "ejecucion_cambio"
 
-        # Validación específica para acciones sin contenido (igual que antes)
-        accion_sin_contenido = accion in [
-            "eliminar_archivo", "crear_directorio"]
+        accion_sin_contenido = accion in ["eliminar_archivo", "crear_directorio"]
         archivos_mod = resultadoJson.get("archivos_modificados")
 
-        if archivos_mod is None:  # Añadir chequeo por si falta la clave
-            log.error(
-                f"{logPrefix} La clave 'archivos_modificados' falta en la respuesta JSON.")
+        if archivos_mod is None:
+            log.error(f"{logPrefix} La clave 'archivos_modificados' falta en la respuesta JSON.")
+            # --- AÑADIDO Log del JSON recibido en caso de error ---
+            try:
+                log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+            except Exception:
+                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
             return None
 
         if accion_sin_contenido and archivos_mod != {}:
-            log.warning(
-                f"{logPrefix} Se esperaba 'archivos_modificados' vacío para la acción '{accion}', pero se recibió: {list(archivos_mod.keys())}. Se procederá con dict vacío.")
-            resultadoJson["archivos_modificados"] = {}
+             log.warning(f"{logPrefix} Se esperaba 'archivos_modificados' vacío para la acción '{accion}', pero se recibió: {list(archivos_mod.keys())}. Se procederá con dict vacío.")
+             resultadoJson["archivos_modificados"] = {}
         elif not accion_sin_contenido and not isinstance(archivos_mod, dict):
-            log.error(
-                f"{logPrefix} Se esperaba un diccionario para 'archivos_modificados' en acción '{accion}', pero se recibió tipo {type(archivos_mod)}.")
-            return None
+             log.error(f"{logPrefix} Se esperaba un diccionario para 'archivos_modificados' en acción '{accion}', pero se recibió tipo {type(archivos_mod)}.")
+             # --- AÑADIDO Log del JSON recibido en caso de error ---
+             try:
+                log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+             except Exception:
+                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
+             return None
 
-        log.info(
-            f"{logPrefix} Respuesta JSON (MODO JSON) parseada y validada correctamente.")
+        log.info(f"{logPrefix} Respuesta JSON (MODO JSON) parseada y validada correctamente.")
+        # --- AÑADIDO Log del JSON de ejecución generado (formateado) ---
+        log.info(f"{logPrefix} JSON de Ejecución Generado:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+        # --------------------------------------------------------------
         return resultadoJson
 
     except google.api_core.exceptions.InvalidArgument as e_inv:
-        # Específicamente capturar InvalidArgument que a veces ocurre con JSON mode si el modelo falla
-        log.error(f"{logPrefix} Error InvalidArgument durante la generación JSON: {e}. ¿El modelo tuvo problemas para generar el JSON solicitado?", exc_info=True)
-        _manejarExcepcionGemini(
-            e_inv, logPrefix, respuesta if 'respuesta' in locals() else None)
+        log.error(f"{logPrefix} Error InvalidArgument durante la generación JSON: {e_inv}. ¿El modelo tuvo problemas para generar el JSON solicitado?", exc_info=True)
+        _manejarExcepcionGemini(e_inv, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
     except Exception as e:
-        _manejarExcepcionGemini(
-            e, logPrefix, respuesta if 'respuesta' in locals() else None)
+        _manejarExcepcionGemini(e, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
 
-# --- Helpers Internos (sin cambios en extraerTexto, manejarExcepcion; cambios en limpiarYParsear) ---
-# _extraerTextoRespuesta, _manejarExcepcionGemini (sin cambios)
+# --- Helpers Internos ---
+# _extraerTextoRespuesta, _limpiarYParsearJson, _manejarExcepcionGemini
+# (Sin cambios necesarios en los helpers, _limpiarYParsearJson ya es robusto
+# y el logging del JSON se hace después de llamarlo con éxito)
 
+# ... (resto de _extraerTextoRespuesta, _limpiarYParsearJson, _manejarExcepcionGemini igual) ...
 
 def _extraerTextoRespuesta(respuesta, logPrefix):
     """Extrae el texto de la respuesta de Gemini de forma robusta."""
@@ -458,16 +438,28 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
         elif hasattr(respuesta, 'parts') and respuesta.parts:
             # Comprobar si parts es iterable y no vacío
             if isinstance(respuesta.parts, (list, tuple)) and respuesta.parts:
-                textoRespuesta = "".join(
-                    part.text for part in respuesta.parts if hasattr(part, 'text'))
+                # MODIFICACIÓN: Si se usa response_mime_type="application/json"
+                # el texto puede no estar en part.text directamente, pero sí en respuesta.text
+                # Así que priorizamos respuesta.text si existe.
+                if hasattr(respuesta, 'text') and respuesta.text:
+                     textoRespuesta = respuesta.text
+                else:
+                    # Fallback a concatenar partes si respuesta.text no está
+                    textoRespuesta = "".join(
+                        part.text for part in respuesta.parts if hasattr(part, 'text'))
         elif hasattr(respuesta, 'candidates') and respuesta.candidates:
             # Comprobar si candidates es iterable y no vacío
             if isinstance(respuesta.candidates, (list, tuple)) and respuesta.candidates:
-                candidate = respuesta.candidates[0]
-                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts') and candidate.content.parts:
-                    if isinstance(candidate.content.parts, (list, tuple)) and candidate.content.parts:
-                        textoRespuesta = "".join(
-                            part.text for part in candidate.content.parts if hasattr(part, 'text'))
+                 # Similar al caso de 'parts', priorizar respuesta.text si existe
+                 if hasattr(respuesta, 'text') and respuesta.text:
+                     textoRespuesta = respuesta.text
+                 else:
+                    # Fallback a la lógica anterior del candidate
+                    candidate = respuesta.candidates[0]
+                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        if isinstance(candidate.content.parts, (list, tuple)) and candidate.content.parts:
+                            textoRespuesta = "".join(
+                                part.text for part in candidate.content.parts if hasattr(part, 'text'))
 
         if not textoRespuesta:
             finish_reason_str = "N/A"
@@ -512,6 +504,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     textoLimpio = textoRespuesta.strip()
 
     # Eliminar bloques de código Markdown ```json ... ``` o ``` ... ```
+    # Aunque JSON mode *debería* evitar esto, lo mantenemos por robustez
     if textoLimpio.startswith("```"):
         # Encontrar el primer salto de línea después de ```
         first_newline = textoLimpio.find('\n')
@@ -524,7 +517,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         if textoLimpio.endswith("```"):
             textoLimpio = textoLimpio[:-3].strip()
 
-    # A veces Gemini añade texto antes o después del JSON real
+    # A veces Gemini añade texto antes o después del JSON real incluso en JSON mode
     # Intentar encontrar el '{' inicial y el '}' final que forman un bloque válido
     start_brace = textoLimpio.find('{')
     end_brace = textoLimpio.rfind('}')
@@ -538,11 +531,10 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     json_candidate = textoLimpio[start_brace: end_brace + 1]
 
     try:
-        # ### MODIFICADO ### Log de tamaño
         log.debug(
             f"{logPrefix} Intentando parsear JSON candidato (tamaño: {len(json_candidate)})...")
         resultadoJson = json.loads(json_candidate)
-        log.info(f"{logPrefix} JSON parseado correctamente.")
+        log.info(f"{logPrefix} JSON parseado correctamente (previo a validación de contenido).") # Ajuste leve msg
         return resultadoJson
     except json.JSONDecodeError as e:
         # ### MEJORADO ### Loguear más contexto alrededor del error
@@ -568,7 +560,6 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
             f"{logPrefix} Error inesperado parseando JSON: {e}", exc_info=True)
         return None
 
-
 def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
     """Maneja y loguea excepciones comunes de la API de Gemini."""
     if isinstance(e, google.api_core.exceptions.ResourceExhausted):
@@ -576,7 +567,8 @@ def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
             f"{logPrefix} Error de cuota API Gemini (ResourceExhausted): {e}")
     elif isinstance(e, google.api_core.exceptions.InvalidArgument):
         # Esto a menudo incluye errores por contenido inválido en el prompt (no solo tamaño)
-        log.error(f"{logPrefix} Error argumento inválido API Gemini (InvalidArgument): {e}. ¿Prompt mal formado o contenido bloqueado implícitamente?")
+        # O problemas del modelo generando el formato JSON solicitado
+        log.error(f"{logPrefix} Error argumento inválido API Gemini (InvalidArgument): {e}. ¿Prompt mal formado, contenido bloqueado o fallo en generación JSON?", exc_info=True) # Añadido exc_info
     elif isinstance(e, google.api_core.exceptions.PermissionDenied):
         log.error(
             f"{logPrefix} Error de permiso API Gemini (PermissionDenied): {e}. ¿API Key incorrecta o sin permisos?")
@@ -584,9 +576,9 @@ def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
         log.error(
             f"{logPrefix} Error servicio no disponible API Gemini (ServiceUnavailable): {e}. Reintentar más tarde.")
     # Intentar manejo específico de excepciones de bloqueo si están disponibles
-    elif type(e).__name__ in ['BlockedPromptException', 'StopCandidateException']:
+    elif type(e).__name__ in ['BlockedPromptException', 'StopCandidateException', 'ResponseBlockedError']: # Añadido ResponseBlockedError
         log.error(
-            f"{logPrefix} Prompt bloqueado o generación detenida por Gemini: {e}")
+            f"{logPrefix} Prompt bloqueado o generación detenida/bloqueada por Gemini: {e}")
         # Intentar extraer info del objeto respuesta si se pasó
         finish_reason = "Desconocida"
         safety_ratings = "No disponibles"
@@ -598,11 +590,18 @@ def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
                 if hasattr(feedback, 'safety_ratings'):
                     safety_ratings = str(feedback.safety_ratings)
             if hasattr(respuesta, 'candidates') and respuesta.candidates:
-                candidate = respuesta.candidates[0]
-                if hasattr(candidate, 'finish_reason'):
-                    finish_reason = f"FinishReason: {candidate.finish_reason}"
-                if hasattr(candidate, 'safety_ratings'):
-                    safety_ratings = str(candidate.safety_ratings)
+                # Puede que candidates esté vacío si la respuesta fue bloqueada
+                try:
+                    candidate = respuesta.candidates[0]
+                    if hasattr(candidate, 'finish_reason'):
+                        # Sobreescribir si hay finish_reason más específico
+                        finish_reason = f"FinishReason: {candidate.finish_reason}"
+                    if hasattr(candidate, 'safety_ratings'):
+                        safety_ratings = str(candidate.safety_ratings)
+                except IndexError:
+                    log.debug(f"{logPrefix} No se encontraron candidates en la respuesta (probablemente bloqueada).")
+
+
         log.error(
             f"{logPrefix} Razón: {finish_reason}, Safety: {safety_ratings}")
 
