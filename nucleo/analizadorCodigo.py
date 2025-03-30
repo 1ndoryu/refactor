@@ -275,6 +275,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append("6.  **CREACIÓN**: Si es `crear_archivo`, genera contenido inicial basado en `proposito_del_archivo` (puede ser una estructura básica de clase/archivo PHP).")
     promptPartes.append("7.  **CONVENCIONES DE CÓDIGO**: Respeta las convenciones del código existente (ej: usa `<?` si es lo predominante, no `<?php`). Evita errores comunes como `<?` duplicados o mal cerrados. Usa `<? echo` si aplica.")
     promptPartes.append("8.  **(Opcional)** Añade un comentario simple como `// Refactor IA: [Descripción corta]` cerca del cambio.")
+    promptPartes.append("9.  Evita las tareas de legibilidad, no son importantes, ejemplo, Refactor(Legibilidad): Añade comentario")
 
     promptPartes.append("\n--- FORMATO DE RESPUESTA (JSON ESTRICTO) ---")
     promptPartes.append("Responde **ÚNICAMENTE** con un JSON que mapea la ruta RELATIVA del archivo a su **nuevo contenido COMPLETO**.")
