@@ -12,9 +12,10 @@ from nucleo import manejadorGit
 from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 
-# --- Configuración Logging y Carga/Guardado de Historial ---
+# --- Configuración Logging y Carga/Guardado de Historial (sin cambios funcionales, pero guardarHistorial se usará más) ---
 
 def configurarLogging():
+    # ... (igual que antes) ...
     log_raiz = logging.getLogger()
     if log_raiz.handlers:
         return
@@ -42,6 +43,7 @@ def configurarLogging():
         f"configurarLogging: Nivel de log establecido a {logging.getLevelName(log_raiz.level)}")
 
 def cargarHistorial():
+    # ... (igual que antes) ...
     logPrefix = "cargarHistorial:"
     historial = []
     rutaArchivoHistorial = settings.RUTAHISTORIAL
@@ -51,6 +53,7 @@ def cargarHistorial():
         return historial
     try:
         with open(rutaArchivoHistorial, 'r', encoding='utf-8') as f:
+            # Leemos todas las líneas, cada línea es una entrada de historial potencialmente multilínea separada por '--- END ENTRY ---'
             buffer = ""
             for line in f:
                 if line.strip() == "--- END ENTRY ---":
@@ -70,6 +73,7 @@ def cargarHistorial():
     return historial
 
 def guardarHistorial(historial):
+    # ... (igual que antes, pero ahora escribe separadores) ...
     logPrefix = "guardarHistorial:"
     rutaArchivoHistorial = settings.RUTAHISTORIAL
     try:
@@ -77,7 +81,7 @@ def guardarHistorial(historial):
         with open(rutaArchivoHistorial, 'w', encoding='utf-8') as f:
             for entrada in historial:
                 f.write(entrada.strip() + "\n")
-                f.write("--- END ENTRY ---\n") # Separador explícito
+                f.write("--- END ENTRY ---\n") # ### NUEVO ### Separador explícito
         logging.info(
             f"{logPrefix} Historial guardado en {rutaArchivoHistorial} ({len(historial)} entradas).")
         return True
@@ -86,9 +90,10 @@ def guardarHistorial(historial):
             f"{logPrefix} Error crítico guardando historial en {rutaArchivoHistorial}: {e}")
         return False
 
-# --- Parseadores ---
+# --- Parseadores (sin cambios funcionales, pero la validación es importante) ---
 
 def parsearDecisionGemini(decisionJson):
+    # ... (igual que antes, la validación es crucial) ...
     logPrefix = "parsearDecisionGemini:"
     accionesSoportadas = [
         "mover_funcion", "mover_clase", "modificar_codigo_en_archivo",
@@ -105,13 +110,14 @@ def parsearDecisionGemini(decisionJson):
     descripcion = decisionJson.get("descripcion")
     parametrosAccion = decisionJson.get("parametros_accion")
     archivosRelevantes = decisionJson.get("archivos_relevantes")
-    razonamiento = decisionJson.get("razonamiento")
+    razonamiento = decisionJson.get("razonamiento") # Ahora se espera más detallado
 
     if tipoAnalisis != "refactor_decision":
         logging.error(
             f"{logPrefix} JSON inválido. Falta o es incorrecto 'tipo_analisis'. Debe ser 'refactor_decision'. JSON: {decisionJson}")
         return None
 
+    # ### MODIFICADO ### Validar que los campos esenciales existan y tengan tipos básicos correctos
     if not all([accionPropuesta, isinstance(parametrosAccion, dict), descripcion, isinstance(archivosRelevantes, list), razonamiento]):
         logging.error(f"{logPrefix} Formato JSON de decisión inválido. Faltan campos clave ('accion_propuesta', 'descripcion', 'parametros_accion', 'archivos_relevantes', 'razonamiento') o tipos incorrectos. JSON: {decisionJson}")
         return None
@@ -122,20 +128,23 @@ def parsearDecisionGemini(decisionJson):
         return None
 
     if accionPropuesta != "no_accion" and not archivosRelevantes and accionPropuesta not in ["crear_directorio"]:
+         # crear_directorio es la única acción que podría no necesitar archivos relevantes
         logging.warning(
             f"{logPrefix} Acción '{accionPropuesta}' usualmente requiere 'archivos_relevantes', pero la lista está vacía. Esto podría ser un error en el Paso 1.")
         # Podríamos decidir fallar aquí si es crítico, pero lo dejamos pasar por ahora
+        # return None
 
     if accionPropuesta == "no_accion":
         logging.info(
             f"{logPrefix} Decisión 'no_accion' recibida y parseada. Razón: {razonamiento or 'No proporcionada'}")
     else:
         logging.info(
-            f"{logPrefix} Decisión parseada exitosamente. Acción: {accionPropuesta}. Archivos: {archivosRelevantes}. Razón: {razonamiento[:100]}...")
+            f"{logPrefix} Decisión parseada exitosamente. Acción: {accionPropuesta}. Archivos: {archivosRelevantes}. Razón: {razonamiento[:100]}...") # Log más corto
 
     return decisionJson
 
 def parsearResultadoEjecucion(resultadoJson):
+    # ... (igual que antes, mantener JSON simple) ...
     logPrefix = "parsearResultadoEjecucion:"
 
     if not isinstance(resultadoJson, dict):
@@ -166,6 +175,8 @@ def parsearResultadoEjecucion(resultadoJson):
                  f"{logPrefix} Formato JSON de resultado inválido. Falta 'archivos_modificados' o no es un diccionario. JSON: {resultadoJson}")
              return None
 
+
+    # Validación adicional: claves y valores deben ser strings
     for ruta, contenido in archivosModificados.items():
         if not isinstance(ruta, str) or not isinstance(contenido, str):
             logging.error(
@@ -176,8 +187,7 @@ def parsearResultadoEjecucion(resultadoJson):
         f"{logPrefix} Resultado de ejecución parseado exitosamente. {len(archivosModificados)} archivos a modificar.")
     return archivosModificados
 
-# --- Formateador de Historial ---
-
+# ### NUEVO ### Función para formatear entrada de historial
 def formatearEntradaHistorial(outcome, decision=None, result_details=None, verification_details=None, error_message=None):
     """Crea una cadena de texto estructurada para el historial."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -212,8 +222,7 @@ def formatearEntradaHistorial(outcome, decision=None, result_details=None, verif
 
     return entry.strip()
 
-# --- Verificación (Paso 3) ---
-
+# ### NUEVO ### Función de Verificación (Paso 3)
 def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
     """
     PASO 3: Compara la intención (Paso 1) con la ejecución (Paso 2) y el estado real (git status).
@@ -222,9 +231,11 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
     logPrefix = "verificarCambiosAplicados (Paso 3):"
     logging.info(f"{logPrefix} Iniciando verificación...")
 
+    # 1. Archivos que Paso 1 INTENTABA afectar
     archivosIntencion = set(decisionParseada.get('archivos_relevantes', []))
     accion = decisionParseada.get('accion_propuesta')
     params = decisionParseada.get('parametros_accion', {})
+    # Añadir archivos específicos de parámetros si no están en relevantes (por si acaso)
     if accion in ["mover_funcion", "mover_clase"]:
         archivosIntencion.add(params.get("archivo_origen"))
         archivosIntencion.add(params.get("archivo_destino"))
@@ -232,12 +243,15 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
         archivosIntencion.add(params.get("archivo"))
     elif accion == "crear_archivo":
          archivosIntencion.add(params.get("archivo"))
-    archivosIntencion.discard(None)
+    archivosIntencion.discard(None) # Eliminar None si algún parámetro no estaba
     logging.debug(f"{logPrefix} Archivos según Intención (Paso 1): {archivosIntencion}")
 
+    # 2. Archivos para los que Paso 2 GENERÓ contenido
     archivosGenerados = set(resultadoEjecucion.keys())
     logging.debug(f"{logPrefix} Archivos con contenido Generado (Paso 2): {archivosGenerados}")
 
+    # 3. Archivos REALMENTE modificados/añadidos/eliminados en disco (según Git)
+    # Usamos el nuevo helper de manejadorGit
     archivosRealesModificados = manejadorGit.obtenerArchivosModificadosStatus(rutaRepo)
     if archivosRealesModificados is None:
         err = "No se pudo obtener el estado de los archivos de Git."
@@ -245,24 +259,34 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
         return False, err
     logging.debug(f"{logPrefix} Archivos Modificados/Nuevos/Eliminados (Git Status): {archivosRealesModificados}")
 
+    # --- Lógica de Comparación ---
     inconsistencias = []
 
+    # a) ¿Generó Gemini contenido para archivos no esperados (según intención)?
     inesperadosGenerados = archivosGenerados - archivosIntencion
     if inesperadosGenerados:
+        # Permitir si la acción era crear_archivo y el archivo está en inesperados (puede que no estuviera en 'relevantes' si era nuevo)
         if not (accion == "crear_archivo" and inesperadosGenerados == {params.get("archivo")}):
              msg = f"Gemini (Paso 2) generó contenido para archivos inesperados: {inesperadosGenerados}"
              logging.warning(f"{logPrefix} {msg}")
              inconsistencias.append(msg)
 
+    # b) ¿Los archivos realmente modificados coinciden (más o menos) con la intención?
+    #    Es difícil ser exacto. Nos enfocamos en si hay modificaciones *fuera* del conjunto esperado.
     inesperadosModificados = archivosRealesModificados - archivosIntencion
     if inesperadosModificados:
          msg = f"Se detectaron cambios en archivos inesperados (no en intención Paso 1): {inesperadosModificados}"
          logging.warning(f"{logPrefix} {msg}")
          inconsistencias.append(msg)
 
-    if not accion in ["eliminar_archivo", "crear_directorio"]:
+    # c) ¿Se modificaron MENOS archivos de los esperados? (Ej: pidió modificar 2, solo cambió 1)
+    #    Comparamos los archivos modificados reales con los que tenían contenido generado
+    if not accion in ["eliminar_archivo", "crear_directorio"]: # Estas acciones no generan contenido modificado
         faltantesModificados = archivosGenerados - archivosRealesModificados
+        # Puede que un archivo generado sea idéntico al original, git no lo detecta.
+        # Solo lo marcamos si es una diferencia clara y no es crear archivo (donde es normal que solo aparezca 1)
         if faltantesModificados and accion != "crear_archivo":
+             # Verificar si el contenido generado era realmente diferente
              realmente_faltantes = set()
              for faltante in faltantesModificados:
                  ruta_abs_faltante = aplicadorCambios._validar_y_normalizar_ruta(faltante, rutaRepo, asegurar_existencia=False)
@@ -271,7 +295,7 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
                      try:
                          with open(ruta_abs_faltante, 'r', encoding='utf-8', errors='ignore') as f_orig:
                              contenido_original = f_orig.read()
-                     except Exception: pass
+                     except Exception: pass # Ignorar si no se puede leer el original
                  if resultadoEjecucion.get(faltante) != contenido_original:
                      realmente_faltantes.add(faltante)
 
@@ -280,15 +304,17 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
                 logging.warning(f"{logPrefix} {msg}")
                 inconsistencias.append(msg)
 
+    # d) Caso especial: ¿Se pidió eliminar y el archivo todavía existe?
     if accion == "eliminar_archivo":
         archivo_a_eliminar = params.get("archivo")
-        if archivo_a_eliminar in archivosRealesModificados:
+        if archivo_a_eliminar in archivosRealesModificados: # Si git aún lo ve como modificado/existente
              ruta_abs_eliminar = aplicadorCambios._validar_y_normalizar_ruta(archivo_a_eliminar, rutaRepo, asegurar_existencia=False)
              if ruta_abs_eliminar and os.path.exists(ruta_abs_eliminar):
                  msg = f"Se pidió eliminar '{archivo_a_eliminar}' pero todavía existe."
                  logging.warning(f"{logPrefix} {msg}")
                  inconsistencias.append(msg)
 
+    # --- Decisión Final ---
     if inconsistencias:
         mensaje_final = "Verificación fallida. Inconsistencias detectadas:\n- " + "\n- ".join(inconsistencias)
         logging.error(f"{logPrefix} {mensaje_final}")
@@ -299,106 +325,7 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
         return True, msg
 
 
-# <<< --- INICIO: Funciones Auxiliares para Generar Estructura --- >>>
-def _generarEstructuraRecursiva(ruta_actual, ignorados_set, prefijo_linea, nivel_actual, max_profundidad, max_items_por_nivel):
-    """Función auxiliar recursiva para generar la estructura."""
-    log = logging.getLogger(__name__)
-    logPrefix = "_generarEstructuraRecursiva:"
-    if nivel_actual > max_profundidad:
-        return f"{prefijo_linea}└── ... (profundidad máxima {max_profundidad} alcanzada)\n"
-
-    try:
-        elementos = sorted([item for item in os.listdir(ruta_actual) if item not in ignorados_set and not item.startswith('.')])
-    except OSError as e:
-        log.warning(f"{logPrefix} No se pudo listar '{ruta_actual}' (omitido): {e}")
-        return f"{prefijo_linea}└── ... (error al listar)\n"
-
-    sub_estructura = ""
-    add_trunc_msg = False
-    if len(elementos) > max_items_por_nivel:
-         log.debug(f"{logPrefix} Demasiados elementos ({len(elementos)}) en '{ruta_actual}' (nivel {nivel_actual}). Mostrando los primeros {max_items_por_nivel} y truncando.")
-         elementos = elementos[:max_items_por_nivel]
-         add_trunc_msg = True
-
-    num_elementos = len(elementos)
-
-    for i, nombre in enumerate(elementos):
-        es_ultimo = (i == num_elementos - 1) and not add_trunc_msg
-        prefijo_item = "└── " if es_ultimo else "├── "
-        ruta_completa = os.path.join(ruta_actual, nombre)
-
-        try:
-            if os.path.isdir(ruta_completa):
-                sub_estructura += f"{prefijo_linea}{prefijo_item}{nombre}/\n"
-                sub_estructura += _generarEstructuraRecursiva(
-                    ruta_completa,
-                    ignorados_set,
-                    prefijo_linea + ("    " if es_ultimo else "│   "),
-                    nivel_actual + 1,
-                    max_profundidad,
-                    max_items_por_nivel
-                )
-            else:
-                sub_estructura += f"{prefijo_linea}{prefijo_item}{nombre}\n"
-        except OSError as e:
-             log.warning(f"{logPrefix} Error accediendo a '{ruta_completa}' (omitido): {e}")
-             sub_estructura += f"{prefijo_linea}{prefijo_item}{nombre} [Error al acceder]\n"
-
-    if add_trunc_msg:
-        sub_estructura += f"{prefijo_linea}└── ... (truncado - más de {max_items_por_nivel} items)\n"
-
-    return sub_estructura
-
-def generarEstructuraDirectorio(ruta_base, ignorados=None, max_profundidad=10, max_items_por_nivel=50):
-    """Genera una representación de texto de la estructura de directorios con límites."""
-    log = logging.getLogger(__name__)
-    logPrefix = "generarEstructuraDirectorio:"
-    if ignorados is None:
-        ignorados = []
-    ignorados_set = set(ignorados)
-    # El nombre base del repo se usa como raíz visual
-    nombre_raiz_visual = os.path.basename(os.path.normpath(ruta_base))
-
-    estructura_str = f"Directory structure (root: {nombre_raiz_visual}/):\n"
-    elementos_raiz = []
-    try:
-        elementos_raiz = sorted([item for item in os.listdir(ruta_base) if item not in ignorados_set and not item.startswith('.')])
-    except OSError as e:
-         log.error(f"{logPrefix} Error listando directorio raíz '{ruta_base}': {e}")
-         return "[Error al listar directorio raíz]"
-
-    if len(elementos_raiz) > max_items_por_nivel:
-         log.warning(f"{logPrefix} Demasiados elementos ({len(elementos_raiz)}) en la raíz '{ruta_base}'. Mostrando los primeros {max_items_por_nivel} y truncando.")
-         elementos_raiz = elementos_raiz[:max_items_por_nivel] + ["... (truncado)"]
-
-    num_elementos_raiz = len(elementos_raiz)
-
-    for i, nombre in enumerate(elementos_raiz):
-        es_ultimo_raiz = (i == num_elementos_raiz - 1)
-        prefijo_raiz = "└── " if es_ultimo_raiz else "├── "
-        ruta_completa = os.path.join(ruta_base, nombre)
-
-        if nombre == "... (truncado)":
-             estructura_str += f"{prefijo_raiz}{nombre}\n"
-             continue
-
-        try:
-            if os.path.isdir(ruta_completa):
-                estructura_str += f"{prefijo_raiz}{nombre}/\n"
-                estructura_str += _generarEstructuraRecursiva(
-                    ruta_completa, ignorados_set, "    " if es_ultimo_raiz else "│   ", 1, max_profundidad, max_items_por_nivel
-                )
-            else:
-                estructura_str += f"{prefijo_raiz}{nombre}\n"
-        except OSError as e:
-            log.warning(f"{logPrefix} Error accediendo a '{ruta_completa}' (omitido): {e}")
-            estructura_str += f"{prefijo_raiz}{nombre} [Error al acceder]\n"
-
-    return estructura_str
-# <<< --- FIN: Funciones Auxiliares para Generar Estructura --- >>>
-
-
-# --- Función Principal ---
+# --- Función Principal (Modificada con Historial Detallado y Verificación) ---
 def ejecutarProcesoPrincipal():
     logPrefix = "ejecutarProcesoPrincipal:"
     logging.info(
@@ -407,18 +334,23 @@ def ejecutarProcesoPrincipal():
     decisionParseada = None
     resultadoEjecucion = None
     archivosModificadosGit = None
-    estadoFinal = "[INICIO]"
+    estadoFinal = "[INICIO]" # Para historial
 
     try:
+        # 1. Verificar configuración esencial
         if not settings.GEMINIAPIKEY or not settings.REPOSITORIOURL:
             logging.critical(f"{logPrefix} Configuración esencial faltante. Abortando.")
+            # No podemos guardar historial si falla tan temprano
             return False
 
+        # 2. Cargar historial
         historialRefactor = cargarHistorial()
 
+        # 3. Preparar repositorio local
         logging.info(f"{logPrefix} Preparando repositorio local...")
         if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO):
             logging.error(f"{logPrefix} No se pudo preparar el repositorio. Abortando ciclo.")
+            # Guardar historial aquí podría ser útil si ya se cargó
             historialRefactor.append(formatearEntradaHistorial(
                 outcome="[ERROR_SETUP]",
                 error_message="Fallo al preparar repositorio Git."
@@ -427,76 +359,48 @@ def ejecutarProcesoPrincipal():
             return False
         logging.info(f"{logPrefix} Repositorio listo y en la rama '{settings.RAMATRABAJO}'.")
 
-        # <<< --- NUEVO: Generar Estructura del Proyecto --- >>>
-        logging.info(f"{logPrefix} Generando estructura del proyecto para contexto...")
-        estructura_proyecto_texto = ""
-        try:
-            ignorados_estructura = set(getattr(settings, 'DIRECTORIOS_IGNORADOS', []))
-            ignorados_estructura.add('.git') # Asegurarse de ignorar .git
-            estructura_proyecto_texto = generarEstructuraDirectorio(
-                settings.RUTACLON,
-                list(ignorados_estructura),
-                max_profundidad=10, # Limitar profundidad razonablemente
-                max_items_por_nivel=35 # Limitar items por directorio
-            )
-            if not estructura_proyecto_texto:
-                 raise ValueError("La generación de estructura devolvió vacío.")
-
-            MAX_ESTRUCTURA_LEN = 15000 # Ajustar límite de tamaño (en bytes/chars)
-            if len(estructura_proyecto_texto.encode('utf-8')) > MAX_ESTRUCTURA_LEN:
-                logging.warning(f"{logPrefix} Estructura generada muy larga ({len(estructura_proyecto_texto)} chars), truncando a {MAX_ESTRUCTURA_LEN} bytes.")
-                estructura_proyecto_texto = estructura_proyecto_texto.encode('utf-8')[:MAX_ESTRUCTURA_LEN].decode('utf-8', 'ignore') + "\n... (estructura completa truncada)"
-
-            logging.info(f"{logPrefix} Estructura generada ({len(estructura_proyecto_texto)} chars). Primeras líneas:\n{estructura_proyecto_texto[:300]}...")
-            # Loguear la estructura completa en nivel DEBUG
-            logging.debug(f"{logPrefix} Estructura completa generada:\n{estructura_proyecto_texto}")
-
-        except Exception as e_struct:
-            logging.error(f"{logPrefix} No se pudo generar la estructura del proyecto: {e_struct}", exc_info=True)
-            estructura_proyecto_texto = "[Error al generar estructura]" # Valor por defecto en caso de error
-        # <<< --- FIN NUEVO --- >>>
-
         # ===============================================================
         # PASO 1: ANÁLISIS Y DECISIÓN (GEMINI CON CONTEXTO COMPLETO)
         # ===============================================================
         logging.info(f"{logPrefix} --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---")
         codigoProyectoCompleto = ""
         try:
+            # 4a. Analizar código COMPLETO
             logging.info(f"{logPrefix} Analizando código COMPLETO...")
+            # ... (lógica de listar y leer archivos igual que antes) ...
             extensiones = getattr(settings, 'EXTENSIONESPERMITIDAS', None)
-            ignorados_contenido = getattr(settings, 'DIRECTORIOS_IGNORADOS', None)
+            ignorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', None)
             todosLosArchivos = analizadorCodigo.listarArchivosProyecto(
-                settings.RUTACLON, extensiones, ignorados_contenido)
+                settings.RUTACLON, extensiones, ignorados)
             if todosLosArchivos is None: raise Exception("Error al listar archivos.")
-            if not todosLosArchivos: logging.warning(f"{logPrefix} No se encontraron archivos relevantes."); raise Exception("No files found")
+            if not todosLosArchivos: logging.warning(f"{logPrefix} No se encontraron archivos relevantes."); raise Exception("No files found") # Tratar como error para historial
 
             codigoProyectoCompleto = analizadorCodigo.leerArchivos(todosLosArchivos, settings.RUTACLON)
             if not codigoProyectoCompleto: raise Exception("Error al leer contenido de archivos.")
             tamanoKB_completo = len(codigoProyectoCompleto.encode('utf-8')) / 1024
             logging.info(f"{logPrefix} Código completo leído ({len(todosLosArchivos)} archivos, {tamanoKB_completo:.2f} KB).")
 
+            # 5a. Obtener DECISIÓN de Gemini
             logging.info(f"{logPrefix} Obteniendo DECISIÓN de Gemini...")
-            historialRecienteTexto = "\n---\n".join(historialRefactor[-settings.N_HISTORIAL_CONTEXTO:])
+            historialRecienteTexto = "\n---\n".join(historialRefactor[-settings.N_HISTORIAL_CONTEXTO:]) # Usar separador claro
 
-            # <<< --- MODIFICADO: Pasar la estructura generada --- >>>
             decisionJson = analizadorCodigo.obtenerDecisionRefactor(
-                codigoProyectoCompleto,
-                historialRecienteTexto,
-                estructura_proyecto_texto # <-- Argumento nuevo
-            )
-            # <<< --- FIN MODIFICADO --- >>>
-
+                codigoProyectoCompleto, historialRecienteTexto)
             if not decisionJson: raise Exception("No se recibió DECISIÓN válida de Gemini (Paso 1).")
 
+            # 6a. Parsear y validar la DECISIÓN
             logging.info(f"{logPrefix} Parseando DECISIÓN de Gemini...")
             decisionParseada = parsearDecisionGemini(decisionJson)
             if not decisionParseada:
+                # Intentar loguear la decisión inválida
                 sugerencia_str = json.dumps(decisionJson) if isinstance(decisionJson, dict) else str(decisionJson)
                 sugerencia_log = sugerencia_str[:500] + ('...' if len(sugerencia_str) > 500 else '')
                 raise Exception(f"Decisión inválida, mal formada o no soportada. Recibido: {sugerencia_log}")
 
+            # Guardar decisión en historial (incluso si es no_accion)
             estadoFinal = "[PASO1_OK]"
 
+            # Manejar 'no_accion'
             if decisionParseada.get("accion_propuesta") == "no_accion":
                 razonamientoNoAccion = decisionParseada.get('razonamiento', 'Sin razonamiento especificado.')
                 logging.info(f"{logPrefix} Gemini decidió 'no_accion'. Razón: {razonamientoNoAccion}. Terminando ciclo.")
@@ -506,8 +410,8 @@ def ejecutarProcesoPrincipal():
                     decision=decisionParseada
                 ))
                 guardarHistorial(historialRefactor)
-                manejadorGit.descartarCambiosLocales(settings.RUTACLON)
-                return False
+                manejadorGit.descartarCambiosLocales(settings.RUTACLON) # Asegurar limpieza
+                return False # No hubo error, pero no se hará commit
 
             logging.info(f"{logPrefix} --- FIN PASO 1: Decisión válida recibida: {decisionParseada.get('accion_propuesta')} ---")
 
@@ -516,7 +420,7 @@ def ejecutarProcesoPrincipal():
             estadoFinal = "[ERROR_PASO1]"
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
-                decision=decisionParseada,
+                decision=decisionParseada, # Puede ser None o el JSON inválido
                 error_message=str(e_paso1)
             ))
             guardarHistorial(historialRefactor)
@@ -529,8 +433,10 @@ def ejecutarProcesoPrincipal():
         logging.info(f"{logPrefix} --- INICIO PASO 2: EJECUCIÓN ---")
         contextoReducido = ""
         try:
+            # 4b. Leer SÓLO archivos relevantes
             archivosRelevantes = decisionParseada.get("archivos_relevantes", [])
             rutasAbsRelevantes = []
+            # ... (lógica para obtener rutasAbsRelevantes igual que antes, asegurando que no falle si el archivo no existe y se va a crear) ...
             for rutaRel in archivosRelevantes:
                 rutaAbs = aplicadorCambios._validar_y_normalizar_ruta(
                     rutaRel, settings.RUTACLON, asegurar_existencia=False)
@@ -540,25 +446,28 @@ def ejecutarProcesoPrincipal():
                     archivo_destino_mover = params.get("archivo_destino") if accion in ["mover_funcion", "mover_clase"] else None
                     archivo_a_crear = params.get("archivo") if accion == "crear_archivo" else None
 
+                    # Incluir si existe, o si es el archivo a crear, o el destino de un mover (que podría no existir)
                     if os.path.exists(rutaAbs) or rutaRel == archivo_a_crear or rutaRel == archivo_destino_mover:
                          rutasAbsRelevantes.append(rutaAbs)
                     else:
                          logging.warning(f"{logPrefix} Archivo relevante '{rutaRel}' no existe y no parece ser objetivo de creación/movimiento. Se omitirá del contexto Paso 2.")
                 else:
-                    # Considerar si esto debería ser un error fatal o solo una advertencia
-                    logging.warning(f"Ruta relevante inválida '{rutaRel}' proporcionada por Gemini en Paso 1. Se ignorará.")
-                    # raise Exception(f"Ruta relevante inválida '{rutaRel}' proporcionada por Gemini en Paso 1.")
+                    raise Exception(f"Ruta relevante inválida '{rutaRel}' proporcionada por Gemini en Paso 1.")
 
+            # Validar que tenemos rutas si la acción lo requiere
             accion_requiere_contexto = decisionParseada.get("accion_propuesta") not in ["crear_directorio", "eliminar_archivo"]
             if not rutasAbsRelevantes and accion_requiere_contexto:
+                 # Permitir si es mover a archivo nuevo y el único relevante era el destino (no existente)
                  es_mover_a_nuevo = decisionParseada.get("accion_propuesta") in ["mover_funcion", "mover_clase"] and \
                                     len(archivosRelevantes) == 1 and \
                                     archivosRelevantes[0] == decisionParseada.get("parametros_accion", {}).get("archivo_destino") and \
-                                    archivosRelevantes[0] not in [f for f in todosLosArchivos if os.path.exists(aplicadorCambios._validar_y_normalizar_ruta(f, settings.RUTACLON))]
+                                    archivosRelevantes[0] not in [f for f in todosLosArchivos if os.path.exists(aplicadorCambios._validar_y_normalizar_ruta(f, settings.RUTACLON))] # Check si realmente no existe
                  if not es_mover_a_nuevo:
                     raise Exception(f"No se encontraron archivos existentes para contexto reducido. Acción: {decisionParseada.get('accion_propuesta')}. Relevantes: {archivosRelevantes}")
 
+            # Leer contenido reducido (si hay rutas)
             if rutasAbsRelevantes:
+                # Solo leer las que existen
                 rutas_a_leer = [r for r in rutasAbsRelevantes if os.path.exists(r)]
                 if rutas_a_leer:
                     contextoReducido = analizadorCodigo.leerArchivos(rutas_a_leer, settings.RUTACLON)
@@ -569,17 +478,20 @@ def ejecutarProcesoPrincipal():
                     logging.info(f"{logPrefix} No hay archivos existentes entre los relevantes para leer en Paso 2 (ej: mover a archivo nuevo).")
             else:
                  logging.info(f"{logPrefix} Acción '{decisionParseada.get('accion_propuesta')}' no requiere contexto de archivo para Paso 2.")
-                 contextoReducido = ""
+                 contextoReducido = "" # Explícito
 
+            # 5b. Obtener RESULTADO de ejecución de Gemini
             logging.info(f"{logPrefix} Obteniendo RESULTADO de ejecución de Gemini...")
             resultadoJson = analizadorCodigo.ejecutarAccionConGemini(
-                decisionParseada, contextoReducido)
+                decisionParseada, contextoReducido) # Pasar decisión completa
             if not resultadoJson: raise Exception("No se recibió RESULTADO válido de Gemini (Paso 2).")
 
+            # 6b. Parsear y validar el RESULTADO
             logging.info(f"{logPrefix} Parseando RESULTADO de ejecución Gemini...")
+            # Añadir acción original para ayudar al parser en caso de dict vacío
             resultadoJson["accion_original_debug"] = decisionParseada.get("accion_propuesta")
             resultadoEjecucion = parsearResultadoEjecucion(resultadoJson)
-            if resultadoEjecucion is None:
+            if resultadoEjecucion is None: # Si es {} es válido, si es None es error de parseo
                 resultado_str = json.dumps(resultadoJson) if isinstance(resultadoJson, dict) else str(resultadoJson)
                 resultado_log = resultado_str[:500] + ('...' if len(resultado_str) > 500 else '')
                 raise Exception(f"Resultado de ejecución inválido o mal formado. Recibido: {resultado_log}")
@@ -587,6 +499,7 @@ def ejecutarProcesoPrincipal():
             logging.info(f"{logPrefix} --- FIN PASO 2: Resultado válido recibido ({len(resultadoEjecucion)} archivos a modificar). ---")
             estadoFinal = "[PASO2_OK]"
 
+            # 7. Aplicar los cambios (sobrescritura)
             logging.info(f"{logPrefix} Aplicando cambios generados...")
             exitoAplicar, mensajeErrorAplicar = aplicadorCambios.aplicarCambiosSobrescritura(
                 resultadoEjecucion,
@@ -606,7 +519,7 @@ def ejecutarProcesoPrincipal():
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
-                result_details=resultadoEjecucion if resultadoEjecucion is not None else resultadoJson,
+                result_details=resultadoEjecucion if resultadoEjecucion is not None else resultadoJson, # Loguear lo que se tenga
                 error_message=str(e_paso2_apply)
             ))
             guardarHistorial(historialRefactor)
@@ -639,8 +552,8 @@ def ejecutarProcesoPrincipal():
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 result_details=resultadoEjecucion,
-                verification_details=verification_details_msg,
-                error_message=str(e_paso3_verify)
+                verification_details=verification_details_msg, # Mensaje de la verificación
+                error_message=str(e_paso3_verify) # Error de la excepción si hubo
             ))
             guardarHistorial(historialRefactor)
             logging.info(f"{logPrefix} Intentando descartar cambios locales tras fallo de verificación...")
@@ -651,19 +564,24 @@ def ejecutarProcesoPrincipal():
         # COMMIT Y FINALIZACIÓN
         # ===============================================================
         try:
+            # 8. Hacer commit
             logging.info(f"{logPrefix} Realizando commit...")
             mensajeCommit = decisionParseada.get('descripcion', 'Refactorización automática')
+            # Truncar mensaje si es muy largo (Git puede tener límites)
             if len(mensajeCommit.encode('utf-8')) > 4000:
                  mensajeCommit = mensajeCommit[:1000] + "... (truncado)"
                  logging.warning(f"{logPrefix} Mensaje de commit truncado.")
             elif len(mensajeCommit.splitlines()[0]) > 72:
                  logging.warning(f"{logPrefix} Primera línea del mensaje de commit larga (>72 chars).")
 
+            # Nota: hacerCommit ahora devuelve True incluso si no hay nada que commitear (cambio en manejadorGit)
             exitoCommitIntento = manejadorGit.hacerCommit(settings.RUTACLON, mensajeCommit)
 
             if not exitoCommitIntento:
+                 # Esto ahora solo debería ocurrir si el comando 'git commit' falla por otra razón (config, hooks)
                  raise Exception("Falló el comando 'git commit'.")
 
+            # 9. Verificar si el commit introdujo cambios efectivos (git diff HEAD~1 HEAD)
             logging.info(f"{logPrefix} Verificando si el commit tuvo cambios efectivos...")
             commitTuvoCambios = manejadorGit.commitTuvoCambiosReales(settings.RUTACLON)
 
@@ -678,19 +596,22 @@ def ejecutarProcesoPrincipal():
                 ))
                 guardarHistorial(historialRefactor)
                 logging.info(f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
-                return True
+                return True # ¡Éxito final!
 
             else:
+                # Commit se ejecutó pero no hubo cambios (o error verificando)
                 razon = "No se detectaron cambios efectivos tras el commit."
-                if commitTuvoCambios is None:
+                if commitTuvoCambios is None: # Si la verificación falló
                      razon = "Error al verificar los cambios del commit."
                 logging.warning(f"{logPrefix} Commit ejecutado, pero sin cambios efectivos. Razón: {razon}")
                 estadoFinal = "[ERROR_COMMIT_NO_CHANGES]"
+                 # Intentar revertir commit vacío y descartar cambios (si los hubo)
                 logging.info(f"{logPrefix} Intentando revertir commit sin efecto y descartar...")
                 if manejadorGit.revertirCommitVacio(settings.RUTACLON):
                      logging.info(f"{logPrefix} Commit sin efecto revertido y cambios descartados.")
                 else:
                      logging.warning(f"{logPrefix} No se pudo revertir/limpiar tras commit sin efecto.")
+                # Guardar historial indicando el problema
                 historialRefactor.append(formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
@@ -699,7 +620,7 @@ def ejecutarProcesoPrincipal():
                     error_message=razon
                 ))
                 guardarHistorial(historialRefactor)
-                return False
+                return False # No fue un éxito con commit
 
         except Exception as e_commit_final:
             logging.error(f"{logPrefix} Error en fase de Commit/Finalización: {e_commit_final}", exc_info=True)
@@ -708,7 +629,7 @@ def ejecutarProcesoPrincipal():
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 result_details=resultadoEjecucion,
-                verification_details=verification_details_msg,
+                verification_details=verification_details_msg, # Puede ser OK si falló commit
                 error_message=str(e_commit_final)
             ))
             guardarHistorial(historialRefactor)
@@ -717,13 +638,15 @@ def ejecutarProcesoPrincipal():
             return False
 
     except Exception as e_global:
+        # Captura errores muy tempranos o inesperados
         logging.critical(f"{logPrefix} Error inesperado y no capturado: {e_global}", exc_info=True)
         estadoFinal = "[ERROR_CRITICO]"
         try:
-            if 'historialRefactor' not in locals(): historialRefactor = cargarHistorial()
+            # Intentar guardar historial incluso en error crítico
+            if not historialRefactor: historialRefactor = cargarHistorial() # Cargar si aún no se hizo
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
-                decision=decisionParseada,
+                decision=decisionParseada, # Puede ser None
                 error_message=str(e_global)
             ))
             guardarHistorial(historialRefactor)
@@ -731,6 +654,7 @@ def ejecutarProcesoPrincipal():
             logging.error(f"Fallo adicional al intentar guardar historial de error crítico: {e_hist_crit}")
 
         try:
+            # Intentar limpiar siempre en caso de error no manejado
             logging.info(f"{logPrefix} Intentando descartar cambios locales debido a error crítico...")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
         except Exception as e_clean_crit:
@@ -738,7 +662,7 @@ def ejecutarProcesoPrincipal():
 
         return False
 
-# --- Punto de entrada ---
+# --- Punto de entrada (sin cambios significativos, solo ajusta mensajes de salida) ---
 if __name__ == "__main__":
     configurarLogging()
     parser = argparse.ArgumentParser(
@@ -765,25 +689,30 @@ if __name__ == "__main__":
                 if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
                     logging.info(
                         f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
-                    sys.exit(0)
+                    sys.exit(0) # Éxito total
                 else:
                     logging.error(
                         f"Modo Test: Falló el push a la rama '{ramaPush}'. El commit local se mantiene.")
-                    sys.exit(1)
+                    # Opcional: añadir entrada al historial sobre fallo de push
+                    # historial = cargarHistorial()
+                    # historial.append(formatearEntradaHistorial(outcome="[PUSH_FAIL]", error_message=f"Commit OK, pero push falló a {ramaPush}"))
+                    # guardarHistorial(historial)
+                    sys.exit(1) # Salió bien localmente, pero falló push
             else:
                 logging.info("Modo Test desactivado. Commit local realizado, no se hizo push.")
-                sys.exit(0)
+                sys.exit(0) # Éxito local
         else:
             logging.warning(
                 "Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error o fallo de verificación). Verifique logs e historial.")
-            sys.exit(1)
+            sys.exit(1) # No éxito
 
     except Exception as e:
         logging.critical(f"Error fatal no manejado en __main__: {e}", exc_info=True)
         try:
+            # Último intento de guardar historial
             historial = cargarHistorial()
             historial.append(formatearEntradaHistorial(outcome="[ERROR_FATAL_MAIN]", error_message=str(e)))
             guardarHistorial(historial)
         except Exception as e_hist_fatal:
             logging.error(f"No se pudo guardar historial del error fatal: {e_hist_fatal}")
-        sys.exit(2)
+        sys.exit(2) # Error grave
