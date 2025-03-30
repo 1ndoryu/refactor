@@ -39,7 +39,6 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
     """
     Aplica los cambios sobrescribiendo archivos con el contenido proporcionado por Gemini (Paso 2).
     También maneja acciones como crear_directorio o eliminar_archivo que no modifican contenido.
-    Ajustado para decodificar escapes unicode literales (\uXXXX).
 
     Args:
         archivos_con_contenido (dict): {rutaRelativa: nuevoContenidoCompleto}
