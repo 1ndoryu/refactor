@@ -116,7 +116,7 @@ RAMATRABAJO = "refactor-test-11"  # Nombre de la rama donde se aplicarán los ca
 
 # --- Configuracion de Gemini ---
 MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-exp-03-25") # Mantener configurable el modelo
-N_HISTORIAL_CONTEXTO = 200  # Cuántas entradas recientes del historial enviar a Gemini
+N_HISTORIAL_CONTEXTO = 20  # Cuántas entradas recientes del historial enviar a Gemini
 
 # --- Configuracion de Analisis (Opcional - No se usa por ahora) ---
 DIRECTORIOANALISIS = "app/" # Ejemplo: "src/mi_modulo"
