@@ -278,16 +278,21 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append("7.  **CONVENCIONES DE CÓDIGO**: Respeta las convenciones del código existente (ej: usa `<?` si es lo predominante, no `<?php`). Evita errores comunes como `<?` duplicados o mal cerrados. Usa `<? echo` si aplica.")
     promptPartes.append("8.  **(Opcional)** Añade un comentario simple como `// Refactor IA: [Descripción corta]` cerca del cambio.")
     promptPartes.append("9.  Evita las tareas de legibilidad, no son importantes, ejemplo, Refactor(Legibilidad): Añade comentario")
+    # ### NUEVO/REFORZADO ###
+    promptPartes.append("10. **IMPORTANTE - JSON ESCAPING**: El contenido del archivo generado debe ir DENTRO de una cadena JSON. Asegúrate de que TODAS las barras invertidas (`\\`) y comillas dobles (`\"`) dentro del código estén correctamente escapadas para ser válidas en una cadena JSON (ej: `\\` se convierte en `\\\\`, `\"` se convierte en `\\\"`).")
+    promptPartes.append("11. **IMPORTANTE - ENCODING**: Asegúrate de que todo el texto generado sea UTF-8 válido.")
 
     promptPartes.append("\n--- FORMATO DE RESPUESTA (JSON ESTRICTO) ---")
-    promptPartes.append("Responde **ÚNICAMENTE** con un JSON que mapea la ruta RELATIVA del archivo a su **nuevo contenido COMPLETO**.")
+    # ### MODIFICADO ### Enfatizar escapado JSON
+    promptPartes.append("Responde **ÚNICAMENTE** con un JSON que mapea la ruta RELATIVA del archivo a su **nuevo contenido COMPLETO y correctamente escapado para JSON**.")
     promptPartes.append("Si la acción es `eliminar_archivo` o `crear_directorio`, responde con el diccionario `archivos_modificados` VACÍO.")
+    # ### MODIFICADO ### Ejemplo con explicación de escapado
     promptPartes.append("""
 ```json
 {
   "tipo_resultado": "ejecucion_cambio",
   "archivos_modificados": {
-    "ruta/relativa/archivo_modificado1.php": "<?php\\n/* NUEVO CONTENIDO COMPLETO DEL ARCHIVO 1 */\\n?>",
+    "ruta/relativa/archivo_modificado1.php": "<?php\\n/* NUEVO CONTENIDO COMPLETO Y JSON-ESCAPADO DEL ARCHIVO 1 */\\n// Ejemplo: Una barra invertida en PHP (\\\\) debe ser \\\\\\\\ en la cadena JSON.\\necho \\"Hola\\\\nMundo\\"; // Esto aparecería como: \\"echo \\\\\\\\"Hola\\\\\\\\nMundo\\\\\\\\\\";\\" dentro del JSON.\\n?>",
     "ruta/relativa/archivo_creado2.php": "<?php\\n/* CONTENIDO INICIAL DEL ARCHIVO 2 */\\n?>"
     // Incluir una entrada por CADA archivo afectado (modificado o creado)
     // o {} si es eliminar_archivo / crear_directorio
@@ -345,8 +350,8 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
         return None
 
 
-# --- Helpers Internos (sin cambios) ---
-# _extraerTextoRespuesta, _limpiarYParsearJson, _manejarExcepcionGemini
+# --- Helpers Internos (sin cambios en extraerTexto, manejarExcepcion; cambios en limpiarYParsear) ---
+# _extraerTextoRespuesta, _manejarExcepcionGemini (sin cambios)
 def _extraerTextoRespuesta(respuesta, logPrefix):
     """Extrae el texto de la respuesta de Gemini de forma robusta."""
     textoRespuesta = ""
@@ -433,13 +438,25 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     json_candidate = textoLimpio[start_brace : end_brace + 1]
 
     try:
-        log.debug(f"{logPrefix} Intentando parsear JSON candidato:\n{json_candidate[:500]}...")
+        # ### MODIFICADO ### Log de tamaño
+        log.debug(f"{logPrefix} Intentando parsear JSON candidato (tamaño: {len(json_candidate)})...")
         resultadoJson = json.loads(json_candidate)
         log.info(f"{logPrefix} JSON parseado correctamente.")
         return resultadoJson
     except json.JSONDecodeError as e:
+        # ### MEJORADO ### Loguear más contexto alrededor del error
+        contexto_inicio = max(0, e.pos - 150)
+        contexto_fin = min(len(json_candidate), e.pos + 150)
+        contexto_error = json_candidate[contexto_inicio:contexto_fin]
+        # Escapar caracteres no imprimibles para el log
+        contexto_error_repr = repr(contexto_error)
+
         log.error(f"{logPrefix} Error crítico parseando JSON de Gemini: {e}")
-        log.error(f"{logPrefix} JSON Candidato que falló:\n{json_candidate[:1000]}...") # Loguear más para depurar
+        log.error(f"{logPrefix} Posición del error: {e.pos}")
+        log.error(f"{logPrefix} Contexto alrededor del error ({contexto_inicio}-{contexto_fin}):\n{contexto_error_repr}")
+        # Loguear más del candidato si es posible (ej. primeros y últimos 1000 caracteres)
+        log.error(f"{logPrefix} JSON Candidato (inicio):\n{json_candidate[:1000]}...")
+        log.error(f"{logPrefix} JSON Candidato (fin):...{json_candidate[-1000:]}")
         log.debug(f"{logPrefix} Respuesta Original Completa:\n{textoRespuesta}")
         return None
     except Exception as e: # Captura errores inesperados durante el parseo

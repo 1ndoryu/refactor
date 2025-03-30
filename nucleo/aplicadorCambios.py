@@ -2,7 +2,7 @@
 import os
 import logging
 import shutil
-import codecs # <--- AÑADIDO DE NUEVO: Necesario para 'unicode_escape'
+# import codecs # <--- ELIMINADO: Ya no se necesita
 
 # Obtener logger
 log = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
     return rutaAbs
 
 
-# --- FUNCIÓN PRINCIPAL (RESTAURANDO DECODIFICACIÓN) ---
+# --- FUNCIÓN PRINCIPAL (CON DECODIFICACIÓN ELIMINADA) ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
 
     logPrefix = "aplicarCambiosSobrescritura:"
@@ -111,7 +111,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
 
             if not isinstance(nuevoContenido, str):
                  log.warning(f"{logPrefix} Contenido para '{rutaRel}' no es string (tipo {type(nuevoContenido)}). Se convertirá a string.")
-                 nuevoContenido = str(nuevoContenido)
+                 nuevoContenido = str(nuevoContenido) # Asegurar que es string
 
             log.debug(f"{logPrefix} Procesando: {rutaRel} (Abs: {archivoAbs})")
             # Crear directorio padre si no existe
@@ -122,29 +122,19 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             elif not os.path.isdir(dirPadre):
                  raise ValueError(f"La ruta padre '{dirPadre}' para el archivo '{rutaRel}' existe pero no es un directorio.")
 
-            # --- INICIO BLOQUE RESTAURADO ---
-            # Intentar decodificar escapes Unicode literales (\uXXXX) que puedan
-            # estar presentes en la cadena recibida antes de escribir.
-            try:
-                # codecs.decode interpreta las secuencias de escape DENTRO de la cadena
-                contenido_procesado = codecs.decode(nuevoContenido, 'unicode_escape')
-                # Loguear solo si hubo un cambio real para evitar ruido
-                if contenido_procesado != nuevoContenido:
-                    log.info(f"{logPrefix} Secuencias de escape Unicode decodificadas para '{rutaRel}'.")
-                else:
-                    # Si no hubo cambios, es probable que no hubiera escapes literales que decodificar
-                    log.debug(f"{logPrefix} No se encontraron/decodificaron secuencias de escape Unicode literales en '{rutaRel}'.")
-            except Exception as e_decode:
-                # En caso de error en la decodificación (ej. un \ suelto), loguear y usar el contenido original.
-                log.warning(f"{logPrefix} Falló la decodificación 'unicode_escape' para '{rutaRel}': {e_decode}. Se usará el contenido original.")
-                contenido_procesado = nuevoContenido # Usar el original como fallback
+            # --- BLOQUE ELIMINADO ---
+            # Ya no se intenta decodificar con codecs.decode('unicode_escape').
+            # Se asume que 'nuevoContenido' es una cadena Unicode correcta
+            # después de haber sido parseada por json.loads().
 
-            # Escribir (sobrescribir) el archivo con el contenido procesado y UTF-8
-            log.debug(f"{logPrefix} Escribiendo {len(contenido_procesado)} bytes en {archivoAbs} con UTF-8")
+            # Escribir (sobrescribir) el archivo directamente con UTF-8
+            # ### MODIFICADO ### Log usa len() para caracteres
+            log.debug(f"{logPrefix} Escribiendo {len(nuevoContenido)} caracteres en {archivoAbs} con UTF-8")
             try:
                 # Asegurar que la escritura final SIEMPRE sea en UTF-8
                 with open(archivoAbs, 'w', encoding='utf-8') as f:
-                    f.write(contenido_procesado) # <-- Escribe el contenido procesado (decodificado si fue posible)
+                    # ### MODIFICADO ### Se escribe directamente la cadena Unicode
+                    f.write(nuevoContenido)
                 log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito correctamente.")
                 archivosProcesados.append(rutaRel)
             except Exception as e_write:
@@ -152,7 +142,6 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
                  log.error(f"{logPrefix} Error al escribir en archivo '{rutaRel}': {e_write}")
                  # Propagar la excepción para que el bloque exterior la capture
                  raise ValueError(f"Error escribiendo archivo '{rutaRel}': {e_write}") from e_write
-            # --- FIN BLOQUE RESTAURADO ---
 
         log.info(f"{logPrefix} Todos los archivos ({len(archivosProcesados)}) fueron procesados.")
         return True, None # Éxito
