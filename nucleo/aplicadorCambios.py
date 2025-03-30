@@ -36,20 +36,7 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
 
 # --- FUNCIÓN PRINCIPAL (RESTAURANDO DECODIFICACIÓN) ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
-    """
-    Aplica los cambios sobrescribiendo archivos con el contenido proporcionado por Gemini (Paso 2).
-    También maneja acciones como crear_directorio o eliminar_archivo que no modifican contenido.
-    Intenta decodificar secuencias de escape unicode (\uXXXX) antes de escribir.
 
-    Args:
-        archivos_con_contenido (dict): {rutaRelativa: nuevoContenidoCompleto}
-        rutaBase (str): Ruta absoluta al directorio del repositorio clonado.
-        accionOriginal (str): La acción decidida en el Paso 1 (ej: 'mover_funcion', 'eliminar_archivo').
-        paramsOriginal (dict): Los parámetros de la acción del Paso 1.
-
-    Returns:
-        (bool, str or None): (True, None) en éxito, (False, "Mensaje de error") en fallo.
-    """
     logPrefix = "aplicarCambiosSobrescritura:"
     log.info(f"{logPrefix} Aplicando cambios para acción original '{accionOriginal}'...")
     rutaBaseNorm = os.path.normpath(rutaBase)
