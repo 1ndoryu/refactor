@@ -1086,3 +1086,444 @@ Exception: Verificación fallida: Verificación fallida. Inconsistencias detecta
 2025-03-30 08:45:27 - WARNING - nucleo.manejadorGit.descartarCambiosLocales: descartarCambiosLocales: ¡ATENCIÓN! Descartando cambios locales en /var/www/herramientaRefactor/clonProyecto...
 2025-03-30 08:45:28 - INFO - nucleo.manejadorGit.descartarCambiosLocales: descartarCambiosLocales: Cambios locales descartados (reset --hard + clean -fdx).
 2025-03-30 08:45:28 - WARNING - root.<module>: Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error o fallo de verificación). Verifique logs e historial.
+2025-03-30 08:52:23 - INFO - root.configurarLogging: ==================================================
+2025-03-30 08:52:23 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 08:52:23 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 08:52:23 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 08:52:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 08:52:23 - INFO - root.cargarHistorial: cargarHistorial: Archivo de historial no encontrado en /var/www/herramientaRefactor/historial_refactor.log. Iniciando historial vacío.
+2025-03-30 08:52:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 08:52:23 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 08:52:23 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 08:52:24 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 08:52:24 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 08:52:25 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 08:52:26 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 08:52:26 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Rama 'refactor-test-8' existe localmente pero no en origin.
+2025-03-30 08:52:26 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 08:52:26 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 08:52:26 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 08:52:26 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 08:52:26 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 08:52:26 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 233
+2025-03-30 08:52:26 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 233 archivos. Tamaño total: 1664.14 KB.
+2025-03-30 08:52:26 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (233 archivos, 1690.72 KB).
+2025-03-30 08:52:26 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 08:52:26 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 08:52:26 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 08:52:26 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 08:52:47 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 08:52:47 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 08:52:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 08:52:47 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: eliminar_archivo. Archivos: ['single-albums.php']. Razón: El archivo `single-albums.php` es una plantilla vacía y no se encuentra referenciado en ningún otro ...
+2025-03-30 08:52:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: eliminar_archivo ---
+2025-03-30 08:52:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 08:52:47 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 1 archivos. Tamaño total: 0.00 KB.
+2025-03-30 08:52:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (1 archivos, 0.10 KB).
+2025-03-30 08:52:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 08:52:47 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 08:52:47 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 08:52:48 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 08:52:48 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON parseado correctamente.
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando RESULTADO de ejecución Gemini...
+2025-03-30 08:52:48 - INFO - root.parsearResultadoEjecucion: parsearResultadoEjecucion: Resultado de ejecución parseado exitosamente. 0 archivos a modificar.
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 2: Resultado válido recibido (0 archivos a modificar). ---
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios generados...
+2025-03-30 08:52:48 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Aplicando cambios para acción original 'eliminar_archivo'...
+2025-03-30 08:52:48 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Ejecutando acción 'eliminar_archivo': Eliminando single-albums.php
+2025-03-30 08:52:48 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'single-albums.php' eliminado correctamente.
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios aplicados localmente con éxito (antes de verificación).
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 3: VERIFICACIÓN ---
+2025-03-30 08:52:48 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): Iniciando verificación...
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.obtenerArchivosModificadosStatus: obtenerArchivosModificadosStatus: Archivos con cambios según git status: 1
+2025-03-30 08:52:48 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): OK. Los cambios aplicados parecen consistentes con la intención.
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 3: Verificación exitosa. ---
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Realizando commit...
+2025-03-30 08:52:48 - WARNING - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Primera línea del mensaje de commit larga (>72 chars).
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Intentando commit en /var/www/herramientaRefactor/clonProyecto
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Detectados cambios en staging area.
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Realizando commit con mensaje: 'Refactor(Clean): Elimina archivo de plantilla single-albums.php no utilizado....'
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Comando 'git commit' ejecutado.
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Verificando si el commit tuvo cambios efectivos...
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.commitTuvoCambiosReales: commitTuvoCambiosReales: Sí, el último commit introdujo cambios.
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Commit realizado con éxito y contiene cambios efectivos.
+2025-03-30 08:52:48 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (1 entradas).
+2025-03-30 08:52:48 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====
+2025-03-30 08:52:48 - INFO - root.<module>: Proceso principal completado: Se realizó un commit con cambios efectivos.
+2025-03-30 08:52:48 - INFO - root.<module>: Modo Test activado: Intentando hacer push...
+2025-03-30 08:52:48 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
+2025-03-30 08:52:49 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
+2025-03-30 08:52:49 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
+2025-03-30 08:55:58 - INFO - root.configurarLogging: ==================================================
+2025-03-30 08:55:58 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 08:55:58 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 08:55:58 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 08:55:58 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 08:55:58 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (1 entradas).
+2025-03-30 08:55:58 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 08:55:58 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 08:55:58 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 08:55:59 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 08:55:59 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 08:56:00 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 08:56:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 08:56:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 08:56:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 08:56:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 08:56:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 08:56:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 08:56:01 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 08:56:01 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 08:56:01 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1664.14 KB.
+2025-03-30 08:56:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1690.62 KB).
+2025-03-30 08:56:01 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 08:56:01 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 08:56:01 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 08:56:01 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 08:58:36 - INFO - root.configurarLogging: ==================================================
+2025-03-30 08:58:36 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 08:58:36 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 08:58:36 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 08:58:36 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 08:58:36 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (1 entradas).
+2025-03-30 08:58:36 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 08:58:36 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 08:58:36 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 08:58:38 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 08:58:38 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 08:58:39 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 08:58:40 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 08:58:40 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 08:58:40 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 08:58:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 08:58:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 08:58:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 08:58:40 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 08:58:40 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 08:58:40 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1664.14 KB.
+2025-03-30 08:58:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1690.62 KB).
+2025-03-30 08:58:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 08:58:40 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 08:58:40 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 08:58:40 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 08:58:57 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 08:58:57 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 08:58:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 08:58:57 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: mover_funcion. Archivos: ['TemplateInicio.php', 'functions.php', 'TemplateFeedSample.php', 'TemplateBiblioteca.php', 'TemplateBusqueda.php', 'TemplateT&Q.php', 'TemplateTask.php', 'TemplateFeed.php', 'TemplateColab.php', 'TemplateAsley.php']. Razón: La función `obtenerIdiomaDelNavegador()` está duplicada en varios archivos de plantilla (ej: Templat...
+2025-03-30 08:58:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: mover_funcion ---
+2025-03-30 08:58:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 08:58:57 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 10 archivos. Tamaño total: 49.99 KB.
+2025-03-30 08:58:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (10 archivos, 51.02 KB).
+2025-03-30 08:58:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 08:58:57 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 08:58:57 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 08:59:57 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 08:59:57 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON parseado correctamente.
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando RESULTADO de ejecución Gemini...
+2025-03-30 08:59:57 - INFO - root.parsearResultadoEjecucion: parsearResultadoEjecucion: Resultado de ejecución parseado exitosamente. 2 archivos a modificar.
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 2: Resultado válido recibido (2 archivos a modificar). ---
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios generados...
+2025-03-30 08:59:57 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Aplicando cambios para acción original 'mover_funcion'...
+2025-03-30 08:59:57 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Sobrescribiendo/Creando 2 archivo(s)...
+2025-03-30 08:59:57 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'TemplateInicio.php' escrito/sobrescrito correctamente.
+2025-03-30 08:59:57 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'functions.php' escrito/sobrescrito correctamente.
+2025-03-30 08:59:57 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Todos los archivos (2) fueron procesados.
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios aplicados localmente con éxito (antes de verificación).
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 3: VERIFICACIÓN ---
+2025-03-30 08:59:57 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): Iniciando verificación...
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.obtenerArchivosModificadosStatus: obtenerArchivosModificadosStatus: Archivos con cambios según git status: 2
+2025-03-30 08:59:57 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): OK. Los cambios aplicados parecen consistentes con la intención.
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 3: Verificación exitosa. ---
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Realizando commit...
+2025-03-30 08:59:57 - WARNING - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Primera línea del mensaje de commit larga (>72 chars).
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Intentando commit en /var/www/herramientaRefactor/clonProyecto
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Detectados cambios en staging area.
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Realizando commit con mensaje: 'Refactor(Org): Mueve función obtenerIdiomaDelNavegador() a functions.php para re...'
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Comando 'git commit' ejecutado.
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Verificando si el commit tuvo cambios efectivos...
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.commitTuvoCambiosReales: commitTuvoCambiosReales: Sí, el último commit introdujo cambios.
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Commit realizado con éxito y contiene cambios efectivos.
+2025-03-30 08:59:57 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (2 entradas).
+2025-03-30 08:59:57 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====
+2025-03-30 08:59:57 - INFO - root.<module>: Proceso principal completado: Se realizó un commit con cambios efectivos.
+2025-03-30 08:59:57 - INFO - root.<module>: Modo Test activado: Intentando hacer push...
+2025-03-30 08:59:57 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
+2025-03-30 08:59:58 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
+2025-03-30 08:59:58 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
+2025-03-30 09:05:58 - INFO - root.configurarLogging: ==================================================
+2025-03-30 09:05:58 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 09:05:58 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 09:05:58 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 09:05:58 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 09:05:58 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (2 entradas).
+2025-03-30 09:05:58 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 09:05:58 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 09:05:58 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 09:06:00 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 09:06:00 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 09:06:01 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 09:06:02 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 09:06:02 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 09:06:02 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 09:06:02 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 09:06:02 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 09:06:02 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 09:06:02 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:06:02 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 09:06:02 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1664.22 KB.
+2025-03-30 09:06:02 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1690.70 KB).
+2025-03-30 09:06:02 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 09:06:02 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 09:06:02 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:06:02 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 09:06:37 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 09:06:37 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 09:06:37 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 09:06:37 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: modificar_codigo_en_archivo. Archivos: ['TemplateFeedSample.php', 'functions.php']. Razón: La función `obtenerIdiomaDelNavegador()` está duplicada en `TemplateFeedSample.php` y `functions.php...
+2025-03-30 09:06:37 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: modificar_codigo_en_archivo ---
+2025-03-30 09:06:37 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 09:06:37 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 2 archivos. Tamaño total: 26.13 KB.
+2025-03-30 09:06:37 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (2 archivos, 26.33 KB).
+2025-03-30 09:06:37 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 09:06:37 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:06:37 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 09:06:40 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 09:06:40 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON parseado correctamente.
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando RESULTADO de ejecución Gemini...
+2025-03-30 09:06:40 - INFO - root.parsearResultadoEjecucion: parsearResultadoEjecucion: Resultado de ejecución parseado exitosamente. 1 archivos a modificar.
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 2: Resultado válido recibido (1 archivos a modificar). ---
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios generados...
+2025-03-30 09:06:40 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Aplicando cambios para acción original 'modificar_codigo_en_archivo'...
+2025-03-30 09:06:40 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Sobrescribiendo/Creando 1 archivo(s)...
+2025-03-30 09:06:40 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'TemplateFeedSample.php' escrito/sobrescrito correctamente.
+2025-03-30 09:06:40 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Todos los archivos (1) fueron procesados.
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios aplicados localmente con éxito (antes de verificación).
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 3: VERIFICACIÓN ---
+2025-03-30 09:06:40 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): Iniciando verificación...
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.obtenerArchivosModificadosStatus: obtenerArchivosModificadosStatus: Archivos con cambios según git status: 1
+2025-03-30 09:06:40 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): OK. Los cambios aplicados parecen consistentes con la intención.
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 3: Verificación exitosa. ---
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Realizando commit...
+2025-03-30 09:06:40 - WARNING - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Primera línea del mensaje de commit larga (>72 chars).
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Intentando commit en /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Detectados cambios en staging area.
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Realizando commit con mensaje: 'Refactor(Clean): Elimina función duplicada obtenerIdiomaDelNavegador() de Templa...'
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Comando 'git commit' ejecutado.
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Verificando si el commit tuvo cambios efectivos...
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.commitTuvoCambiosReales: commitTuvoCambiosReales: Sí, el último commit introdujo cambios.
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Commit realizado con éxito y contiene cambios efectivos.
+2025-03-30 09:06:40 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (3 entradas).
+2025-03-30 09:06:40 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====
+2025-03-30 09:06:40 - INFO - root.<module>: Proceso principal completado: Se realizó un commit con cambios efectivos.
+2025-03-30 09:06:40 - INFO - root.<module>: Modo Test activado: Intentando hacer push...
+2025-03-30 09:06:40 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
+2025-03-30 09:06:41 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
+2025-03-30 09:06:41 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
+2025-03-30 09:08:12 - INFO - root.configurarLogging: ==================================================
+2025-03-30 09:08:12 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 09:08:12 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 09:08:12 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 09:08:12 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 09:08:12 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (3 entradas).
+2025-03-30 09:08:12 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 09:08:12 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 09:08:12 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 09:08:14 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 09:08:14 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 09:08:15 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 09:08:16 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 09:08:16 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 09:08:16 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 09:08:16 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 09:08:16 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 09:08:16 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 09:08:16 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:08:16 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 09:08:16 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1663.79 KB.
+2025-03-30 09:08:16 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1690.27 KB).
+2025-03-30 09:08:16 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 09:08:16 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 09:08:16 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:08:16 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 09:08:30 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 09:08:30 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 09:08:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 09:08:30 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: modificar_codigo_en_archivo. Archivos: ['TemplateBiblioteca.php', 'functions.php']. Razón: La función `obtenerIdiomaDelNavegador()` está duplicada en `TemplateBiblioteca.php` y `functions.php...
+2025-03-30 09:08:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: modificar_codigo_en_archivo ---
+2025-03-30 09:08:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 09:08:30 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 2 archivos. Tamaño total: 26.13 KB.
+2025-03-30 09:08:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (2 archivos, 26.33 KB).
+2025-03-30 09:08:30 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 09:08:30 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:08:30 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 09:08:33 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 09:08:33 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON parseado correctamente.
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando RESULTADO de ejecución Gemini...
+2025-03-30 09:08:33 - INFO - root.parsearResultadoEjecucion: parsearResultadoEjecucion: Resultado de ejecución parseado exitosamente. 1 archivos a modificar.
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 2: Resultado válido recibido (1 archivos a modificar). ---
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios generados...
+2025-03-30 09:08:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Aplicando cambios para acción original 'modificar_codigo_en_archivo'...
+2025-03-30 09:08:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Sobrescribiendo/Creando 1 archivo(s)...
+2025-03-30 09:08:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'TemplateBiblioteca.php' escrito/sobrescrito correctamente.
+2025-03-30 09:08:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Todos los archivos (1) fueron procesados.
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios aplicados localmente con éxito (antes de verificación).
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 3: VERIFICACIÓN ---
+2025-03-30 09:08:33 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): Iniciando verificación...
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.obtenerArchivosModificadosStatus: obtenerArchivosModificadosStatus: Archivos con cambios según git status: 1
+2025-03-30 09:08:33 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): OK. Los cambios aplicados parecen consistentes con la intención.
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 3: Verificación exitosa. ---
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Realizando commit...
+2025-03-30 09:08:33 - WARNING - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Primera línea del mensaje de commit larga (>72 chars).
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Intentando commit en /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Detectados cambios en staging area.
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Realizando commit con mensaje: 'Refactor(Clean): Elimina función duplicada obtenerIdiomaDelNavegador() de Templa...'
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Comando 'git commit' ejecutado.
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Verificando si el commit tuvo cambios efectivos...
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.commitTuvoCambiosReales: commitTuvoCambiosReales: Sí, el último commit introdujo cambios.
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Commit realizado con éxito y contiene cambios efectivos.
+2025-03-30 09:08:33 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (4 entradas).
+2025-03-30 09:08:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====
+2025-03-30 09:08:33 - INFO - root.<module>: Proceso principal completado: Se realizó un commit con cambios efectivos.
+2025-03-30 09:08:33 - INFO - root.<module>: Modo Test activado: Intentando hacer push...
+2025-03-30 09:08:33 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
+2025-03-30 09:08:35 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
+2025-03-30 09:08:35 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
+2025-03-30 09:10:05 - INFO - root.configurarLogging: ==================================================
+2025-03-30 09:10:05 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 09:10:05 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 09:10:05 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 09:10:05 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 09:10:05 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (4 entradas).
+2025-03-30 09:10:05 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 09:10:05 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 09:10:05 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 09:10:07 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 09:10:07 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 09:10:08 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 09:10:09 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 09:10:09 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 09:10:09 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 09:10:09 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 09:10:09 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 09:10:09 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 09:10:09 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:10:09 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 09:10:09 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1663.35 KB.
+2025-03-30 09:10:09 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1689.83 KB).
+2025-03-30 09:10:09 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 09:10:09 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 09:10:09 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:10:09 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 09:10:23 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 09:10:23 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 09:10:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 09:10:23 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: modificar_codigo_en_archivo. Archivos: ['TemplateBusqueda.php', 'TemplateTask.php', 'functions.php']. Razón: La función `obtenerIdiomaDelNavegador()` está duplicada en `TemplateBusqueda.php`, `TemplateTask.php...
+2025-03-30 09:10:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: modificar_codigo_en_archivo ---
+2025-03-30 09:10:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 09:10:23 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 3 archivos. Tamaño total: 28.38 KB.
+2025-03-30 09:10:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (3 archivos, 28.68 KB).
+2025-03-30 09:10:23 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 09:10:23 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:10:23 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 09:10:28 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 09:10:28 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON parseado correctamente.
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando RESULTADO de ejecución Gemini...
+2025-03-30 09:10:28 - INFO - root.parsearResultadoEjecucion: parsearResultadoEjecucion: Resultado de ejecución parseado exitosamente. 2 archivos a modificar.
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 2: Resultado válido recibido (2 archivos a modificar). ---
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios generados...
+2025-03-30 09:10:28 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Aplicando cambios para acción original 'modificar_codigo_en_archivo'...
+2025-03-30 09:10:28 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Sobrescribiendo/Creando 2 archivo(s)...
+2025-03-30 09:10:28 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'TemplateBusqueda.php' escrito/sobrescrito correctamente.
+2025-03-30 09:10:28 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'TemplateTask.php' escrito/sobrescrito correctamente.
+2025-03-30 09:10:28 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Todos los archivos (2) fueron procesados.
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios aplicados localmente con éxito (antes de verificación).
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 3: VERIFICACIÓN ---
+2025-03-30 09:10:28 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): Iniciando verificación...
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.obtenerArchivosModificadosStatus: obtenerArchivosModificadosStatus: Archivos con cambios según git status: 2
+2025-03-30 09:10:28 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): OK. Los cambios aplicados parecen consistentes con la intención.
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 3: Verificación exitosa. ---
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Realizando commit...
+2025-03-30 09:10:28 - WARNING - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Primera línea del mensaje de commit larga (>72 chars).
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Intentando commit en /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Detectados cambios en staging area.
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Realizando commit con mensaje: 'Refactor(Clean): Elimina función duplicada obtenerIdiomaDelNavegador() de Templa...'
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Comando 'git commit' ejecutado.
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Verificando si el commit tuvo cambios efectivos...
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.commitTuvoCambiosReales: commitTuvoCambiosReales: Sí, el último commit introdujo cambios.
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Commit realizado con éxito y contiene cambios efectivos.
+2025-03-30 09:10:28 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (5 entradas).
+2025-03-30 09:10:28 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====
+2025-03-30 09:10:28 - INFO - root.<module>: Proceso principal completado: Se realizó un commit con cambios efectivos.
+2025-03-30 09:10:28 - INFO - root.<module>: Modo Test activado: Intentando hacer push...
+2025-03-30 09:10:28 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
+2025-03-30 09:10:30 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
+2025-03-30 09:10:30 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
+2025-03-30 09:12:06 - INFO - root.configurarLogging: ==================================================
+2025-03-30 09:12:06 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 09:12:06 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 09:12:06 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 09:12:06 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 09:12:06 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (5 entradas).
+2025-03-30 09:12:06 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 09:12:06 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 09:12:06 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 09:12:07 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 09:12:07 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 09:12:09 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 09:12:10 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 09:12:10 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 09:12:10 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 09:12:10 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 09:12:10 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 09:12:10 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 09:12:10 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:12:10 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 09:12:10 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1662.47 KB.
+2025-03-30 09:12:10 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1688.95 KB).
+2025-03-30 09:12:10 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 09:12:10 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 09:12:10 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:12:10 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 09:12:27 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 09:12:27 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 09:12:27 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 09:12:27 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: modificar_codigo_en_archivo. Archivos: ['TemplateInicio.php', 'functions.php']. Razón: La detección de idioma y la configuración de título y descripción se duplican en varios archivos de ...
+2025-03-30 09:12:27 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: modificar_codigo_en_archivo ---
+2025-03-30 09:12:27 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 09:12:27 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 2 archivos. Tamaño total: 25.68 KB.
+2025-03-30 09:12:27 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (2 archivos, 25.88 KB).
+2025-03-30 09:12:27 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 09:12:27 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 09:12:27 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 09:12:33 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 09:12:33 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON parseado correctamente.
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando RESULTADO de ejecución Gemini...
+2025-03-30 09:12:33 - INFO - root.parsearResultadoEjecucion: parsearResultadoEjecucion: Resultado de ejecución parseado exitosamente. 1 archivos a modificar.
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 2: Resultado válido recibido (1 archivos a modificar). ---
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Aplicando cambios generados...
+2025-03-30 09:12:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Aplicando cambios para acción original 'modificar_codigo_en_archivo'...
+2025-03-30 09:12:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Sobrescribiendo/Creando 1 archivo(s)...
+2025-03-30 09:12:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Archivo 'TemplateInicio.php' escrito/sobrescrito correctamente.
+2025-03-30 09:12:33 - INFO - nucleo.aplicadorCambios.aplicarCambiosSobrescritura: aplicarCambiosSobrescritura: Todos los archivos (1) fueron procesados.
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Cambios aplicados localmente con éxito (antes de verificación).
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 3: VERIFICACIÓN ---
+2025-03-30 09:12:33 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): Iniciando verificación...
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.obtenerArchivosModificadosStatus: obtenerArchivosModificadosStatus: Archivos con cambios según git status: 1
+2025-03-30 09:12:33 - INFO - root.verificarCambiosAplicados: verificarCambiosAplicados (Paso 3): OK. Los cambios aplicados parecen consistentes con la intención.
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 3: Verificación exitosa. ---
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Realizando commit...
+2025-03-30 09:12:33 - WARNING - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Primera línea del mensaje de commit larga (>72 chars).
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Intentando commit en /var/www/herramientaRefactor/clonProyecto
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Detectados cambios en staging area.
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Realizando commit con mensaje: 'Refactor(Clean): Elimina código duplicado de detección de idioma y configuración...'
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.hacerCommit: hacerCommit: Comando 'git commit' ejecutado.
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Verificando si el commit tuvo cambios efectivos...
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.commitTuvoCambiosReales: commitTuvoCambiosReales: Sí, el último commit introdujo cambios.
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Commit realizado con éxito y contiene cambios efectivos.
+2025-03-30 09:12:33 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (6 entradas).
+2025-03-30 09:12:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====
+2025-03-30 09:12:33 - INFO - root.<module>: Proceso principal completado: Se realizó un commit con cambios efectivos.
+2025-03-30 09:12:33 - INFO - root.<module>: Modo Test activado: Intentando hacer push...
+2025-03-30 09:12:33 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
+2025-03-30 09:12:34 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
+2025-03-30 09:12:34 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
