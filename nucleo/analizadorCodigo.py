@@ -160,7 +160,8 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
         "Considera el historial para NO repetir errores, NO deshacer trabajo anterior y mantener la consistencia.")
 
     promptPartes.append(
-        "\n--- REGLAS ESTRICTAS PARA LA ESTRUCTURA JSON DE TU RESPUESTA (DECISIÓN) ---") # Ajustado
+        # Ajustado
+        "\n--- REGLAS ESTRICTAS PARA LA ESTRUCTURA JSON DE TU RESPUESTA (DECISIÓN) ---")
     promptPartes.append("1.  **`accion_propuesta`**: Elige UNA de: `mover_funcion`, `mover_clase`, `modificar_codigo_en_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`. Si NINGUNA acción es segura/útil/necesaria, USA `no_accion`.")
     promptPartes.append(
         "2.  **`descripcion`**: Sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a helpers/ui.php').")
@@ -175,11 +176,15 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
         "    -   `eliminar_archivo`: `archivo` (ruta relativa).")
     promptPartes.append(
         "    -   `crear_directorio`: `directorio` (ruta relativa).")
-    promptPartes.append("4.  **`archivos_relevantes`**: Lista de strings [ruta1, ruta2, ...] con **TODAS** las rutas relativas de archivos que el Paso 2 NECESITARÁ LEER. ¡CRUCIAL y preciso!")
-    promptPartes.append("5.  **`razonamiento`**: String justificando CLARAMENTE el *por qué* de esta acción o la razón específica para `no_accion`.")
-    promptPartes.append("6.  **`tipo_analisis`**: Incluye siempre el campo `tipo_analisis` con el valor fijo `\"refactor_decision\"`.") # Añadido como regla explícita
     promptPartes.append(
-        "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.") # Mantenido
+        "4.  **`archivos_relevantes`**: Lista de strings [ruta1, ruta2, ...] con **TODAS** las rutas relativas de archivos que el Paso 2 NECESITARÁ LEER. ¡CRUCIAL y preciso!")
+    promptPartes.append(
+        "5.  **`razonamiento`**: String justificando CLARAMENTE el *por qué* de esta acción o la razón específica para `no_accion`.")
+    # Añadido como regla explícita
+    promptPartes.append(
+        "6.  **`tipo_analisis`**: Incluye siempre el campo `tipo_analisis` con el valor fijo `\"refactor_decision\"`.")
+    promptPartes.append(
+        "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")  # Mantenido
     # --- ELIMINADO Bloque ```json ... ``` ---
 
     if historialCambiosTexto:
@@ -192,7 +197,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
     promptPartes.append(contextoCodigoCompleto)
     promptPartes.append("--- FIN CÓDIGO ---")
     promptPartes.append(
-        "\nRecuerda: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores.") # Ajustado
+        "\nRecuerda: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores.")  # Ajustado
 
     promptCompleto = "\n".join(promptPartes)
     log.info(f"{logPrefix} Enviando solicitud de DECISIÓN a Gemini (MODO JSON)...")
@@ -203,11 +208,11 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
     try:
         respuesta = modelo.generate_content(
             promptCompleto,
-            generation_config=genai.types.GenerationConfig( # Asegúrate de que genai.types esté disponible o usa dict
+            generation_config=genai.types.GenerationConfig(  # Asegúrate de que genai.types esté disponible o usa dict
                 temperature=0.4,
                 # --- AÑADIDO JSON Mode ---
                 response_mime_type="application/json",
-                max_output_tokens=65536 
+                max_output_tokens=65536
             ),
             safety_settings={
                 'HATE': 'BLOCK_ONLY_HIGH',
@@ -222,6 +227,8 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
         textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         if not textoRespuesta:
             return None
+
+        log.debug(f"{logPrefix} Texto crudo recibido de Gemini (antes de parsear JSON):\n{textoRespuesta}")
 
         sugerenciaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 

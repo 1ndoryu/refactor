@@ -173,6 +173,15 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
 
                 # --- Diagnóstico Final (Opcional) ---
                 # log.debug(f"{logPrefix} Contenido FINAL A ESCRIBIR para '{rutaRel}' (repr): {repr(contenido_a_escribir[:200])}...")
+                
+                   # --- Diagnóstico Final MEJORADO (AÑADIR ESTO) ---
+                log.debug(f"{logPrefix} Contenido ANTES de escribir para '{rutaRel}' (inicio, repr): {repr(contenido_a_escribir[:200])}")
+                log.debug(f"{logPrefix} Contenido ANTES de escribir para '{rutaRel}' (fin, repr): {repr(contenido_a_escribir[-200:])}")
+                # Opcional: Loguear si todavía contiene el patrón problemático
+                if 'Ã³' in contenido_a_escribir or 'Ã¡' in contenido_a_escribir or 'Ã±' in contenido_a_escribir:
+                    log.warning(f"{logPrefix} ¡ALERTA! Contenido para '{rutaRel}' todavía parece contener Mojibake ANTES de escribir.")
+
+
 
                 # --- Escribir el resultado final ---
                 log.debug(f"{logPrefix} Escribiendo {len(contenido_a_escribir)} caracteres en {archivoAbs} con UTF-8")
