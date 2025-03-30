@@ -207,6 +207,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
                 temperature=0.4,
                 # --- AÑADIDO JSON Mode ---
                 response_mime_type="application/json",
+                max_output_tokens=65536 
             ),
             safety_settings={
                 'HATE': 'BLOCK_ONLY_HIGH',
@@ -346,7 +347,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
             generation_config=genai.types.GenerationConfig( # O usa dict
                 temperature=0.4, # Mantenemos una temperatura baja para seguir instrucciones
                 response_mime_type="application/json",
-                max_output_tokens=8192 # Asegurar suficiente espacio para código
+                max_output_tokens=65536 # Asegurar suficiente espacio para código
             ),
             safety_settings={ # Configuración de seguridad estándar
                 'HATE': 'BLOCK_ONLY_HIGH',
