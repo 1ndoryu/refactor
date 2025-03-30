@@ -2563,3 +2563,74 @@ Exception: Verificación fallida: Verificación fallida. Inconsistencias detecta
 2025-03-30 09:42:55 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Intentando push de rama 'refactor-test-8' a 'origin'...
 2025-03-30 09:42:56 - INFO - nucleo.manejadorGit.hacerPush: hacerPush: Push de rama 'refactor-test-8' a origin realizado con éxito.
 2025-03-30 09:42:56 - INFO - root.<module>: Modo Test: Push a la rama 'refactor-test-8' realizado con éxito.
+2025-03-30 10:09:44 - INFO - root.configurarLogging: ==================================================
+2025-03-30 10:09:44 - INFO - root.configurarLogging: configurarLogging: Sistema de logging configurado.
+2025-03-30 10:09:44 - INFO - root.configurarLogging: configurarLogging: Nivel de log establecido a INFO
+2025-03-30 10:09:44 - INFO - root.<module>: Iniciando script principal (3 Pasos). Modo Test: Activado
+2025-03-30 10:09:44 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: ===== INICIO CICLO DE REFACTORIZACIÓN (3 PASOS: Decide, Ejecuta, Verifica) =====
+2025-03-30 10:09:44 - INFO - root.cargarHistorial: cargarHistorial: Historial cargado desde /var/www/herramientaRefactor/historial_refactor.log (21 entradas).
+2025-03-30 10:09:44 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Preparando repositorio local...
+2025-03-30 10:09:44 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Gestionando repo git@github.com:2upra/v4.git en /var/www/herramientaRefactor/clonProyecto (rama: refactor-test-8)
+2025-03-30 10:09:44 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Verificando URL del remote 'origin'...
+2025-03-30 10:09:45 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Rama principal remota detectada: 'main'
+2025-03-30 10:09:45 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Limpiando estado local...
+2025-03-30 10:09:46 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Asegurando rama de trabajo 'refactor-test-8'...
+2025-03-30 10:09:47 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Cambiando a rama local 'refactor-test-8'.
+2025-03-30 10:09:47 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: Reseteando 'refactor-test-8' a 'origin/refactor-test-8'.
+2025-03-30 10:09:47 - INFO - nucleo.manejadorGit.clonarOActualizarRepo: clonarOActualizarRepo: Repositorio listo en la rama 'refactor-test-8'.
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Repositorio listo y en la rama 'refactor-test-8'.
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Generando estructura del proyecto para contexto...
+2025-03-30 10:09:47 - WARNING - __main__.generarEstructuraDirectorio: generarEstructuraDirectorio: Demasiados elementos (50) en la raíz '/var/www/herramientaRefactor/clonProyecto'. Mostrando los primeros 35 y truncando.
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Estructura generada (8605 chars). Primeras líneas:
+Directory structure (root: clonProyecto/):
+├── 404.php
+├── LICENSE
+├── README.md
+├── SECURITY.md
+├── TemplateAsley.php
+├── TemplateBiblioteca.php
+├── TemplateBusqueda.php
+├── TemplateColab.php
+├── TemplateColec.php
+├── TemplateDev.php
+├── TemplateFeed.php
+├── TemplateFeedSample.php
+├── TemplateInici...
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Analizando código COMPLETO...
+2025-03-30 10:09:47 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Listando archivos en: /var/www/herramientaRefactor/clonProyecto
+2025-03-30 10:09:47 - INFO - nucleo.analizadorCodigo.listarArchivosProyecto: listarArchivosProyecto: Archivos relevantes encontrados: 232
+2025-03-30 10:09:47 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 232 archivos. Tamaño total: 1663.79 KB.
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Código completo leído (232 archivos, 1690.31 KB).
+2025-03-30 10:09:47 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo DECISIÓN de Gemini...
+2025-03-30 10:09:47 - INFO - nucleo.analizadorCodigo.configurarGemini: configurarGemini: Cliente de Gemini configurado.
+2025-03-30 10:09:47 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 10:09:47 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Enviando solicitud de DECISIÓN a Gemini...
+2025-03-30 10:10:04 - INFO - nucleo.analizadorCodigo.obtenerDecisionRefactor: obtenerDecisionRefactor (Paso 1): Respuesta de DECISIÓN recibida.
+2025-03-30 10:10:04 - INFO - nucleo.analizadorCodigo._limpiarYParsearJson: obtenerDecisionRefactor (Paso 1): JSON parseado correctamente.
+2025-03-30 10:10:04 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Parseando DECISIÓN de Gemini...
+2025-03-30 10:10:04 - INFO - root.parsearDecisionGemini: parsearDecisionGemini: Decisión parseada exitosamente. Acción: modificar_codigo_en_archivo. Archivos: ['functions.php']. Razón: La función `escribirLog()` es una función de utilidad importante para el registro de eventos en la a...
+2025-03-30 10:10:04 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- FIN PASO 1: Decisión válida recibida: modificar_codigo_en_archivo ---
+2025-03-30 10:10:04 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: --- INICIO PASO 2: EJECUCIÓN ---
+2025-03-30 10:10:04 - INFO - nucleo.analizadorCodigo.leerArchivos: leerArchivos: Leídos 1 archivos. Tamaño total: 26.39 KB.
+2025-03-30 10:10:04 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Contexto reducido leído (1 archivos, 26.48 KB).
+2025-03-30 10:10:04 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Obteniendo RESULTADO de ejecución de Gemini...
+2025-03-30 10:10:04 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Usando modelo Gemini: gemini-2.0-flash-thinking-exp-01-21
+2025-03-30 10:10:04 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Enviando solicitud de EJECUCIÓN a Gemini...
+2025-03-30 10:10:33 - INFO - nucleo.analizadorCodigo.ejecutarAccionConGemini: ejecutarAccionConGemini (Paso 2): Respuesta de EJECUCIÓN recibida.
+2025-03-30 10:10:33 - ERROR - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): Error crítico parseando JSON de Gemini: Expecting ',' delimiter: line 4 column 19637 (char 19706)
+2025-03-30 10:10:33 - ERROR - nucleo.analizadorCodigo._limpiarYParsearJson: ejecutarAccionConGemini (Paso 2): JSON Candidato que falló:
+{
+  "tipo_resultado": "ejecucion_cambio",
+  "archivos_modificados": {
+    "functions.php": "<?php\n// Refactor IA: Mueve funci\\u00f3n obtenerIdiomaDelNavegador() desde TemplateInicio.php\n// Funci\\u00f3n para obtener el idioma preferido del navegador\nfunction obtenerIdiomaDelNavegador() {\n    // Refactor IA: Seguridad: A\\u00f1ade !empty() a $_SERVER['HTTP_ACCEPT_LANGUAGE'] para mayor seguridad.\n    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) || empty($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {\n        return 'en';\n    }\n    $accepted_languages = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);\n    foreach ($accepted_languages as $language) {\n        $lang = substr($language, 0, 2);\n        if (in_array($lang, ['es', 'en'])) {\n            return $lang;\n        }\n    }\n    return 'en';\n}\n\n// Refactor IA: Funci\\u00f3n movida desde TemplateInicio.php para reutilizaci\\u00f3n.\nfunction configurarTituloDescripcion() {\n    $idioma = obtenerIdiomaDelNavegador();\n    $titulo = (...
+2025-03-30 10:10:33 - ERROR - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Error en Paso 2 o Aplicación: No se recibió RESULTADO válido de Gemini (Paso 2).
+Traceback (most recent call last):
+  File "/var/www/herramientaRefactor/principal.py", line 577, in ejecutarProcesoPrincipal
+    if not resultadoJson: raise Exception("No se recibió RESULTADO válido de Gemini (Paso 2).")
+Exception: No se recibió RESULTADO válido de Gemini (Paso 2).
+2025-03-30 10:10:33 - INFO - root.guardarHistorial: guardarHistorial: Historial guardado en /var/www/herramientaRefactor/historial_refactor.log (22 entradas).
+2025-03-30 10:10:33 - INFO - root.ejecutarProcesoPrincipal: ejecutarProcesoPrincipal: Intentando descartar cambios locales tras error...
+2025-03-30 10:10:33 - WARNING - nucleo.manejadorGit.descartarCambiosLocales: descartarCambiosLocales: ¡ATENCIÓN! Descartando cambios locales en /var/www/herramientaRefactor/clonProyecto...
+2025-03-30 10:10:33 - INFO - nucleo.manejadorGit.descartarCambiosLocales: descartarCambiosLocales: Cambios locales descartados (reset --hard + clean -fdx).
+2025-03-30 10:10:33 - WARNING - root.<module>: Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error o fallo de verificación). Verifique logs e historial.
