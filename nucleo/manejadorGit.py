@@ -398,8 +398,6 @@ def revertirCommitVacio(rutaRepo):
         return False
 
 # ### NUEVO ### Helper para obtener lista de archivos modificados según 'git status'
-
-
 def obtenerArchivosModificadosStatus(rutaRepo):
     """
     Obtiene una lista de archivos modificados, nuevos, eliminados, etc.,
@@ -424,7 +422,7 @@ def obtenerArchivosModificadosStatus(rutaRepo):
             f"{logPrefix} No hay cambios detectados por 'git status --porcelain'.")
         return archivos_modificados  # Vacío pero correcto
 
-    # <-- DEBUGGING
+    # <-- DEBUGGING RAW OUTPUT -->
     log.debug(f"{logPrefix} Salida cruda de 'git status --porcelain':\n{output}")
 
     for line in output.strip().splitlines():
@@ -433,70 +431,81 @@ def obtenerArchivosModificadosStatus(rutaRepo):
         if not line_strip:
             continue
 
-        # Extraer la ruta del archivo después del código de estado XY
-        # La ruta puede contener espacios y estar entre comillas
+        # <-- DEBUGGING LINE -->
+        log.debug(f"{logPrefix} Procesando línea cruda: '{line_strip}'")
+
+        # Extraer código de estado y parte de la ruta
+        if len(line_strip) < 3:
+             log.warning(f"{logPrefix} Línea inesperada (muy corta): '{line_strip}'. Saltando.")
+             continue
+
         status_code = line_strip[:2]  # XY
-        path_part = line_strip[3:]  # Resto de la línea después de 'XY '
+        # Asumir que la ruta empieza después de 'XY ' (índice 3)
+        # Necesitamos ser cuidadosos aquí si el formato varía
+        path_part_raw = line_strip[3:]
 
-        ruta_final = path_part
+        # <-- DEBUGGING INITIAL EXTRACTION -->
+        log.debug(f"{logPrefix}   - Status: '{status_code}', Initial path part: '{path_part_raw}'")
 
-        # Manejar renombrados (R او C) : "origen" -> "destino"
+        ruta_procesada = path_part_raw # Iniciar con la parte extraída
+
+        # Manejar renombrados/copiados (R او C) : "origen" -> "destino"
         if status_code.startswith('R') or status_code.startswith('C'):
             try:
-                # El path relevante es el *destino*
-                arrow_index = path_part.find(' -> ')
+                arrow_index = path_part_raw.find(' -> ')
                 if arrow_index != -1:
-                    # Tomar lo que está después de ' -> '
-                    ruta_final = path_part[arrow_index + 4:]
+                    # El path relevante es el *destino*
+                    ruta_destino = path_part_raw[arrow_index + 4:]
+                    log.debug(f"{logPrefix}   - Rename/Copy detected. Using destination: '{ruta_destino}'")
+                    ruta_procesada = ruta_destino # Actualizar con la ruta destino
                 else:
-                    log.warning(
-                        f"{logPrefix} Formato de renombrado/copia inesperado en línea: '{line_strip}'. Saltando.")
-                    continue
+                    log.warning(f"{logPrefix}   - Formato rename/copy inesperado: '{path_part_raw}'. Usando como está.")
+                    # Continuar con ruta_procesada tal como estaba (path_part_raw)
             except Exception as e_rn:
-                log.warning(
-                    f"{logPrefix} Error procesando renombrado/copia en línea: '{line_strip}': {e_rn}. Saltando.")
-                continue
+                log.warning(f"{logPrefix}   - Error procesando rename/copy: {e_rn}. Usando path part original.")
+                # Continuar con ruta_procesada tal como estaba
 
-        # Quitar comillas si Git las añadió (común en rutas con espacios)
-        # Debe manejar casos como: "path with spaces" o path_without_spaces
-        if ruta_final.startswith('"') and ruta_final.endswith('"'):
-            # Intentar decodificar escapes C dentro de las comillas si es necesario
-            # (ej: \t, \n, \ooo octal) - Usar codecs puede ser más robusto
+        # Quitar comillas y procesar escapes si existen
+        ruta_final_unescaped = ruta_procesada # Variable para el resultado de este paso
+        if ruta_procesada.startswith('"') and ruta_procesada.endswith('"'):
+            path_in_quotes = ruta_procesada[1:-1]
+            log.debug(f"{logPrefix}   - Path estaba entre comillas: '{path_in_quotes}'")
             try:
-                # Usamos replace simple primero, si falla o es insuficiente, usar codecs
-                # ruta_unescaped = ruta_final[1:-1].replace('\\"', '"').replace('\\\\', '\\') # Básico
-                # Más robusto:
-                ruta_unescaped = codecs.decode(
-                    ruta_final[1:-1], 'unicode_escape')
-                # Aún más robusto (si git usa C-style string escapes):
-                # ruta_unescaped = codecs.decode(ruta_final[1:-1], 'unicode_escape').encode('latin-1').decode('utf-8') # Si git escapa utf8 a octal
-                # Por ahora, unicode_escape suele ser suficiente
-                ruta_final = ruta_unescaped
+                # Intentar decodificar escapes (ej. \t, \n, \ooo)
+                ruta_unescaped = codecs.decode(path_in_quotes, 'unicode_escape')
+                # A veces unicode_escape puede fallar o no ser suficiente si hay escapes complejos
+                # Podríamos necesitar 'string_escape' o manejo manual si esto falla.
+                log.debug(f"{logPrefix}   - Path después de quitar comillas y procesar escapes: '{ruta_unescaped}'")
+                ruta_final_unescaped = ruta_unescaped
             except Exception as e_esc:
-                log.warning(
-                    f"{logPrefix} No se pudieron procesar escapes en ruta entre comillas: '{ruta_final}'. Usando como está después de quitar comillas: {e_esc}")
-                # Quitar comillas de todas formas
-                ruta_final = ruta_final[1:-1]
+                log.warning(f"{logPrefix}   - Falló procesamiento de escapes para '{path_in_quotes}': {e_esc}. Usando solo contenido sin comillas.")
+                ruta_final_unescaped = path_in_quotes # Usar sin escapes si falló
+        else:
+             log.debug(f"{logPrefix}   - Path no estaba entre comillas.")
+             # ruta_final_unescaped ya es ruta_procesada
 
-        # --- NUEVA COMPROBACIÓN ---
-        # Ignorar si la ruta extraída termina en '/' (probablemente un directorio)
-        if ruta_final.endswith('/'):
-            log.debug(
-                f"{logPrefix} Ignorando entrada de directorio: '{ruta_final}' (de línea: '{line_strip}')")
-            continue
 
-        if ruta_final:
+        # --- Comprobación de Directorio y Normalización Final ---
+        if ruta_final_unescaped.endswith('/'):
+            log.debug(f"{logPrefix}   - Ignorando entrada de directorio: '{ruta_final_unescaped}'")
+            continue # Saltar al siguiente 'line'
+
+        if ruta_final_unescaped:
             # Normalizar separadores a '/' para consistencia interna
-            ruta_normalizada = ruta_final.replace(os.sep, '/')
-            # <-- DEBUGGING
-            log.debug(
-                f"{logPrefix} Línea: '{line_strip}' -> Ruta extraída/normalizada: '{ruta_normalizada}'")
+            ruta_normalizada = ruta_final_unescaped.replace(os.sep, '/')
+            log.debug(f"{logPrefix}   - Ruta final normalizada a añadir: '{ruta_normalizada}'")
+
+            # <<< ALERTA ESPECIAL SI DETECTAMOS EL TYPO >>>
+            if ruta_normalizada == "emplateInicio.php":
+                 log.critical(f"{logPrefix} ¡¡¡ALERTA!!! Se detectó 'emplateInicio.php' al procesar la línea: '{line_strip}'. Verificar pasos anteriores del parsing.")
+            elif "emplateInicio.php" in ruta_normalizada:
+                 log.warning(f"{logPrefix} Posible typo detectado: '{ruta_normalizada}' contiene 'emplate'. Línea original: '{line_strip}'")
+
             archivos_modificados.add(ruta_normalizada)
         else:
-            log.warning(
-                f"{logPrefix} No se pudo extraer ruta válida de la línea: '{line_strip}'")
+            log.warning(f"{logPrefix}   - No se pudo extraer ruta válida de la línea al final: '{line_strip}'")
+
 
     log.info(f"{logPrefix} Archivos con cambios válidos (ignorando directorios) según git status: {len(archivos_modificados)}")
-    # Loguear en debug para no llenar el log normal si hay muchos archivos
-    log.debug(f"{logPrefix} Lista final: {archivos_modificados}")
+    log.debug(f"{logPrefix} Lista final de archivos modificados (set): {archivos_modificados}") # Log del set final
     return archivos_modificados
