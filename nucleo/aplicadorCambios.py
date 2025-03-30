@@ -2,12 +2,12 @@
 import os
 import logging
 import shutil
-# Ya no necesitamos codecs aquí para la lógica principal
+import codecs # <--- AÑADIDO: Para manejar escapes unicode
 
 # Obtener logger
 log = logging.getLogger(__name__)
 
-# Helper de rutas (¡Sigue siendo útil!)
+# Helper de rutas (sin cambios aquí)
 def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False):
     logPrefix = "_validar_y_normalizar_ruta:"
     log.debug(f"{logPrefix} Validando rutaRelativa='{rutaRelativa}', rutaBase='{rutaBase}', asegurar_existencia={asegurar_existencia}")
@@ -34,11 +34,12 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
     return rutaAbs
 
 
-# --- NUEVA FUNCIÓN PRINCIPAL: Aplicar cambios por sobrescritura ---
+# --- FUNCIÓN PRINCIPAL MODIFICADA ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     """
     Aplica los cambios sobrescribiendo archivos con el contenido proporcionado por Gemini (Paso 2).
     También maneja acciones como crear_directorio o eliminar_archivo que no modifican contenido.
+    Ajustado para decodificar escapes unicode literales (\uXXXX).
 
     Args:
         archivos_con_contenido (dict): {rutaRelativa: nuevoContenidoCompleto}
@@ -53,7 +54,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
     log.info(f"{logPrefix} Aplicando cambios para acción original '{accionOriginal}'...")
     rutaBaseNorm = os.path.normpath(rutaBase)
 
-    # --- Manejar acciones que NO implican escribir contenido ---
+    # --- Manejar acciones que NO implican escribir contenido (sin cambios aquí) ---
     if accionOriginal == "eliminar_archivo":
         archivoRel = paramsOriginal.get("archivo")
         if not archivoRel: return False, "Falta 'archivo' en parámetros para eliminar_archivo."
@@ -109,11 +110,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
          return False, "El argumento 'archivos_con_contenido' debe ser un diccionario."
 
     if not archivos_con_contenido:
-         # Esto puede ser normal si la acción fue mover y el destino no existía (Gemini solo daría el destino)
-         # O si la acción fue modificar pero Gemini decidió no cambiar nada (¿?)
          log.warning(f"{logPrefix} El diccionario 'archivos_con_contenido' está vacío para la acción '{accionOriginal}'. Esto podría ser esperado o un error de Gemini en Paso 2.")
-         # Considerar esto éxito si la acción no requiere estrictamente modificación (ej. mover a archivo nuevo)
-         # O podría ser un fallo si se esperaba modificación. Por seguridad, lo consideramos éxito por ahora.
          return True, None # No hay nada que escribir
 
     log.info(f"{logPrefix} Sobrescribiendo/Creando {len(archivos_con_contenido)} archivo(s)...")
@@ -123,7 +120,6 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
         for rutaRel, nuevoContenido in archivos_con_contenido.items():
             archivoAbs = _validar_y_normalizar_ruta(rutaRel, rutaBaseNorm, asegurar_existencia=False)
             if not archivoAbs:
-                # Si una ruta falla, no podemos continuar porque el estado sería inconsistente
                 raise ValueError(f"Ruta de archivo inválida proporcionada por Gemini (Paso 2): '{rutaRel}'")
 
             if not isinstance(nuevoContenido, str):
@@ -139,12 +135,36 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             elif not os.path.isdir(dirPadre):
                  raise ValueError(f"La ruta padre '{dirPadre}' para el archivo '{rutaRel}' existe pero no es un directorio.")
 
-            # Escribir (sobrescribir) el archivo
-            log.debug(f"{logPrefix} Escribiendo {len(nuevoContenido)} bytes en {archivoAbs}")
-            with open(archivoAbs, 'w', encoding='utf-8') as f:
-                f.write(nuevoContenido)
-            log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito correctamente.")
-            archivosProcesados.append(rutaRel)
+            # --- INICIO BLOQUE MODIFICADO ---
+            # Decodificar escapes Unicode literales (\uXXXX) antes de escribir
+            try:
+                # codecs.decode interpreta las secuencias de escape dentro de la cadena
+                contenido_procesado = codecs.decode(nuevoContenido, 'unicode_escape')
+                # Loguear solo si hubo un cambio real para evitar ruido
+                if contenido_procesado != nuevoContenido:
+                    log.info(f"{logPrefix} Secuencias de escape Unicode decodificadas para '{rutaRel}'.")
+                else:
+                    # Si no hubo cambios, es probable que no hubiera escapes que decodificar
+                    log.debug(f"{logPrefix} No se encontraron/decodificaron secuencias de escape Unicode en '{rutaRel}'.")
+            except Exception as e_decode:
+                # En caso de error en la decodificación, loguear y usar el contenido original
+                log.warning(f"{logPrefix} Falló la decodificación 'unicode_escape' para '{rutaRel}': {e_decode}. Se usará el contenido original.")
+                contenido_procesado = nuevoContenido # Usar el original como fallback
+
+            # Escribir (sobrescribir) el archivo con el contenido procesado
+            log.debug(f"{logPrefix} Escribiendo {len(contenido_procesado)} bytes en {archivoAbs} con UTF-8")
+            try:
+                # Sigue usando encoding='utf-8' para la escritura final del archivo
+                with open(archivoAbs, 'w', encoding='utf-8') as f:
+                    f.write(contenido_procesado)
+                log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito correctamente.")
+                archivosProcesados.append(rutaRel)
+            except Exception as e_write:
+                 # Captura errores específicos de escritura
+                 log.error(f"{logPrefix} Error al escribir en archivo '{rutaRel}': {e_write}")
+                 # Propagar la excepción para que el bloque exterior la capture
+                 raise ValueError(f"Error escribiendo archivo '{rutaRel}': {e_write}") from e_write
+            # --- FIN BLOQUE MODIFICADO ---
 
         log.info(f"{logPrefix} Todos los archivos ({len(archivosProcesados)}) fueron procesados.")
         return True, None # Éxito
@@ -153,8 +173,5 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
         # Error durante el proceso (validación de ruta, creación de dir, escritura)
         err_msg = f"Error aplicando cambios (sobrescritura) para acción '{accionOriginal}': {e}"
         log.error(f"{logPrefix} {err_msg}", exc_info=True)
-        # Podríamos intentar revertir los archivos ya escritos, pero es complejo.
-        # Es mejor confiar en `git reset --hard` en el flujo principal si esto falla.
+        # Confiar en `git reset --hard` en el flujo principal si esto falla.
         return False, err_msg
-
-
