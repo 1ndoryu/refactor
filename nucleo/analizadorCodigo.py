@@ -98,8 +98,13 @@ def leerArchivos(listaArchivos, rutaBase):
             # Asegurarse de que la ruta relativa use '/' como separador para consistencia en el prompt
             rutaRelativa = os.path.relpath(
                 rutaAbsoluta, rutaBase).replace(os.sep, '/')
+            # <--- LOG DEBUG ANTES DE LEER (Opcional, puede ser ruidoso)
+            # log.debug(f"{logPrefix} Intentando leer: {rutaAbsoluta} (Rel: {rutaRelativa})")
             with open(rutaAbsoluta, 'r', encoding='utf-8', errors='ignore') as f:
                 contenido = f.read()
+                # <--- LOG DEBUG DESPUÉS DE LEER (para ver si ya hay error aquí)
+                # if "TemplateInicio.php" in rutaRelativa: # Loguear solo el archivo problemático
+                #     log.debug(f"{logPrefix} Contenido LEÍDO de {rutaRelativa} (primeros 300): {contenido[:300]}...")
                 bytesArchivo = len(contenido.encode('utf-8'))
                 # --- Separador claro para la IA ---
                 contenidoConcatenado += f"########## START FILE: {rutaRelativa} ##########\n"
@@ -183,6 +188,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         "Elige la cadena de `buscar` más **CORTA** posible que identifique **UNÍVOCAMENTE** la *primera* ocurrencia que deseas modificar. "
         "**NUNCA incluyas los caracteres '...' (puntos suspensivos / ellipsis) literalmente en los campos 'buscar' o 'reemplazar'.** Debes proporcionar el texto COMPLETO y EXACTO."
         " **RECUERDA:** Solo se modificará la PRIMERA ocurrencia encontrada. Asegúrate de que `buscar` identifica esa primera ocurrencia correctamente."
+        " **CODIFICACIÓN:** El código fuente está en UTF-8. Asegúrate que tu respuesta también lo esté y que caracteres como 'ó', 'ñ' se preserven correctamente en 'buscar', 'reemplazar' o 'codigo_a_mover'." # <-- AÑADIDO ÉNFASIS EN ENCODING
     )
     # ***** FIN MODIFICACIÓN IMPORTANTE *****
 
@@ -207,7 +213,7 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
 
     promptPartes.append(
         "7.  **AGREGA COMENTARIOS INDICADO TUS CAMBIOS**: Si escribes código nuevo, agrega un comentario indicando que los cambios fueron automáticos con IA.")
-    
+
     promptPartes.append(
         "8.  **Estamos usando `<?` en vez de `<?php`**: es importanente tenerlo en cuenta para evitar errores en busqueda.")
     promptPartes.append(
@@ -316,24 +322,30 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
     log.debug(
         f"{logPrefix} ...Fin del Prompt (últimos 500 chars):\n...{promptCompleto[-500:]}")
 
+    # --- INICIO LOG ADICIONAL: Verificar contexto antes de enviar ---
+    idx_inicio_template = contextoCodigo.find("########## START FILE: TemplateInicio.php ##########")
+    idx_fin_template = contextoCodigo.find("########## END FILE: TemplateInicio.php ##########")
+    if idx_inicio_template != -1 and idx_fin_template != -1:
+        extracto_template = contextoCodigo[idx_inicio_template:idx_fin_template]
+        log.debug(f"{logPrefix} DIAGNOSTICO: Extracto de TemplateInicio.php ENVIADO a Gemini (primeros 500 chars): {extracto_template[:500]}...")
+        # Busca específicamente la línea problemática si puedes identificarla fácilmente
+        idx_funcion_enviada = extracto_template.find("obtenerIdiomaDelNavegador")
+        if idx_funcion_enviada != -1:
+             log.debug(f"{logPrefix} DIAGNOSTICO: Línea relevante ENVIADA (buscar 'Función'): {extracto_template[max(0, idx_funcion_enviada-50):idx_funcion_enviada+150]}") # Ajusta rangos
+        else:
+             log.debug(f"{logPrefix} DIAGNOSTICO: 'obtenerIdiomaDelNavegador' no encontrado en extracto ENVIADO.")
+    else:
+        log.debug(f"{logPrefix} DIAGNOSTICO: No se pudo extraer TemplateInicio.php del contexto para logging pre-envío.")
+    # --- FIN LOG ADICIONAL ---
+
     try:
         # Configuraciones de seguridad (ajustar si es necesario)
-        # Niveles más permisivos (si experimentas bloqueos frecuentes):
-        # safety_settings = {
-        #     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-        #     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-        #     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-        #     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        # }
-        # Usar defaults (más seguro)
         safety_settings = {}
 
         respuesta = modelo.generate_content(
             promptCompleto,
             generation_config=genai.types.GenerationConfig(
-                # Considera bajar la temperatura si las respuestas siguen siendo imprecisas
-                # temperature=0.2
-                temperature=0.4 # Mantener T=0.4 por ahora
+                temperature=0.4
             ),
             safety_settings=safety_settings if safety_settings else None
         )
@@ -398,9 +410,16 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
         # Validación básica antes de parsear
         if not textoLimpio.startswith("{") or not textoLimpio.endswith("}"):
             log.error(f"{logPrefix} Respuesta de Gemini no parece ser un JSON válido (no empieza/termina con {{}}). Respuesta (limpia):\n{textoLimpio}\nRespuesta Original:\n{textoRespuesta}")
+            # --- INICIO LOG ADICIONAL: Loguear respuesta limpia aunque falle validación ---
+            log.debug(f"{logPrefix} DIAGNOSTICO: Respuesta JSON RECIBIDA de Gemini (limpia, pre-parseo, falló validación básica):\n{textoLimpio}")
+            # --- FIN LOG ADICIONAL ---
             return None
 
-        log.debug(f"{logPrefix} Respuesta JSON (limpia):\n{textoLimpio}")
+        # --- INICIO LOG ADICIONAL: Loguear respuesta JSON ANTES de parsear ---
+        log.debug(f"{logPrefix} DIAGNOSTICO: Respuesta JSON RECIBIDA de Gemini (limpia, antes de parsear):\n{textoLimpio}")
+        # --- FIN LOG ADICIONAL ---
+
+        log.debug(f"{logPrefix} Respuesta JSON (limpia, a punto de parsear):\n{textoLimpio}") # Mantener este log también
 
         try:
             sugerenciaJson = json.loads(textoLimpio)
@@ -418,13 +437,6 @@ def analizarConGemini(contextoCodigo, historialCambiosTexto=None):
                      log.error(
                          f"{logPrefix} Razonamiento proporcionado: {sugerenciaJson.get('razonamiento')}")
                  return None
-            # Validación específica para acciones que requieren ciertos detalles
-            # (Opcional, pero puede ayudar a detectar errores antes de la aplicación)
-            # Ejemplo:
-            # if accion == "modificar_archivo":
-            #     if not detalles.get("archivo") or (not detalles.get("codigo_nuevo") and (detalles.get("buscar") is None or detalles.get("reemplazar") is None)):
-            #         log.error(f"{logPrefix} Detalles incompletos para 'modificar_archivo' en JSON: {detalles}")
-            #         return None
 
             return sugerenciaJson
         except json.JSONDecodeError as e:

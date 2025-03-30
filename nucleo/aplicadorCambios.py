@@ -44,7 +44,8 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
             f"{logPrefix} Ruta calculada '{rutaAbs}' intenta salir de la base '{rutaBaseNorm}' (originó de '{rutaRelativa}')")
         return None
     if asegurar_existencia and not os.path.exists(rutaAbs):
-        log.error(
+        # Log cambiado a warning aquí, el error se maneja en la función llamante
+        log.warning(
             f"{logPrefix} La ruta requerida no existe: '{rutaAbs}' (originó de '{rutaRelativa}')")
         return None
 
@@ -102,9 +103,9 @@ def aplicarCambio(accion, rutaBase):
             archivoAbs = _validar_y_normalizar_ruta(
                 archivoRel, rutaBaseNorm, asegurar_existencia=True)  # Asegurar que existe
             if not archivoAbs:
-                # El helper ya loguea el error específico
+                # El helper ya loguea el warning, aquí el error final
                 err_msg = f"Ruta de archivo inválida o no encontrada: '{archivoRel}'"
-                # No necesita log.error aquí, ya lo hizo el helper
+                log.error(f"{logPrefix} {err_msg}")
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
 
@@ -201,7 +202,7 @@ def aplicarCambio(accion, rutaBase):
                             os.makedirs(base_debug_path, exist_ok=True)
                             # Crear nombres de archivo únicos o descriptivos
                             filename_safe = "".join(
-                                c if c.isalnum() else "_" for c in archivoRel)
+                                c if c.isalnum() else "_" for c in archivoRel.replace(os.sep, '_')) # Reemplazar / o \
                             path_buscado = os.path.join(
                                 base_debug_path, f"modificar_buscar_{filename_safe}.txt")
                             path_contenido = os.path.join(
@@ -328,6 +329,10 @@ def aplicarCambio(accion, rutaBase):
             log.debug(
                 f"{logPrefix}    codigoAMover (repr, primeros 200): {repr(codigoAMover[:200])}{'...' if len(codigoAMover) > 200 else ''}")
 
+            # --- INICIO LOG ADICIONAL: Loguear código RECIBIDO antes de decode ---
+            log.debug(f"{logPrefix} DIAGNOSTICO: 'codigo_a_mover' RECIBIDO (repr): {repr(codigoAMover)}")
+            # --- FIN LOG ADICIONAL ---
+
             # --- Decodificar Escapes Unicode ---
             # Usar una nueva variable para el código que realmente se buscará/moverá
             codigo_a_buscar_y_reemplazar = codigoAMover  # Usar la original por defecto
@@ -350,14 +355,18 @@ def aplicarCambio(accion, rutaBase):
                 # ¡Importante! Si falla la decodificación, seguir con el original pero advertir.
                 log.warning(
                     f"{logPrefix} Falló el intento de decodificar secuencias Unicode en 'codigo_a_mover': {e_decode}. Se usará el valor original.", exc_info=True)
-            # A partir de aquí, SIEMPRE usar 'codigo_a_buscar_y_reemplazar' para buscar y reemplazar
+
+            # --- INICIO LOG ADICIONAL: Loguear código DESPUÉS de decode ---
+            log.debug(f"{logPrefix} DIAGNOSTICO: 'codigo_a_buscar_y_reemplazar' DESPUÉS de decode (repr): {repr(codigo_a_buscar_y_reemplazar)}")
+            # --- FIN LOG ADICIONAL ---
+
 
             # --- Validar Rutas ---
             origenAbs = _validar_y_normalizar_ruta(
                 origenRel, rutaBaseNorm, asegurar_existencia=True)  # Origen debe existir
             if not origenAbs:
                 err_msg = f"Archivo origen inválido o no encontrado: '{origenRel}'"
-                # log ya hecho por helper
+                log.error(f"{logPrefix} {err_msg}") # Error explícito aquí
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
 
@@ -365,7 +374,7 @@ def aplicarCambio(accion, rutaBase):
                 destinoRel, rutaBaseNorm, asegurar_existencia=False)  # Destino puede no existir aún
             if not destinoAbs:
                 err_msg = f"Ruta destino inválida: '{destinoRel}'"
-                # log ya hecho por helper
+                log.error(f"{logPrefix} {err_msg}") # Error explícito aquí
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
 
@@ -400,6 +409,18 @@ def aplicarCambio(accion, rutaBase):
                 log.debug(
                     f"{logPrefix} Lectura de origen completada (len={len(contenidoOrigen)}).")
 
+                # --- INICIO LOG ADICIONAL: Loguear contenido leído ANTES de buscar ---
+                log.debug(f"{logPrefix} DIAGNOSTICO: 'contenidoOrigen' LEÍDO de {origenAbs} (len={len(contenidoOrigen)})")
+                funcion_idx_leido = contenidoOrigen.find("obtenerIdiomaDelNavegador")
+                if funcion_idx_leido != -1:
+                    log.debug(f"{logPrefix} DIAGNOSTICO: Extracto relevante de 'contenidoOrigen' LEÍDO (repr): {repr(contenidoOrigen[max(0, funcion_idx_leido-50):funcion_idx_leido+150])}") # Ajusta rangos
+                else:
+                    log.debug(f"{logPrefix} DIAGNOSTICO: No se encontró 'obtenerIdiomaDelNavegador' en contenidoOrigen leído para log.")
+                # Puedes descomentar esto si necesitas el repr completo del archivo leído:
+                # log.debug(f"{logPrefix} DIAGNOSTICO: 'contenidoOrigen' LEÍDO (repr completo): {repr(contenidoOrigen)}")
+                # --- FIN LOG ADICIONAL ---
+
+
                 # 2. Verificar si el código a mover existe EXACTAMENTE en el origen
                 log.debug(
                     f"{logPrefix} Buscando código a mover (decodificado si aplica)...")
@@ -420,8 +441,9 @@ def aplicarCambio(accion, rutaBase):
                         base_debug_path = os.path.join(
                             settings.RUTA_BASE_PROYECTO, "debug_logs")
                         os.makedirs(base_debug_path, exist_ok=True)
+                        # Asegurar nombre de archivo seguro reemplazando separadores
                         filename_safe_orig = "".join(
-                            c if c.isalnum() else "_" for c in origenRel)
+                            c if c.isalnum() else "_" for c in origenRel.replace(os.sep, '_'))
                         path_codigo = os.path.join(
                             base_debug_path, f"mover_codigo_buscado_{filename_safe_orig}.txt")
                         path_contenido = os.path.join(
@@ -557,6 +579,7 @@ def aplicarCambio(accion, rutaBase):
                 origenRel, rutaBaseNorm, asegurar_existencia=True)  # Origen debe existir
             if not origenAbs:
                 err_msg = f"Archivo origen inválido o no encontrado: '{origenRel}'"
+                log.error(f"{logPrefix} {err_msg}") # Error explícito
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
 
@@ -564,6 +587,7 @@ def aplicarCambio(accion, rutaBase):
                 destinoRel, rutaBaseNorm, asegurar_existencia=False)  # Destino no debe existir
             if not destinoAbs:
                 err_msg = f"Ruta destino inválida: '{destinoRel}'"
+                log.error(f"{logPrefix} {err_msg}") # Error explícito
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
 
@@ -632,6 +656,7 @@ def aplicarCambio(accion, rutaBase):
                 archivoRel, rutaBaseNorm, asegurar_existencia=False)  # No debe existir
             if not archivoAbs:
                 err_msg = f"Ruta de archivo inválida: '{archivoRel}'"
+                log.error(f"{logPrefix} {err_msg}") # Error explícito
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
             log.debug(f"{logPrefix}    archivoAbs: '{archivoAbs}'")
@@ -683,6 +708,7 @@ def aplicarCambio(accion, rutaBase):
             # Si la ruta es inválida (sale de base), fallar
             if not archivoAbs:
                 err_msg = f"Ruta de archivo inválida: '{archivoRel}'"
+                log.error(f"{logPrefix} {err_msg}") # Error explícito
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
             log.debug(f"{logPrefix}    archivoAbs: '{archivoAbs}'")
@@ -736,6 +762,7 @@ def aplicarCambio(accion, rutaBase):
                 dirRel, rutaBaseNorm, asegurar_existencia=False)
             if not dirAbs:
                 err_msg = f"Ruta de directorio inválida: '{dirRel}'"
+                log.error(f"{logPrefix} {err_msg}") # Error explícito
                 log.debug(f"{logPrefix} === FIN APLICACIÓN CAMBIO (ERROR) ===")
                 return False, err_msg
             log.debug(f"{logPrefix}    dirAbs: '{dirAbs}'")
