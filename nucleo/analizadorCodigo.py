@@ -296,6 +296,8 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append(
         "Eres un asistente de refactorización que EJECUTA una decisión ya tomada.")
     promptPartes.append(
+        "No generes caracteres con acentos o tildes.")
+    promptPartes.append(
         "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
     promptPartes.append(
         "\n--- DECISIÓN DEL PASO 1 (Debes seguirla EXACTAMENTE) ---")
