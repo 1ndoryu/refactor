@@ -1,8 +1,10 @@
 --- CODIGO BUSCADO (repr) ---
-"// FunciÃ³n para obtener el idioma preferido del navegador\nfunction obtenerIdiomaDelNavegador() {\n    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {\n        return 'en';\n    }\n    $accepted_languages = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);\n    foreach ($accepted_languages as $language) {\n        $lang = substr($language, 0, 2);\n        if (in_array($lang, ['es', 'en'])) {\n            return $lang;\n        }\n    }\n    return 'en';\n}"
+"<?\n\n// Función para obtener el idioma preferido del navegador\nfunction obtenerIdiomaDelNavegador() {\n    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {\n        return 'en';\n    }\n    $accepted_languages = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);\n    foreach ($accepted_languages as $language) {\n        $lang = substr($language, 0, 2);\n        if (in_array($lang, ['es', 'en'])) {\n            return $lang;\n        }\n    }\n    return 'en';\n}\n"
 
 --- CODIGO BUSCADO (literal) ---
-// FunciÃ³n para obtener el idioma preferido del navegador
+<?
+
+// Función para obtener el idioma preferido del navegador
 function obtenerIdiomaDelNavegador() {
     if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
         return 'en';
