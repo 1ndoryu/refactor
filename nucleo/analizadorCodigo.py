@@ -372,9 +372,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
         respuesta = modelo.generate_content(
             promptCompleto,
             generation_config=genai.types.GenerationConfig(
-                temperature=0.2,  # Más determinista para la ejecución
-                # max_output_tokens=8000 # Ajustar si se espera contenido muy largo
-                # Considera aumentar max_output_tokens si sospechas truncamiento
+                temperature=0.4,  
             ),
             safety_settings={  # Ser un poco más permisivo si bloquea código legítimo
                 'HATE': 'BLOCK_ONLY_HIGH',
