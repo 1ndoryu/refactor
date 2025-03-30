@@ -30,7 +30,6 @@ def configurarGemini():
 
 # Listar y Leer archivos (sin cambios)
 def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directoriosIgnorados=None):
-    # ... (igual que antes) ...
     logPrefix = "listarArchivosProyecto:"
     archivosProyecto = []
     if extensionesPermitidas is None:
@@ -55,7 +54,6 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
         return None
 
 def leerArchivos(listaArchivos, rutaBase):
-    # ... (igual que antes) ...
     logPrefix = "leerArchivos:"
     contenidoConcatenado = ""
     archivosLeidos = 0
@@ -219,6 +217,8 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append("Si mueves código, elimínalo del origen y añádelo al destino apropiadamente (ej. con saltos de línea).")
     promptPartes.append("Si modificas código interno, aplica el cambio descrito en 'descripcion_del_cambio_interno'.")
     promptPartes.append("Si creas un archivo, genera su contenido inicial basado en 'proposito_del_archivo'.")
+    promptPartes.append("Si eliminas un archivo, deja un comentario de eliminación.")
+    promptPartes.append("No estamos usando `<?php` en el proyecto, usamos `<?`, no comentas el error que sueles cometer de agregar mal los '<?`, a veces los dejas mal cerrados o repetidos.")
     promptPartes.append("Recuerda usar `<?` y `<? echo` si aplica según las convenciones del proyecto.")
     promptPartes.append("Añade un comentario como `// Modificado/Movido automáticamente por IA` donde realices cambios significativos.")
 
