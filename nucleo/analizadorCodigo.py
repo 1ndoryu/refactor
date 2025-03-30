@@ -180,7 +180,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
 
     if historialCambiosTexto:
         promptPartes.append(
-            "\n--- HISTORIAL DE CAMBIOS RECIENTES (PARA TU CONTEXTO) ---")
+            "\n--- HISTORIAL DE CAMBIOS RECIENTES (PARA TU CONTEXTO) ACCIONES QUE YA SE REALIZARON Y NO SON NECESARIAS DE REPETIR ---")
         promptPartes.append(historialCambiosTexto)
         promptPartes.append("--- FIN HISTORIAL ---")
         promptPartes.append(
