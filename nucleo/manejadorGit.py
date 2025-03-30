@@ -318,6 +318,7 @@ def obtenerArchivosModificadosStatus(rutaRepo):
     """
     logPrefix = "obtenerArchivosModificadosStatus:"
     comando = ['git', 'status', '--porcelain']
+    # Usamos check=False y return_output=True para manejar errores y obtener salida
     success, output = ejecutarComando(comando, cwd=rutaRepo, check=False, return_output=True)
 
     if not success:
@@ -330,40 +331,47 @@ def obtenerArchivosModificadosStatus(rutaRepo):
         return archivos_modificados # Vacío pero correcto
 
     for line in output.strip().splitlines():
-        # Formato porcelain: XY RUTA_ORIGINAL -> RUTA_NUEVA (si renombrado/copiado)
-        # XY RUTA (otros casos)
         parts = line.split()
-        if not parts: continue
+        if len(parts) < 2: # Necesita al menos el estado XY y una parte de la ruta
+             log.warning(f"{logPrefix} Línea de status inesperada (muy corta): '{line}'")
+             continue
 
-        # El estado está en los primeros 2 caracteres
-        # xy_status = parts[0] # Ej: ' M', 'A ', ' D', '??', 'RM'
-        # Nos interesa la ruta del archivo afectado
-        # Si hay '->', es un renombrado/copia, nos interesa la ruta final
+        ruta_parts = []
         ruta = ""
+
+        # Manejar renombrados/copiados (XY ORIGEN -> DESTINO)
         if '->' in parts:
             try:
                 arrow_index = parts.index('->')
-                ruta = parts[arrow_index + 1] # La ruta después de la flecha
+                # La ruta afectada es la que está DESPUÉS de '->'
+                ruta_parts = parts[arrow_index + 1:]
             except (ValueError, IndexError):
-                 # Formato inesperado, intentar con la última parte
-                 ruta = parts[-1]
-                 log.warning(f"{logPrefix} Formato de línea rename/copy inesperado: '{line}'. Usando '{ruta}'.")
+                log.warning(f"{logPrefix} Formato rename/copy inesperado: '{line}'. Saltando línea.")
+                continue
+        # Manejar otros estados (XY RUTA)
         else:
-             # Tomar la ruta (puede tener espacios si no está entre comillas, git status los maneja?)
-             # La ruta empieza después del XY y un espacio
-             ruta = line[3:].strip()
-             # Quitar comillas si las hay (para rutas con espacios)
-             if ruta.startswith('"') and ruta.endswith('"'):
-                 ruta = ruta[1:-1]
+            # La ruta es todo lo que viene DESPUÉS del código de estado XY (parts[0])
+            ruta_parts = parts[1:]
 
+        if not ruta_parts:
+            log.warning(f"{logPrefix} No se pudo extraer la ruta de la línea: '{line}'")
+            continue
+
+        # Reconstruir la ruta por si contenía espacios
+        ruta = " ".join(ruta_parts)
+
+        # Quitar comillas si Git las añadió (común en rutas con espacios)
+        # Nota: Esto no maneja escapes C dentro de las comillas, pero es suficiente para casos comunes.
+        if ruta.startswith('"') and ruta.endswith('"'):
+            ruta = ruta[1:-1]
 
         if ruta:
-            # Normalizar separadores por si acaso
+            # Normalizar separadores a '/' para consistencia interna
             ruta_normalizada = ruta.replace(os.sep, '/')
             archivos_modificados.add(ruta_normalizada)
-        else:
-            log.warning(f"{logPrefix} No se pudo extraer ruta de la línea de status: '{line}'")
+        # No es necesario un 'else' aquí porque ya se validó 'ruta_parts'
 
     log.info(f"{logPrefix} Archivos con cambios según git status: {len(archivos_modificados)}")
+    # Loguear en debug para no llenar el log normal si hay muchos archivos
     log.debug(f"{logPrefix} Lista: {archivos_modificados}")
     return archivos_modificados
