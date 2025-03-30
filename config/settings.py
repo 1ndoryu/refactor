@@ -23,7 +23,7 @@ RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 RAMATRABAJO = "refactor-test-10"  # Nombre de la rama donde se aplicarán los cambios
 
 # --- Configuracion de Gemini ---
-MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-thinking-exp-01-21")
+MODELOGEMINI = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 N_HISTORIAL_CONTEXTO = 200  # Cuántas entradas recientes del historial enviar a Gemini
 
 # --- Configuracion de Analisis (Opcional - No se usa por ahora) ---
