@@ -67,12 +67,12 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
 
 # --- FUNCIÓN PRINCIPAL CON unicode_escape REINTRODUCIDO ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
-    # - Decodifica secuencias de escape Unicode (\uXXXX) y otras (\n) literales.
+    # Procesa escapes literales (\n, \uXXXX) y luego intenta corregir Mojibake común (UTF-8 mal leído como Latin-1).
     """
     Aplica los cambios generados por Gemini.
     - Sobrescribe archivos existentes o crea nuevos con el contenido proporcionado.
     - Maneja acciones como eliminar_archivo y crear_directorio.
-    - Intenta corregir Mojibake común (UTF-8 mal leído como Latin-1) de forma más directa.
+    
     - Escribe archivos en UTF-8.
 
     Args:
@@ -90,7 +90,6 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
 
     # --- Manejo de eliminar_archivo, crear_directorio (sin cambios) ---
     if accionOriginal in ["eliminar_archivo", "crear_directorio"]:
-        # ... (código idéntico a la versión anterior) ...
         if accionOriginal == "eliminar_archivo":
             archivoRel = paramsOriginal.get("archivo")
             if not archivoRel: return False, "Falta 'archivo' en parámetros para eliminar_archivo."
@@ -115,7 +114,8 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             else:
                 try: os.makedirs(dirAbs, exist_ok=True); log.info(f"{logPrefix} Directorio '{dirRel}' creado."); return True, None
                 except Exception as e: err = f"Error al crear directorio '{dirRel}': {e}"; log.error(f"{logPrefix} {err}", exc_info=True); return False, err
-        return True, None # Should not be reached
+        # La siguiente línea es redundante ya que las ramas anteriores retornan
+        # return True, None # Should not be reached
 
     # --- Validaciones iniciales (sin cambios) ---
     if not isinstance(archivos_con_contenido, dict):
@@ -123,6 +123,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
          log.error(f"{logPrefix} {err}")
          return False, err
     if not archivos_con_contenido:
+         # Si la acción no era eliminar/crear, esto sí es un error
          err = f"Se esperaba contenido en 'archivos_con_contenido' para la acción '{accionOriginal}', pero está vacío. Error probable en Paso 2."
          log.error(f"{logPrefix} {err}")
          return False, err
@@ -170,52 +171,68 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             errores.append(msg)
             continue
 
-        # --- Inicio Bloque de Corrección Mojibake, Decodificación Unicode y Escritura ---
+        # --- Inicio Bloque de Corrección Mojibake, Decodificación Unicode y Escritura (ORDEN CORREGIDO) ---
         contenido_procesado = contenido_str # Empezar con el string validado
-        log.debug(f"{logPrefix} Contenido ANTES de Mojibake/Escape (repr): {repr(contenido_procesado[:200])}...") # LOG ANTES
+        log.debug(f"{logPrefix} Contenido ORIGINAL (repr): {repr(contenido_procesado[:200])}...") # LOG ORIGINAL
+
         try:
-            # --- PASO 1: Intentar corregir Mojibake (UTF-8 mal leído como Latin-1) ---
-            contenido_despues_mojibake = contenido_procesado # Default si no se corrige
-            try:
-                log.debug(f"{logPrefix} Mojibake Check: Intentando encode('latin-1') y decode('utf-8') para '{rutaRel}'...")
-                bytes_probables = contenido_procesado.encode('latin-1')
-                log.debug(f"{logPrefix} Mojibake Check: Bytes probables (inicio): {bytes_probables[:50]}...")
-                cadena_reconstruida_utf8 = bytes_probables.decode('utf-8')
-                log.debug(f"{logPrefix} Mojibake Check: Cadena reconstruida UTF-8 (inicio): {cadena_reconstruida_utf8[:100]}...")
-
-                # Aplicar si la cadena cambió, sin heurística compleja
-                if cadena_reconstruida_utf8 != contenido_procesado:
-                    log.info(f"{logPrefix} CORRECCIÓN (Mojibake UTF-8->Latin1->UTF-8): Aplicada para '{rutaRel}'. La cadena cambió.")
-                    contenido_despues_mojibake = cadena_reconstruida_utf8
-                else:
-                    log.debug(f"{logPrefix} Mojibake Check: La cadena no cambió después del ciclo encode/decode. No se aplicó corrección.")
-
-            except (UnicodeDecodeError, UnicodeEncodeError) as e_moji_codec:
-                 log.warning(f"{logPrefix} Mojibake Check para '{rutaRel}': Falló el ciclo encode/decode ('{e_moji_codec}'). Se usará la cadena como estaba.")
-            except Exception as e_moji_other:
-                 log.warning(f"{logPrefix} Error inesperado durante chequeo de Mojibake para '{rutaRel}': {e_moji_other}. Se usará la cadena como estaba.")
-            # Actualizar para el siguiente paso
-            contenido_procesado = contenido_despues_mojibake
-            log.debug(f"{logPrefix} Contenido DESPUÉS de Mojibake Check (repr): {repr(contenido_procesado[:200])}...") # LOG INTERMEDIO
-
-            # --- PASO 2: Decodificar escapes Unicode (\uXXXX) y otros (\n) literales ---
-            contenido_despues_unicode_escape = contenido_procesado # Default si no cambia
+            # --- PASO 1: Decodificar escapes Unicode (\uXXXX) y otros (\n) literales PRIMERO ---
+            contenido_despues_unicode_escape = contenido_procesado # Default si no cambia o falla
             try:
                 # Usar codecs.decode para interpretar \uXXXX, \n, etc. literales
+                log.debug(f"{logPrefix} Escape Check: Intentando codecs.decode(..., 'unicode_escape') para '{rutaRel}'...")
                 cadena_decodificada = codecs.decode(contenido_procesado, 'unicode_escape')
+
                 if cadena_decodificada != contenido_procesado:
-                    log.info(f"{logPrefix} CORRECCIÓN (Escapes): Secuencias de escape literales (ej. \\uXXXX, \\n) procesadas para '{rutaRel}'.")
+                    log.info(f"{logPrefix} CORRECCIÓN (Escapes): Secuencias de escape literales procesadas para '{rutaRel}'.")
                     contenido_despues_unicode_escape = cadena_decodificada
-                # else: # Silencioso si no cambia
-                #    log.debug(f"{logPrefix} No se procesaron secuencias de escape literales (unicode_escape) para '{rutaRel}'.")
+                else:
+                     log.debug(f"{logPrefix} Escape Check: La cadena no cambió después de unicode_escape.")
 
             except Exception as e_escape:
-                log.error(f"{logPrefix} ¡ERROR GRAVE! Falló el procesamiento de secuencias de escape (unicode_escape) para '{rutaRel}': {e_escape}. Se usará el contenido ANTES de este paso, pero puede ser incorrecto.", exc_info=True)
-                # contenido_despues_unicode_escape mantiene el valor de contenido_procesado
+                # Si falla unicode_escape, es menos probable que el Mojibake funcione, pero lo intentamos igual.
+                log.warning(f"{logPrefix} Falló el procesamiento inicial de secuencias de escape (unicode_escape) para '{rutaRel}': {e_escape}. Se continuará con el chequeo de Mojibake sobre el contenido original.", exc_info=False) # No mostrar traceback completo aquí, puede ser ruidoso
+                # Mantenemos contenido_procesado original para el siguiente paso si este falla
+                contenido_despues_unicode_escape = contenido_procesado
+
+            # Actualizar para el siguiente paso
+            contenido_intermedio = contenido_despues_unicode_escape
+            log.debug(f"{logPrefix} Contenido DESPUÉS de Unicode Escape (repr): {repr(contenido_intermedio[:200])}...") # LOG INTERMEDIO 1
+
+            # --- PASO 2: Intentar corregir Mojibake (UTF-8 mal leído como Latin-1) DESPUÉS ---
+            contenido_despues_mojibake = contenido_intermedio # Default si no se corrige
+            try:
+                # Aplicar la corrección sobre el resultado del paso anterior
+                log.debug(f"{logPrefix} Mojibake Check: Intentando encode('latin-1') y decode('utf-8') sobre resultado anterior para '{rutaRel}'...")
+                # Importante: Si la cadena ya está correcta en UTF-8, encode('latin-1') fallará
+                # si contiene caracteres no representables en Latin-1. Debemos manejar esto.
+                bytes_probables = contenido_intermedio.encode('latin-1')
+                # log.debug(f"{logPrefix} Mojibake Check: Bytes probables (inicio): {bytes_probables[:50]}...") # Log opcional
+                cadena_reconstruida_utf8 = bytes_probables.decode('utf-8')
+                # log.debug(f"{logPrefix} Mojibake Check: Cadena reconstruida UTF-8 (inicio): {cadena_reconstruida_utf8[:100]}...") # Log opcional
+
+                # Aplicar si la cadena cambió respecto al *resultado intermedio*
+                if cadena_reconstruida_utf8 != contenido_intermedio:
+                    log.info(f"{logPrefix} CORRECCIÓN (Mojibake UTF-8->Latin1->UTF-8): Aplicada para '{rutaRel}' (después de escapes).")
+                    contenido_despues_mojibake = cadena_reconstruida_utf8
+                else:
+                    log.debug(f"{logPrefix} Mojibake Check: La cadena no cambió después del ciclo encode/decode. No se aplicó corrección de Mojibake.")
+
+            except UnicodeEncodeError:
+                # ESTO ES NORMAL si la cadena 'contenido_intermedio' ya era UTF-8 correcto
+                # y contenía caracteres no mapeables a Latin-1. Significa que NO era Mojibake.
+                log.debug(f"{logPrefix} Mojibake Check: encode('latin-1') falló (esperado si ya es UTF-8 correcto). No se aplicó corrección de Mojibake.")
+                # Mantenemos el contenido intermedio que ya era correcto
+                contenido_despues_mojibake = contenido_intermedio
+            except UnicodeDecodeError as e_moji_codec:
+                 # Esto sí indica un problema si ocurre *después* de un encode latin-1 exitoso
+                 log.warning(f"{logPrefix} Mojibake Check para '{rutaRel}': Falló el decode('utf-8') después de encode ('{e_moji_codec}'). Se usará la cadena como estaba antes de este paso.")
+            except Exception as e_moji_other:
+                 log.warning(f"{logPrefix} Error inesperado durante chequeo de Mojibake para '{rutaRel}': {e_moji_other}. Se usará la cadena como estaba antes de este paso.")
 
             # Actualizar contenido final a escribir
-            contenido_a_escribir = contenido_despues_unicode_escape
-            log.debug(f"{logPrefix} Contenido DESPUÉS de Unicode Escape (repr): {repr(contenido_a_escribir[:200])}...") # LOG INTERMEDIO
+            contenido_a_escribir = contenido_despues_mojibake
+            log.debug(f"{logPrefix} Contenido DESPUÉS de Mojibake Check (repr): {repr(contenido_a_escribir[:200])}...") # LOG INTERMEDIO 2 (Final antes de alerta)
 
             # --- PASO 3: Diagnóstico y Escritura ---
             # Loguear inicio y fin para depuración
@@ -223,10 +240,12 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             log.debug(f"{logPrefix} Contenido FINAL A ESCRIBIR para '{rutaRel}' (fin, repr): {repr(contenido_a_escribir[-200:])}")
 
             # Advertir si aún se ven patrones Mojibake comunes (por si la corrección falló o el problema es otro)
-            # Usamos una lista más amplia de patrones comunes
-            mojibake_patterns = ['Ã©', 'Ã³', 'Ã¡', 'Ã±', 'Ãº', 'Ã‘', 'Ãš', 'Ã', 'Â¡', 'Â¿']
+            # Lista actualizada con patrones comunes de Latin1->UTF8 y UTF8->CP1252
+            mojibake_patterns = ['Ã©', 'Ã³', 'Ã¡', 'Ã±', 'Ãº', 'Ã‘', 'Ãš', 'Ã', 'Â¡', 'Â¿'] # Mojibake Latin1->UTF8
+            mojibake_patterns.extend(['â‚¬', 'â„¢', 'Å¡', 'Å¥', 'Å¾', 'Å¸', 'Å“']) # Ejemplo: € ™ š ž œ (UTF8->CP1252)
             if any(pattern in contenido_a_escribir for pattern in mojibake_patterns):
-                log.warning(f"{logPrefix} ¡ALERTA! Contenido para '{rutaRel}' TODAVÍA parece contener Mojibake ANTES de escribir.")
+                found_pattern = next((p for p in mojibake_patterns if p in contenido_a_escribir), "N/A")
+                log.warning(f"{logPrefix} ¡ALERTA! Contenido para '{rutaRel}' TODAVÍA parece contener Mojibake (ej: '{found_pattern}') ANTES de escribir. Revisar pasos anteriores.")
 
             # Escribir el resultado final en UTF-8
             log.debug(f"{logPrefix} Escribiendo {len(contenido_a_escribir)} caracteres en {archivoAbs} con UTF-8")
@@ -250,6 +269,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
         log.error(f"{logPrefix} {error_summary}")
         return False, error_summary
     elif not archivosProcesados and archivos_con_contenido:
+         # Si se proporcionó contenido pero NINGUNO se procesó (y no era delete/create)
          msg = "Se proporcionó contenido pero ningún archivo pudo ser procesado debido a errores previos (ver logs)."
          log.error(f"{logPrefix} {msg}")
          return False, msg
