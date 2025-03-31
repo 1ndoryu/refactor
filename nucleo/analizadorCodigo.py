@@ -341,7 +341,34 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append(
         "8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`.")
     promptPartes.append(
-        "9.  **FORMATO ESTRICTO:** Responde **SOLO** con el objeto JSON, sin ningún texto, explicación, comentario o bloque ```json antes o después.")
+        "10. **VALIDACIÓN CRÍTICA DE STRINGS JSON PARA CÓDIGO:** Al incluir contenido de archivos (especialmente código fuente PHP, JS, etc.) dentro de un string JSON (ej: en la clave 'archivos_modificados'), es **absolutamente esencial** que ese string sea JSON válido y completo. \n"
+        "    - **ESCAPA CORRECTAMENTE:** Todas las comillas dobles (`\"`) dentro del código deben escaparse como `\\\"`. Todas las barras invertidas (`\\`) deben escaparse como `\\\\`. Los saltos de línea literales deben representarse como `\\n`. \n"
+        "    - **EVITA TRUNCAMIENTO:** Asegúrate de que el string contenga el *contenido completo* del archivo modificado y termine correctamente con una comilla doble (`\"`).\n"
+        "    - **EJEMPLO DEL ERROR COMETIDO PREVIAMENTE (Incorrecto - Causa 'Unterminated string'):**\n"
+        "      ```json\n"
+        "      {\n"
+        "        \"tipo_resultado\": \"ejecucion_cambio\",\n"
+        "        \"archivos_modificados\": {\n"
+        "          \"functions.php\": \"<?php ... \n"
+        "             // ... mucho código ... \n"
+        "             echo \"Este texto tiene comillas\"; \n"
+        "             // ... más código ... \n"
+        "             // (Respuesta incompleta o comillas sin escapar)\n"
+        "        }\n"
+        "      }\n"
+        "      ```\n"
+        "    - **EJEMPLO DE CÓMO DEBIÓ SER (Correcto - String JSON válido):**\n"
+        "      ```json\n"
+        "      {\n"
+        "        \"tipo_resultado\": \"ejecucion_cambio\",\n"
+        "        \"archivos_modificados\": {\n"
+        "          \"functions.php\": \"<?php ... \\n // ... mucho código ... \\n echo \\\"Este texto tiene comillas\\\"; \\n // ... más código ... \\n?>\"\n"
+        "        },\n"
+        "        \"resumen_cambios\": \"...\"\n"
+        "      }\n"
+        "      ```\n"
+        "    Presta **máxima atención** a esto para evitar fallos críticos en el parseo del JSON."
+    )
     # --- FIN: ÉNFASIS EN JSON Y ESCAPADO ---
 
     if contextoCodigoReducido:
