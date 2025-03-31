@@ -295,8 +295,6 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes = []
     promptPartes.append(
         "Eres un asistente de refactorización que EJECUTA una decisión ya tomada.")
-    promptPartes.append(
-        "No generes caracteres con acentos o tildes.")
     promptPartes.append("**FORMATO DE COMENTARIOS O CODIGO CON SALTO DE LINEAS:** Si generas comentarios multilínea que usan `//` (PHP/JS), ASEGÚRATE de que **CADA LÍNEA** del comentario comience con `//` dentro del código generado.")
     promptPartes.append(
         "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
