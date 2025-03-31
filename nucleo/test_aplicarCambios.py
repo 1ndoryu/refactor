@@ -93,11 +93,12 @@ class TestAplicadorCambios(unittest.TestCase):
                        entrada_gemini, salida_esperada)
 
     def test_04_mojibake_complejo(self):
-        """Prueba Mojibake con más caracteres."""
-        entrada_gemini = "Â¡Hola, MÃºndo! Â¿QuÃ© tal?"  # ¡Hola, Mundo! ¿Qué tal?
-        salida_esperada = "¡Hola, Mundo! ¿Qué tal?"
-        self._run_test("Mojibake Complejo (¡, ¿, ú)",
-                       entrada_gemini, salida_esperada)
+            """Prueba Mojibake con más caracteres."""
+            entrada_gemini = "Â¡Hola, MÃºndo! Â¿QuÃ© tal?"  # Input Mojibake for ¡Hola, Múndo! ¿Qué tal?
+            # CORRECTED Expected Output: The proper decoding of the input Mojibake
+            salida_esperada = "¡Hola, Múndo! ¿Qué tal?"
+            self._run_test("Mojibake Complejo (¡, ¿, ú)",
+                        entrada_gemini, salida_esperada)
 
     def test_05_mixto_mojibake_y_escapes(self):
         """Prueba una cadena con Mojibake y escapes literales."""
