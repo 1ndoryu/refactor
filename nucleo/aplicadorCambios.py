@@ -22,88 +22,102 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
         return None
 
     # Normalize base path and ensure it's absolute
-    rutaBaseAbs = os.path.abspath(rutaBase)
-    rutaBaseNorm = os.path.normpath(rutaBaseAbs)
+    # Use realpath on base to resolve any symlinks in the base path itself
+    try:
+        rutaBaseReal = os.path.realpath(rutaBase)
+        if not os.path.isabs(rutaBaseReal):
+             # This should ideally not happen if called correctly, but check anyway
+             log.error(f"{logPrefix} Base path could not be resolved to absolute: '{rutaBase}' -> '{rutaBaseReal}'")
+             return None
+        if not os.path.isdir(rutaBaseReal):
+             log.error(f"{logPrefix} Real base path is not a directory: '{rutaBaseReal}' (from '{rutaBase}')")
+             return None
+    except Exception as e_base:
+         log.error(f"{logPrefix} Error resolving real path for base '{rutaBase}': {e_base}", exc_info=True)
+         return None
 
     # Normalize relative path, disallowing '..' components or absolute paths
     rutaRelativaNorm = os.path.normpath(rutaRelativa)
-    if os.path.isabs(rutaRelativaNorm) or '..' in rutaRelativaNorm.split(os.sep):
-        log.error(f"{logPrefix} Invalid or suspicious relative path (absolute or contains '..'): '{rutaRelativa}' -> '{rutaRelativaNorm}'")
+    if os.path.isabs(rutaRelativaNorm) or rutaRelativaNorm.split(os.sep)[0] == '..':
+        # Check the first component specifically after normalization for '..'
+        log.error(f"{logPrefix} Invalid or suspicious relative path (absolute or starts with '..'): '{rutaRelativa}' -> '{rutaRelativaNorm}'")
         return None
 
-    # Join and normalize the final path
-    rutaAbsCandidata = os.path.join(rutaBaseNorm, rutaRelativaNorm)
+    # Join the REAL base path with the normalized relative path
+    rutaAbsCandidata = os.path.join(rutaBaseReal, rutaRelativaNorm)
+    # Normalize the combined path
     rutaAbsNorm = os.path.normpath(rutaAbsCandidata)
 
-    # Security Check: Use realpath for comparison to resolve symlinks
-    # Check if the common path of the real base and real candidate is the real base
+    # Security Check: Use realpath comparison for the final check
     try:
-        rutaBaseReal = os.path.realpath(rutaBaseNorm)
         rutaAbsReal = os.path.realpath(rutaAbsNorm)
-        if not os.path.isdir(rutaBaseReal): # Ensure base is a directory after resolving symlinks
-             log.error(f"{logPrefix} Real base path is not a directory: '{rutaBaseReal}' (from '{rutaBase}')")
-             return None
 
         # The core check: common path must be the base path itself
-        # This handles cases where base is '/a/b' and candidate is '/a/b/c' or '/a/b'
         if os.path.commonpath([rutaBaseReal, rutaAbsReal]) == rutaBaseReal:
             # Path is safe
             if asegurar_existencia and not os.path.exists(rutaAbsReal):
-                log.warning(f"{logPrefix} Path validated but does not exist (existence required): '{rutaAbsNorm}'")
+                log.warning(f"{logPrefix} Path validated but does not exist (existence required): '{rutaAbsNorm}' (Real: '{rutaAbsReal}')")
                 return None # Fail if existence was required
 
             log.debug(f"{logPrefix} Path validated and normalized to: '{rutaAbsNorm}'")
-            # Return the normalized path (not realpath) to preserve intended structure unless symlinks must be followed
+            # Return the normalized path (not realpath) to preserve intended structure
             return rutaAbsNorm
         else:
-            log.error(f"{logPrefix} Path Traversal Attempt! Relative path '{rutaRelativa}' exits base '{rutaBaseNorm}'. Result: '{rutaAbsNorm}', Real Result: '{rutaAbsReal}', Real Base: '{rutaBaseReal}'")
+            log.error(f"{logPrefix} Path Traversal Attempt! Relative path '{rutaRelativa}' exits base '{rutaBaseReal}'. Result: '{rutaAbsNorm}', Real Result: '{rutaAbsReal}'")
             return None
     except Exception as e:
         log.error(f"{logPrefix} Error during path validation/realpath check for '{rutaRelativa}' in '{rutaBase}': {e}", exc_info=True)
         return None
 
 # --- Mojibake common replacements (Robust Definition) ---
-# Ensure keys represent the literal byte sequence misinterpreted as Latin-1/CP1252
-# Use errors='ignore' for decode as some multi-byte UTF-8 chars might not have valid single-byte Latin-1 representations
+# Uses ignore errors for decode, as some UTF-8 bytes might not map cleanly to Latin-1 singular chars
 MOJIBAKE_REPLACEMENTS = {
-    b'\xc3\xa1'.decode('latin-1', errors='ignore'): "á",  # Ã¡ -> á
-    b'\xc3\xa9'.decode('latin-1', errors='ignore'): "é",  # Ã© -> é
-    b'\xc3\xad'.decode('latin-1', errors='ignore'): "í",  # Ã­ -> í
-    b'\xc3\xb3'.decode('latin-1', errors='ignore'): "ó",  # Ã³ -> ó
-    b'\xc3\xba'.decode('latin-1', errors='ignore'): "ú",  # Ãº -> ú
-    b'\xc3\xbc'.decode('latin-1', errors='ignore'): "ü",  # Ã¼ -> ü
-    b'\xc3\x81'.decode('latin-1', errors='ignore'): "Á",  # Ã -> Á
-    b'\xc3\x89'.decode('latin-1', errors='ignore'): "É",  # Ã‰ -> É
-    b'\xc3\x8d'.decode('latin-1', errors='ignore'): "Í",  # Ã -> Í
-    b'\xc3\x93'.decode('latin-1', errors='ignore'): "Ó",  # Ã“ -> Ó
-    b'\xc3\x9a'.decode('latin-1', errors='ignore'): "Ú",  # Ãš -> Ú
-    b'\xc3\x9c'.decode('latin-1', errors='ignore'): "Ü",  # Ãœ -> Ü
-    b'\xc3\xb1'.decode('latin-1', errors='ignore'): "ñ",  # Ã± -> ñ
-    b'\xc3\x91'.decode('latin-1', errors='ignore'): "Ñ",  # Ã‘ -> Ñ
-    b'\xc2\xa1'.decode('latin-1', errors='ignore'): "¡",  # Â¡ -> ¡
-    b'\xc2\xbf'.decode('latin-1', errors='ignore'): "¿",  # Â¿ -> ¿
-    b'\xc2\xaa'.decode('latin-1', errors='ignore'): "ª",  # Âª -> ª
-    b'\xc2\xba'.decode('latin-1', errors='ignore'): "º",  # Âº -> º
-    b'\xc2\xab'.decode('latin-1', errors='ignore'): "«",  # Â« -> «
-    b'\xc2\xbb'.decode('latin-1', errors='ignore'): "»",  # Â» -> »
-    # Common CP1252 / Windows-1252 issues mapped from their UTF-8 bytes misinterpreted as Latin-1
-    b'\xe2\x82\xac'.decode('latin-1', errors='ignore'): "€", # â‚¬ -> €
-    b'\xe2\x84\xa2'.decode('latin-1', errors='ignore'): "™", # â„¢ -> ™
-    b'\xe2\x80\x99'.decode('latin-1', errors='ignore'): "’", # â€™ -> ’ (Right single quote)
-    b'\xe2\x80\x98'.decode('latin-1', errors='ignore'): "‘", # â€˜ -> ‘ (Left single quote)
-    b'\xe2\x80\x9c'.decode('latin-1', errors='ignore'): "“", # â€œ -> “ (Left double quote)
-    b'\xe2\x80\x9d'.decode('latin-1', errors='ignore'): "”", # â€ -> ” (Right double quote)
-    b'\xe2\x80\xa6'.decode('latin-1', errors='ignore'): "…", # â€¦ -> … (Ellipsis)
-    b'\xe2\x80\x93'.decode('latin-1', errors='ignore'): "–", # â€“ -> – (En dash)
-    b'\xe2\x80\x94'.decode('latin-1', errors='ignore'): "—", # â€” -> — (Em dash)
+    b'\xc3\xa1'.decode('latin-1', errors='ignore'): "á", b'\xc3\xa9'.decode('latin-1', errors='ignore'): "é",
+    b'\xc3\xad'.decode('latin-1', errors='ignore'): "í", b'\xc3\xb3'.decode('latin-1', errors='ignore'): "ó",
+    b'\xc3\xba'.decode('latin-1', errors='ignore'): "ú", b'\xc3\xbc'.decode('latin-1', errors='ignore'): "ü",
+    b'\xc3\x81'.decode('latin-1', errors='ignore'): "Á", b'\xc3\x89'.decode('latin-1', errors='ignore'): "É",
+    b'\xc3\x8d'.decode('latin-1', errors='ignore'): "Í", b'\xc3\x93'.decode('latin-1', errors='ignore'): "Ó",
+    b'\xc3\x9a'.decode('latin-1', errors='ignore'): "Ú", b'\xc3\x9c'.decode('latin-1', errors='ignore'): "Ü",
+    b'\xc3\xb1'.decode('latin-1', errors='ignore'): "ñ", b'\xc3\x91'.decode('latin-1', errors='ignore'): "Ñ",
+    b'\xc2\xa1'.decode('latin-1', errors='ignore'): "¡", b'\xc2\xbf'.decode('latin-1', errors='ignore'): "¿",
+    b'\xc2\xaa'.decode('latin-1', errors='ignore'): "ª", b'\xc2\xba'.decode('latin-1', errors='ignore'): "º",
+    b'\xc2\xab'.decode('latin-1', errors='ignore'): "«", b'\xc2\xbb'.decode('latin-1', errors='ignore'): "»",
+    b'\xe2\x82\xac'.decode('latin-1', errors='ignore'): "€", b'\xe2\x84\xa2'.decode('latin-1', errors='ignore'): "™",
+    b'\xe2\x80\x99'.decode('latin-1', errors='ignore'): "’", b'\xe2\x80\x98'.decode('latin-1', errors='ignore'): "‘",
+    b'\xe2\x80\x9c'.decode('latin-1', errors='ignore'): "“", b'\xe2\x80\x9d'.decode('latin-1', errors='ignore'): "”",
+    b'\xe2\x80\xa6'.decode('latin-1', errors='ignore'): "…", b'\xe2\x80\x93'.decode('latin-1', errors='ignore'): "–",
+    b'\xe2\x80\x94'.decode('latin-1', errors='ignore'): "—",
 }
 
-# --- FUNCIÓN PRINCIPAL (Estrategia: unicode_escape FIRST, then Targeted Replace Mojibake) ---
+# --- Function to decode \uXXXX escapes manually ---
+def decode_unicode_escapes(s):
+    def replace_match(match):
+        try:
+            hex_code = match.group(1)
+            char_code = int(hex_code, 16)
+            # Handle potential surrogate pairs if needed (basic chr() handles BMP)
+            # For simplicity, assume BMP for now. Real-world might need surrogate handling.
+            return chr(char_code)
+        except ValueError:
+            log.warning(f"Invalid unicode escape sequence found: {match.group(0)}")
+            return match.group(0) # Return original if conversion fails
+
+    # Regex to find \u followed by exactly 4 hex digits.
+    # Use negative lookbehind to avoid matching an already escaped backslash (\\uXXXX)
+    pattern = r'(?<!\\)\\u([0-9a-fA-F]{4})'
+    processed_string, num_replacements = re.subn(pattern, replace_match, s)
+    if num_replacements > 0:
+         log.debug(f"decode_unicode_escapes: Replaced {num_replacements} sequences.")
+    return processed_string
+
+
+# --- FUNCIÓN PRINCIPAL (Estrategia: Targeted Replace Mojibake -> Manual Escapes -> Manual Unicode Decode) ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     """
     Applies changes generated by Gemini.
-    - FIRST decodes standard escape sequences (\\n, \\t, \\uXXXX, \\\\) using 'unicode_escape'.
-    - THEN replaces common Mojibake sequences using a predefined map.
+    - FIRST replaces common Mojibake sequences using a predefined map.
+    - SECOND replaces basic escapes (\\n, \\t, \\\\).
+    - THIRD decodes \\uXXXX sequences manually (ignoring \\\\uXXXX).
     - Writes files in UTF-8. Handles delete/create actions.
     """
     logPrefix = "aplicarCambiosSobrescritura:"
@@ -127,16 +141,10 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
                         os.remove(targetAbs)
                         log.info(f"{logPrefix} File/Link '{targetRel}' deleted.")
                     elif os.path.isdir(targetAbs):
-                        # Decide on deleting non-empty: shutil.rmtree(targetAbs) vs os.rmdir(targetAbs)
-                        try:
+                         try:
                             os.rmdir(targetAbs) # Try removing empty dir first
                             log.info(f"{logPrefix} Empty directory '{targetRel}' deleted.")
-                        except OSError: # Directory not empty
-                            # Option 1: Fail
-                            # err = f"Directory '{targetRel}' is not empty. Deletion aborted for safety."
-                            # log.error(f"{logPrefix} {err}")
-                            # return False, err
-                            # Option 2: Delete recursively (USE WITH CAUTION)
+                         except OSError: # Directory not empty
                             log.warning(f"{logPrefix} Directory '{targetRel}' not empty. Attempting recursive delete with shutil.rmtree.")
                             shutil.rmtree(targetAbs)
                             log.info(f"{logPrefix} Non-empty directory '{targetRel}' recursively deleted.")
@@ -167,7 +175,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
                     return False, err
             else:
                 try:
-                    os.makedirs(targetAbs, exist_ok=True) # exist_ok=True is generally safe here
+                    os.makedirs(targetAbs, exist_ok=True)
                     log.info(f"{logPrefix} Directory '{targetRel}' created.")
                     return True, None
                 except Exception as e:
@@ -181,15 +189,13 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
          log.error(f"{logPrefix} {err}")
          return False, err
     if not archivos_con_contenido:
-        # Allow if action didn't require content (already handled above)
         if accionOriginal not in ["eliminar_archivo", "crear_directorio"]:
-             err = f"Expected content in 'archivos_con_contenido' for action '{accionOriginal}', but it's empty. Likely error in Step 2."
+             err = f"Expected content in 'archivos_con_contenido' for action '{accionOriginal}', but it's empty."
              log.error(f"{logPrefix} {err}")
              return False, err
         else:
-            # This state might be reachable if action was handled but flow didn't exit? Log and proceed.
-            log.info(f"{logPrefix} No content in 'archivos_con_contenido', which is expected for action '{accionOriginal}'.")
-            return True, None # Assume success if action was handled
+            log.info(f"{logPrefix} No content provided, expected for action '{accionOriginal}'.")
+            return True, None
 
     log.info(f"{logPrefix} Processing {len(archivos_con_contenido)} file(s) for writing/modification...")
     archivosProcesados = []
@@ -200,7 +206,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
         # --- Path validation and parent directory creation ---
         archivoAbs = _validar_y_normalizar_ruta(rutaRel, rutaBaseNorm, asegurar_existencia=False)
         if archivoAbs is None:
-            msg = f"Invalid or unsafe path ('{rutaRel}') received from Gemini (Step 2). File skipped."
+            msg = f"Invalid or unsafe path ('{rutaRel}'). File skipped."
             log.error(f"{logPrefix} {msg}")
             errores.append(msg)
             continue
@@ -220,108 +226,95 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
         # --- Parent Directory Creation ---
         dirPadre = os.path.dirname(archivoAbs)
         try:
-            if dirPadre and not os.path.exists(dirPadre): # Check if dirPadre is not empty (for root files)
+            if dirPadre and not os.path.exists(dirPadre):
                 log.info(f"{logPrefix} Creating necessary parent directory: {dirPadre}")
                 os.makedirs(dirPadre, exist_ok=True)
             elif dirPadre and not os.path.isdir(dirPadre):
-                 # If the parent path exists but is a file, raise error
-                 raise ValueError(f"Parent path '{dirPadre}' for file '{rutaRel}' exists but is NOT a directory.")
+                 raise ValueError(f"Parent path '{dirPadre}' exists but is NOT a directory.")
         except Exception as e_dir:
-            msg = f"Error creating/validating parent directory '{dirPadre}' for '{rutaRel}': {e_dir}. File skipped."
+            msg = f"Error managing parent directory '{dirPadre}' for '{rutaRel}': {e_dir}. Skipping."
             log.error(f"{logPrefix} {msg}", exc_info=True)
             errores.append(msg)
             continue
 
-        # --- Start Correction Block (STRATEGY: unicode_escape FIRST, then Targeted Replace) ---
+        # --- Start Correction Block ---
         contenido_procesado = contenido_str
         log.debug(f"{logPrefix} Content ORIGINAL for '{rutaRel}' (repr): {repr(contenido_procesado[:200])}...")
 
         try:
-            # --- STEP 1: Decode standard escapes (including \uXXXX, \n, \t, \\) ---
-            contenido_despues_escape = contenido_procesado # Default if decode fails
-            try:
-                # Apply unicode_escape first to handle explicit escapes like \uXXXX, \n
-                # Only run if backslash is present, minor optimization
-                if '\\' in contenido_procesado:
-                    log.debug(f"{logPrefix} Applying codecs.decode(..., 'unicode_escape') for '{rutaRel}'")
-                    # Use errors='strict' to catch malformed escapes like trailing backslash or \u123
-                    contenido_decodificado = codecs.decode(contenido_procesado, 'unicode_escape', errors='strict')
-
-                    if contenido_decodificado != contenido_procesado:
-                        log.info(f"{logPrefix} CORRECTION (unicode_escape): Standard escape sequences decoded for '{rutaRel}'.")
-                        contenido_despues_escape = contenido_decodificado
-                    else:
-                        log.debug(f"{logPrefix} 'unicode_escape' applied but resulted in no change.")
-                else:
-                    log.debug(f"{logPrefix} No backslashes found, skipping 'unicode_escape' decoding for '{rutaRel}'.")
-
-            except UnicodeDecodeError as e_escape_decode:
-                 # Malformed escape sequence (e.g., "\z", "\u12", trailing "\")
-                 log.warning(f"{logPrefix} FAILED 'unicode_escape' for '{rutaRel}': {e_escape_decode}. Malformed escape sequence likely present. Using string before escape attempt for Mojibake replacement.")
-                 contenido_despues_escape = contenido_procesado # Use original for next step
-            except Exception as e_escape:
-                 log.error(f"{logPrefix} Unexpected error during 'unicode_escape' for '{rutaRel}': {e_escape}. Using string before escape attempt.", exc_info=True)
-                 contenido_despues_escape = contenido_procesado # Use original for next step
-
-            # Content ready for Mojibake replacement
-            contenido_intermedio = contenido_despues_escape
-            log.debug(f"{logPrefix} Content AFTER unicode_escape for '{rutaRel}' (repr): {repr(contenido_intermedio[:200])}...")
-
-            # --- STEP 2: Replace common Mojibake sequences ---
-            contenido_final = contenido_intermedio # Start with the result after escapes
-            replacements_made = False # Flag to track if any change happened
-            temp_contenido = contenido_intermedio
-
-            # --- Debugging specific Mojibake pattern ---
-            # target_mojibake_key = b'\xc3\xa1'.decode('latin-1', errors='ignore') # Key for 'Ã¡'
-            # if target_mojibake_key in MOJIBAKE_REPLACEMENTS:
-            #     log.debug(f"{logPrefix} Debug Check: Key {repr(target_mojibake_key)} in dict. Value: {repr(MOJIBAKE_REPLACEMENTS[target_mojibake_key])}")
-            #     log.debug(f"{logPrefix} Debug Check: String contains key {repr(target_mojibake_key)}? {'Yes' if target_mojibake_key in temp_contenido else 'No'}")
-            # else:
-            #     log.debug(f"{logPrefix} Debug Check: Key {repr(target_mojibake_key)} NOT in MOJIBAKE_REPLACEMENTS dict (problem with dict definition).")
-            # --- End Debugging ---
-
-
+            # --- STEP 1: Replace common Mojibake sequences ---
+            contenido_despues_mojibake = contenido_procesado
+            replacements_made_moji = False
+            temp_contenido_moji = contenido_procesado
             for mojibake, correct in MOJIBAKE_REPLACEMENTS.items():
-                # Repeatedly replace until no more occurrences are found
-                # This handles cases where replacements might create new instances (unlikely here but safer)
-                # However, simple replace loop is usually sufficient and faster
-                # Use the simpler loop first:
-                new_temp_contenido = temp_contenido.replace(mojibake, correct)
-                if new_temp_contenido != temp_contenido:
-                    if not replacements_made: # Log first time only for this file
-                        log.info(f"{logPrefix} CORRECTION (Mojibake Replace): Common Mojibake sequence(s) being replaced AFTER escapes for '{rutaRel}'.")
-                    # Log details of the specific replacement
-                    log.debug(f"{logPrefix}   Replaced: {repr(mojibake)} -> {repr(correct)}")
-                    replacements_made = True
-                    temp_contenido = new_temp_contenido # Update string for next replacement in loop
+                # Check if the key exists before replacing to avoid unnecessary work
+                if mojibake in temp_contenido_moji:
+                    new_temp_contenido = temp_contenido_moji.replace(mojibake, correct)
+                    if new_temp_contenido != temp_contenido_moji: # Check if replace actually did something
+                        if not replacements_made_moji:
+                            log.info(f"{logPrefix} CORRECTION (Mojibake Replace): Common Mojibake sequence(s) being replaced for '{rutaRel}'.")
+                        log.debug(f"{logPrefix}   Replaced Mojibake: {repr(mojibake)} -> {repr(correct)}")
+                        replacements_made_moji = True
+                        temp_contenido_moji = new_temp_contenido # Update for next iteration
 
-
-            if replacements_made:
-                 # log.info(...) # Logged first instance above
-                 contenido_final = temp_contenido # Assign the fully modified string
+            if replacements_made_moji:
+                contenido_despues_mojibake = temp_contenido_moji
             else:
-                 log.debug(f"{logPrefix} No common Mojibake sequences found/replaced after escapes for '{rutaRel}'.")
-                 # contenido_final remains contenido_intermedio (result after escapes)
+                 log.debug(f"{logPrefix} No common Mojibake sequences found/replaced for '{rutaRel}'.")
 
-            log.debug(f"{logPrefix} Content AFTER Mojibake Replace (post-escapes) for '{rutaRel}' (repr): {repr(contenido_final[:200])}...") # Log final result before write
+            log.debug(f"{logPrefix} Content AFTER Mojibake Replace for '{rutaRel}' (repr): {repr(contenido_despues_mojibake[:200])}...")
 
-            contenido_a_escribir = contenido_final
+            # --- STEP 2: Replace basic escapes manually (handle \\ first) ---
+            contenido_despues_basic_escapes = contenido_despues_mojibake
+            # Use a placeholder unlikely to appear naturally or be created by unicode escapes
+            placeholder = "\uFFFE" # Typically invalid unicode char, good placeholder
+            # Check if any basic escapes are present before doing replacements
+            if '\\\\' in contenido_despues_mojibake or '\\n' in contenido_despues_mojibake or \
+               '\\t' in contenido_despues_mojibake or '\\r' in contenido_despues_mojibake:
 
-            # --- STEP 3: Final Diagnostics and Writing ---
-            log.debug(f"{logPrefix} FINAL content to write for '{rutaRel}' (start, repr): {repr(contenido_a_escribir[:200])}")
+                log.info(f"{logPrefix} CORRECTION (Basic Escapes): Basic escapes (\\n, \\t, \\\\ etc.) processing for '{rutaRel}'.")
+                temp_contenido_basic = contenido_despues_mojibake.replace('\\\\', placeholder)
+                temp_contenido_basic = temp_contenido_basic.replace('\\n', '\n')
+                temp_contenido_basic = temp_contenido_basic.replace('\\t', '\t')
+                temp_contenido_basic = temp_contenido_basic.replace('\\r', '\r')
+                # Add others like \\" if they might appear and aren't handled by JSON loader
+                # temp_contenido_basic = temp_contenido_basic.replace('\\"', '"')
 
-            # Final check for remaining Mojibake (indicates uncommon Mojibake not in map)
-            # Check if any key from the dictionary is STILL present
+                # Restore the literal backslash
+                contenido_despues_basic_escapes = temp_contenido_basic.replace(placeholder, '\\')
+            else:
+                 log.debug(f"{logPrefix} No basic escapes ('\\\\', '\\n', etc.) found, skipping replacement.")
+
+
+            log.debug(f"{logPrefix} Content AFTER Basic Escapes for '{rutaRel}' (repr): {repr(contenido_despues_basic_escapes[:200])}...")
+
+            # --- STEP 3: Decode \uXXXX sequences manually ---
+            contenido_despues_unicode = contenido_despues_basic_escapes
+            # Check specifically for the pattern we want to decode: non-escaped \uXXXX
+            if re.search(r'(?<!\\)\\u[0-9a-fA-F]{4}', contenido_despues_basic_escapes):
+                log.info(f"{logPrefix} CORRECTION (Unicode Decode): \\uXXXX sequences found, applying manual decoding for '{rutaRel}'.")
+                decoded_unicode_str = decode_unicode_escapes(contenido_despues_basic_escapes)
+                if decoded_unicode_str != contenido_despues_basic_escapes:
+                    # This check might be redundant if re.search found something, but safe
+                    contenido_despues_unicode = decoded_unicode_str
+                else:
+                    # This case might happen if decode_unicode_escapes handles errors by returning original
+                    log.debug(f"{logPrefix} Manual unicode decode ran but no effective changes detected (check decode_unicode_escapes function or specific sequences).")
+            else:
+                 log.debug(f"{logPrefix} No unescaped '\\uXXXX' sequences found, skipping manual unicode decode for '{rutaRel}'.")
+
+            contenido_a_escribir = contenido_despues_unicode
+            log.debug(f"{logPrefix} Content FINAL after all processing for '{rutaRel}' (repr): {repr(contenido_a_escribir[:200])}...")
+
+            # --- Final Diagnostics and Writing ---
             remaining_mojibake_keys = [k for k in MOJIBAKE_REPLACEMENTS.keys() if k in contenido_a_escribir]
             if remaining_mojibake_keys:
-                 log.warning(f"{logPrefix} ALERT! Content for '{rutaRel}' might STILL contain known Mojibake patterns AFTER processing (e.g., {remaining_mojibake_keys[:3]}). Check MOJIBAKE_REPLACEMENTS map or input data.")
+                 log.warning(f"{logPrefix} ALERT! Content for '{rutaRel}' might STILL contain known Mojibake patterns AFTER processing (e.g., {remaining_mojibake_keys[:3]}).")
+            # Check for remaining literal \u escapes that were *not* preceded by a backslash
+            if re.search(r'(?<!\\)\\u[0-9a-fA-F]{4}', contenido_a_escribir):
+                 log.warning(f"{logPrefix} ALERT! Content for '{rutaRel}' might STILL contain unescaped literal \\uXXXX sequences AFTER processing. This indicates a failure in the decode_unicode_escapes step.")
 
-            # Final check for remaining literal \uXXXX escapes (indicates issue or intentional double-escape \\uXXXX)
-            if re.search(r'\\u[0-9a-fA-F]{4}', contenido_a_escribir):
-                 log.warning(f"{logPrefix} ALERT! Content for '{rutaRel}' might STILL contain literal \\uXXXX escapes AFTER processing. This could be intended if input was e.g., '\\\\uXXXX'.")
 
-            # Write the final result in UTF-8
             log.debug(f"{logPrefix} Writing {len(contenido_a_escribir)} characters to {archivoAbs} using UTF-8")
             with open(archivoAbs, 'w', encoding='utf-8') as f:
                 f.write(contenido_a_escribir)
@@ -329,24 +322,19 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             archivosProcesados.append(rutaRel)
 
         except Exception as e_process_write:
-             # Catch errors during the processing/writing of a specific file
              msg = f"Error processing/writing file '{rutaRel}': {e_process_write}"
              log.error(f"{logPrefix} {msg}", exc_info=True)
              errores.append(msg)
-             # Continue with the next file
 
     # --- End of loop ---
-
     # --- Final Evaluation ---
     if errores:
         error_summary = f"Process completed with {len(errores)} error(s): {'; '.join(errores[:3])}{'...' if len(errores) > 3 else ''}"
         log.error(f"{logPrefix} {error_summary}")
         return False, error_summary
     elif not archivosProcesados and archivos_con_contenido:
-         # All files provided failed processing
-         msg = "Content was provided but no files could be processed due to errors (see logs)."
+         msg = "Content provided but no files could be processed due to errors."
          log.error(f"{logPrefix} {msg}")
          return False, msg
-    # No errors, or only errors were handled (like file not found on delete)
     log.info(f"{logPrefix} Processing finished. {len(archivosProcesados)} files written/modified successfully.")
-    return True, None # Success
+    return True, None
