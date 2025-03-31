@@ -158,6 +158,27 @@ class TestAplicadorCambios(unittest.TestCase):
             entrada_gemini, indent=2, ensure_ascii=False)
         self._run_test("Contenido No String (Dict)",
                        entrada_gemini, salida_esperada)
+        
+    def test_11_php_string_literal_newline(self):
+        """
+        Prueba que '\\n' DENTRO de una cadena literal de código (PHP)
+        permanezca como '\\n' literal en el archivo final, sin convertirse
+        en un salto de línea real.
+        Simula el caso problemático reportado.
+        """
+        # Lo que Gemini enviaría en el JSON (simplificado): "$log = \"Error:\\nDetalles\";"
+        # Después de json.loads, la cadena Python sería: '$log = "Error:\\nDetalles";'
+        # Esta es la cadena que recibe aplicarCambiosSobrescritura.
+        entrada_gemini = '$log_message = "Detalles de scriptsOrdenados:\\n" . implode("\\n", $error_log) . "\\n";'
+
+        # El contenido EXACTO que esperamos en el archivo .php final.
+        # Debe mantener los \n L I T E R A L E S dentro de las comillas dobles de PHP.
+        salida_esperada = '$log_message = "Detalles de scriptsOrdenados:\\n" . implode("\\n", $error_log) . "\\n";'
+
+        self._run_test("PHP String Literal con \\n",
+                       entrada_gemini,
+                       salida_esperada,
+                       ruta_relativa="test_script.php") # Usar extensión .php es más representativo
 
 
 # Para poder ejecutar desde la línea de comandos
