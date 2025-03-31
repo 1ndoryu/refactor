@@ -52,7 +52,7 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
     - Sobrescribe archivos existentes o crea nuevos con el contenido proporcionado.
     - Maneja acciones como eliminar_archivo y crear_directorio.
     - Intenta corregir Mojibake común (UTF-8 mal leído como Latin-1).
-    - Decodifica secuencias de escape Unicode (\uXXXX) literales.
+    - Decodifica secuencias de escape Unicode literales.
     - Escribe archivos en UTF-8.
 
     Args:
