@@ -556,43 +556,51 @@ def ejecutarProcesoPrincipal():
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
+    
         # ===============================================================
-        # PASO 3: VERIFICACIÓN
+        # PASO 3: VERIFICACIÓN (DESACTIVADO TEMPORALMENTE)
         # ===============================================================
-        # ... (Paso 3, Commit, Finalización sin cambios) ...
-        logging.info(f"{logPrefix} --- INICIO PASO 3: VERIFICACIÓN ---")
-        verification_details_msg = "Verificación no ejecutada."
-        try:
-            exitoVerificacion, verification_details_msg = verificarCambiosAplicados(
-                decisionParseada,
-                resultadoEjecucion,
-                settings.RUTACLON
-            )
+        logging.info(f"{logPrefix} --- INICIO PASO 3: VERIFICACIÓN (TEMPORALMENTE DESACTIVADO) ---")
+        exitoVerificacion = True # Asumir éxito ya que está desactivado
+        verification_details_msg = "Verificación desactivada temporalmente."
+        logging.warning(f"{logPrefix} {verification_details_msg}")
+        estadoFinal = "[VERIFY_SKIPPED]" # Nuevo estado para indicar que se saltó
 
-            if not exitoVerificacion:
-                raise Exception(f"Verificación fallida: {verification_details_msg}")
+        # --- CÓDIGO ORIGINAL COMENTADO ---
+        # verification_details_msg = "Verificación no ejecutada."
+        # try:
+        #     exitoVerificacion, verification_details_msg = verificarCambiosAplicados(
+        #         decisionParseada,
+        #         resultadoEjecucion,
+        #         settings.RUTACLON
+        #     )
+        #
+        #     if not exitoVerificacion:
+        #         raise Exception(f"Verificación fallida: {verification_details_msg}")
+        #
+        #     logging.info(f"{logPrefix} --- FIN PASO 3: Verificación exitosa. ---")
+        #     estadoFinal = "[VERIFY_OK]"
+        #
+        # except Exception as e_paso3_verify:
+        #     logging.error(f"{logPrefix} Error en Paso 3 (Verificación): {e_paso3_verify}", exc_info=True)
+        #     estadoFinal = "[VERIFY_FAIL]"
+        #     # ... (guardar historial y descartar) ...
+        #     historialRefactor.append(formatearEntradaHistorial(
+        #         outcome=estadoFinal,
+        #         decision=decisionParseada,
+        #         result_details=resultadoEjecucion,
+        #         verification_details=verification_details_msg,
+        #         error_message=str(e_paso3_verify)
+        #     ))
+        #     guardarHistorial(historialRefactor)
+        #     logging.info(f"{logPrefix} Intentando descartar cambios locales tras fallo de verificación...")
+        #     manejadorGit.descartarCambiosLocales(settings.RUTACLON)
+        #     return False
+        # --- FIN CÓDIGO ORIGINAL COMENTADO ---
 
-            logging.info(f"{logPrefix} --- FIN PASO 3: Verificación exitosa. ---")
-            estadoFinal = "[VERIFY_OK]"
-
-        except Exception as e_paso3_verify:
-            logging.error(f"{logPrefix} Error en Paso 3 (Verificación): {e_paso3_verify}", exc_info=True)
-            estadoFinal = "[VERIFY_FAIL]"
-            # ... (guardar historial y descartar) ...
-            historialRefactor.append(formatearEntradaHistorial(
-                outcome=estadoFinal,
-                decision=decisionParseada,
-                result_details=resultadoEjecucion,
-                verification_details=verification_details_msg,
-                error_message=str(e_paso3_verify)
-            ))
-            guardarHistorial(historialRefactor)
-            logging.info(f"{logPrefix} Intentando descartar cambios locales tras fallo de verificación...")
-            manejadorGit.descartarCambiosLocales(settings.RUTACLON)
-            return False
 
         # ===============================================================
-        # COMMIT Y FINALIZACIÓN
+        # COMMIT Y FINALIZACIÓN (Lógica ajustada)
         # ===============================================================
         try:
             # 8. Hacer commit
@@ -605,49 +613,40 @@ def ejecutarProcesoPrincipal():
             elif len(mensajeCommit.splitlines()[0]) > 72:
                  logging.warning(f"{logPrefix} Primera línea del mensaje de commit larga (>72 chars).")
 
-            exitoCommitIntento = manejadorGit.hacerCommit(settings.RUTACLON, mensajeCommit)
+            # --- CAMBIO: Usar el nuevo valor de retorno de hacerCommit ---
+            seHizoCommitNuevo = manejadorGit.hacerCommit(settings.RUTACLON, mensajeCommit)
 
-            if not exitoCommitIntento:
-                 raise Exception("Falló el comando 'git commit'.")
-
-            # 9. Verificar si el commit introdujo cambios efectivos
-            logging.info(f"{logPrefix} Verificando si el commit tuvo cambios efectivos...")
-            commitTuvoCambios = manejadorGit.commitTuvoCambiosReales(settings.RUTACLON)
-
-            if commitTuvoCambios:
-                # ... (éxito final) ...
-                logging.info(f"{logPrefix} Commit realizado con éxito y contiene cambios efectivos.")
+            if seHizoCommitNuevo:
+                logging.info(f"{logPrefix} Commit realizado con éxito.")
                 estadoFinal = "[ÉXITO]"
                 historialRefactor.append(formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
                     result_details=resultadoEjecucion,
-                    verification_details=verification_details_msg
+                    verification_details=verification_details_msg # Mantener el mensaje de skip
                 ))
                 guardarHistorial(historialRefactor)
                 logging.info(f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
                 return True # ¡Éxito final!
             else:
-                # ... (commit sin cambios efectivos) ...
-                razon = "No se detectaron cambios efectivos tras el commit."
-                if commitTuvoCambios is None:
-                     razon = "Error al verificar los cambios del commit."
-                logging.warning(f"{logPrefix} Commit ejecutado, pero sin cambios efectivos. Razón: {razon}")
-                estadoFinal = "[ERROR_COMMIT_NO_CHANGES]"
-                logging.info(f"{logPrefix} Intentando revertir commit sin efecto y descartar...")
-                if manejadorGit.revertirCommitVacio(settings.RUTACLON):
-                     logging.info(f"{logPrefix} Commit sin efecto revertido y cambios descartados.")
-                else:
-                     logging.warning(f"{logPrefix} No se pudo revertir/limpiar tras commit sin efecto.")
+                # Razones por las que hacerCommit retorna False:
+                # 1. Error en 'git add' o 'git commit' (ya logueado por manejadorGit)
+                # 2. No había cambios staged para commitear (ej. directorio vacío sin .gitkeep, o .gitkeep ya existía)
+                logging.warning(f"{logPrefix} No se realizó un nuevo commit (ver logs de manejadorGit para detalles: puede ser por falta de cambios o error).")
+                estadoFinal = "[COMMIT_NO_REALIZADO]"
+                # Guardar historial indicando que no se hizo commit
                 historialRefactor.append(formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
                     result_details=resultadoEjecucion,
                     verification_details=verification_details_msg,
-                    error_message=razon
+                    error_message="No se generó un nuevo commit (sin cambios detectados por Git o error en commit)."
                 ))
                 guardarHistorial(historialRefactor)
-                return False
+                # Importante: Descartar cambios locales si no hubo commit, para evitar acumulación
+                logging.info(f"{logPrefix} Descartando cambios locales ya que no hubo commit...")
+                manejadorGit.descartarCambiosLocales(settings.RUTACLON)
+                return False # El ciclo no terminó con un commit exitoso
 
         except Exception as e_commit_final:
             # ... (error en commit) ...

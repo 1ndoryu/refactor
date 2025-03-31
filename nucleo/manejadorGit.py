@@ -256,57 +256,59 @@ def clonarOActualizarRepo(repoUrl, rutaLocal, ramaTrabajo):
         log.error(f"{logPrefix} Error inesperado: El repositorio no existe.")
         return False
 
-
 def hacerCommit(rutaRepo, mensaje):
-    """Añade todos los cambios y hace commit. Devuelve True si OK, False si falla 'git add' o 'git commit'."""
+    """
+    Añade todos los cambios y hace commit.
+    Returns:
+        bool: True si se realizó un NUEVO commit con éxito.
+              False si falló 'git add', 'git commit', o si no había nada que commitear.
+    """
     logPrefix = "hacerCommit:"
     log.info(f"{logPrefix} Intentando commit en {rutaRepo}")
 
-    if not ejecutarComando(['git', 'add', '-A'], cwd=rutaRepo):
-        log.error(f"{logPrefix} Falló 'git add -A'.")
-        return False  # Fallo crítico antes de commit
+    # 1. Add All Changes
+    if not ejecutarComando(['git', 'add', '-A'], cwd=rutaRepo, check=False): # Usar check=False para manejar error
+        log.error(f"{logPrefix} Falló 'git add -A'. No se intentará commit.")
+        return False # Fallo crítico antes de commit
 
-    # Verificar si hay algo staged ANTES de intentar el commit
-    # 'git diff --staged --quiet' devuelve 0 si NADA staged, 1 si HAY algo staged
+    # 2. Check if there are staged changes
     hay_cambios_staged = False
     try:
-        # Usamos check=False y miramos el returncode
+        # 'git diff --staged --quiet' devuelve 0 si NADA staged, 1 si HAY algo staged
         resultado_diff = subprocess.run(
-            ['git', 'diff', '--staged', '--quiet'], cwd=rutaRepo, capture_output=True)
+            ['git', 'diff', '--staged', '--quiet'], cwd=rutaRepo, capture_output=True, check=False) # check=False es importante
         if resultado_diff.returncode == 1:
             hay_cambios_staged = True
             log.info(f"{logPrefix} Detectados cambios en staging area.")
         elif resultado_diff.returncode == 0:
-            log.warning(
-                f"{logPrefix} No hay cambios en el staging area para hacer commit.")
-            # Se considera éxito si no había nada que hacer, no falló el comando
-            return True
+            log.warning(f"{logPrefix} No hay cambios en el staging area para hacer commit.")
+            return False # <-- CAMBIO: Retornar False si no hay nada que commitear
         else:
-            # Código de retorno inesperado de git diff
-            log.error(
-                f"{logPrefix} Comando 'git diff --staged --quiet' devolvió código inesperado {resultado_diff.returncode}. Asumiendo que no hay cambios.")
-            return True  # Considerar éxito para no bloquear innecesariamente
+            stderr_diff = resultado_diff.stderr.decode('utf-8', errors='ignore').strip()
+            log.error(f"{logPrefix} Comando 'git diff --staged --quiet' devolvió código inesperado {resultado_diff.returncode}. Stderr: {stderr_diff}. Asumiendo que no hay cambios.")
+            return False # <-- CAMBIO: Retornar False si hay error en diff
     except Exception as e_diff:
-        log.error(
-            f"{logPrefix} Error verificando cambios staged: {e_diff}. Intentando commit igualmente...")
-        # Forzar intento de commit si la verificación falla
-        hay_cambios_staged = True
+        log.error(f"{logPrefix} Error verificando cambios staged: {e_diff}. No se intentará commit.")
+        return False # <-- CAMBIO: Retornar False si hay excepción
 
-    # Si detectamos cambios staged (o falló la detección), intentar commit
+    # 3. Attempt Commit (only if changes were staged)
     if hay_cambios_staged:
-        log.info(
-            f"{logPrefix} Realizando commit con mensaje: '{mensaje[:80]}...'")
-        if not ejecutarComando(['git', 'commit', '-m', mensaje], cwd=rutaRepo):
-            # El error ya se logueó en ejecutarComando
-            log.error(f"{logPrefix} Falló 'git commit'.")
-            return False  # Falló el commit
+        log.info(f"{logPrefix} Realizando commit con mensaje: '{mensaje[:80]}...'")
+        # Usar check=False para capturar el resultado directamente
+        commit_success = ejecutarComando(['git', 'commit', '-m', mensaje], cwd=rutaRepo, check=False)
+
+        if commit_success:
+            log.info(f"{logPrefix} Comando 'git commit' ejecutado con éxito.")
+            return True # <-- CAMBIO: Commit realizado exitosamente
         else:
-            log.info(f"{logPrefix} Comando 'git commit' ejecutado.")
-            # Ahora, la verificación de si tuvo efecto se hace DESPUÉS de llamar a esta función
-            return True
+            log.error(f"{logPrefix} Falló 'git commit'.")
+            # El error específico ya fue logueado por ejecutarComando
+            return False # Commit falló
     else:
-        # Llegamos aquí si 'git diff' indicó que no había cambios
-        return True  # Éxito (no había nada que hacer)
+        # Este caso ya no debería alcanzarse debido a los returns anteriores,
+        # pero lo mantenemos por si acaso.
+        log.warning(f"{logPrefix} Lógica inesperada: No había cambios staged pero se intentó commitear.")
+        return False
 
 
 def hacerPush(rutaRepo, rama):
