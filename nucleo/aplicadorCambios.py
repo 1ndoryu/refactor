@@ -232,55 +232,56 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
             errores.append(msg)
             continue
 
-        # --- Start Correction Block (STRATEGY: unicode_escape FIRST, then Targeted Replace) ---
+       # --- Start Correction Block (STRATEGY: unicode_escape FIRST, then Targeted Replace) ---
         contenido_procesado = contenido_str
         log.debug(f"{logPrefix} Content ORIGINAL for '{rutaRel}' (repr): {repr(contenido_procesado[:200])}...")
 
-        try:
-            # --- STEP 1: Decode standard escapes (including \uXXXX, \n, \t, \\) ---
-            contenido_despues_escape = contenido_procesado # Default if decode fails
-            try:
-                # Apply unicode_escape first to handle explicit escapes like \uXXXX, \n
-                # Only run if backslash is present, minor optimization
-                if '\\' in contenido_procesado:
-                    log.debug(f"{logPrefix} Applying codecs.decode(..., 'unicode_escape') for '{rutaRel}'")
-                    # Use errors='strict' to catch malformed escapes like trailing backslash or \u123
-                    contenido_decodificado = codecs.decode(contenido_procesado, 'unicode_escape', errors='strict')
+        # Determinar extensión del archivo para condicionar el procesamiento de escapes
+        ext = os.path.splitext(rutaRel)[1].lower()
 
+        try:
+            # --- STEP 1: Decode standard escapes (incluyendo \uXXXX, \n, \t, \\) ---
+            if ext == '.php':
+                log.debug(f"{logPrefix} Archivo PHP detectado ('{rutaRel}'): se omite la decodificación de escapes.")
+                contenido_despues_escape = contenido_procesado
+            else:
+                contenido_despues_escape = contenido_procesado  # valor por defecto
+                # Solo aplicar si se detecta al menos una barra invertida
+                if '\\' in contenido_procesado:
+                    log.debug(f"{logPrefix} Aplicando codecs.decode(..., 'unicode_escape') para '{rutaRel}'")
+                    contenido_decodificado = codecs.decode(contenido_procesado, 'unicode_escape', errors='strict')
                     if contenido_decodificado != contenido_procesado:
-                        log.info(f"{logPrefix} CORRECTION (unicode_escape): Standard escape sequences decoded for '{rutaRel}'.")
+                        log.info(f"{logPrefix} CORRECCIÓN (unicode_escape): Secuencias de escape decodificadas para '{rutaRel}'.")
                         contenido_despues_escape = contenido_decodificado
                     else:
-                        log.debug(f"{logPrefix} 'unicode_escape' applied but resulted in no change.")
+                        log.debug(f"{logPrefix} 'unicode_escape' aplicado sin cambios en '{rutaRel}'.")
                 else:
-                    log.debug(f"{logPrefix} No backslashes found, skipping 'unicode_escape' decoding for '{rutaRel}'.")
+                    log.debug(f"{logPrefix} No se encontraron barras invertidas; se omite 'unicode_escape' para '{rutaRel}'.")
 
-            except UnicodeDecodeError as e_escape_decode:
-                 # Malformed escape sequence (e.g., "\z", "\u12", trailing "\")
-                 log.warning(f"{logPrefix} FAILED 'unicode_escape' for '{rutaRel}': {e_escape_decode}. Malformed escape sequence likely present. Using string before escape attempt for Mojibake replacement.")
-                 contenido_despues_escape = contenido_procesado # Use original for next step
-            except Exception as e_escape:
-                 log.error(f"{logPrefix} Unexpected error during 'unicode_escape' for '{rutaRel}': {e_escape}. Using string before escape attempt.", exc_info=True)
-                 contenido_despues_escape = contenido_procesado # Use original for next step
-
-            # Content ready for Mojibake replacement
+            # El contenido listo para reemplazo de Mojibake
             contenido_intermedio = contenido_despues_escape
-            log.debug(f"{logPrefix} Content AFTER unicode_escape for '{rutaRel}' (repr): {repr(contenido_intermedio[:200])}...")
+            log.debug(f"{logPrefix} Content AFTER unicode_escape para '{rutaRel}' (repr): {repr(contenido_intermedio[:200])}...")
 
-            # --- STEP 2: Replace common Mojibake sequences ---
-            contenido_final = contenido_intermedio # Start with the result after escapes
-            replacements_made = False # Flag to track if any change happened
+            # --- STEP 2: Reemplazo de secuencias de Mojibake comunes ---
+            contenido_final = contenido_intermedio  # Empezamos con el resultado tras escapes
+            replacements_made = False  # Para indicar si se realizó algún cambio
             temp_contenido = contenido_intermedio
 
-            # --- Debugging specific Mojibake pattern ---
-            # target_mojibake_key = b'\xc3\xa1'.decode('latin-1', errors='ignore') # Key for 'Ã¡'
-            # if target_mojibake_key in MOJIBAKE_REPLACEMENTS:
-            #     log.debug(f"{logPrefix} Debug Check: Key {repr(target_mojibake_key)} in dict. Value: {repr(MOJIBAKE_REPLACEMENTS[target_mojibake_key])}")
-            #     log.debug(f"{logPrefix} Debug Check: String contains key {repr(target_mojibake_key)}? {'Yes' if target_mojibake_key in temp_contenido else 'No'}")
-            # else:
-            #     log.debug(f"{logPrefix} Debug Check: Key {repr(target_mojibake_key)} NOT in MOJIBAKE_REPLACEMENTS dict (problem with dict definition).")
-            # --- End Debugging ---
+            for mojibake, correct in MOJIBAKE_REPLACEMENTS.items():
+                new_temp_contenido = temp_contenido.replace(mojibake, correct)
+                if new_temp_contenido != temp_contenido:
+                    if not replacements_made:
+                        log.info(f"{logPrefix} CORRECCIÓN (Mojibake Replace): Se reemplazarán secuencias Mojibake para '{rutaRel}'.")
+                    log.debug(f"{logPrefix}   Reemplazado: {repr(mojibake)} -> {repr(correct)}")
+                    replacements_made = True
+                    temp_contenido = new_temp_contenido
 
+            if replacements_made:
+                contenido_final = temp_contenido
+            else:
+                log.debug(f"{logPrefix} No se encontraron secuencias Mojibake en '{rutaRel}' tras escapes.")
+
+            log.debug(f"{logPrefix} Content AFTER Mojibake Replace para '{rutaRel}' (repr): {repr(contenido_final[:200])}...")
 
             for mojibake, correct in MOJIBAKE_REPLACEMENTS.items():
                 # Repeatedly replace until no more occurrences are found
