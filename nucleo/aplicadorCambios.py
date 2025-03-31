@@ -18,24 +18,34 @@ log = logging.getLogger(__name__)
 
 # --- Mojibake common replacements ---
 MOJIBAKE_REPLACEMENTS = {
-    "Ã¡": "á", "Ã©": "é", "Ã­": "í", "Ã³": "ó", "Ãº": "ú", "Ã¼": "ü",
-    "Ã": "Á", "Ã‰": "É", "Ã": "Í", "Ã“": "Ó", "Ãš": "Ú", "Ãœ": "Ü", # Added accented caps
-    "Ã±": "ñ", "Ã‘": "Ñ",
-    "Â¡": "¡", "Â¿": "¿",
-    "Âª": "ª", "Âº": "º",
-    "Â«": "«", "Â»": "»",
-    "â‚¬": "€", "â„¢": "™", "â€™": "’", "â€˜": "‘", "â€œ": "“", "â€": "”", "â€¦": "…",
-    # Add common CP1252 errors if seen
-    "â€š": "‚", # Single low-9 quotation mark
-    "Æ’": "ƒ",  # Latin small letter f with hook
-    "â€ž": "„", # Double low-9 quotation mark
-    "â€¡": "‡", # Double dagger
-    "Ë†": "ˆ",  # Modifier letter circumflex accent
-    "â€°": "‰", # Per mille sign
-    "Å’": "Œ", # Latin capital ligature OE
-    "Å½": "Ž", # Latin capital letter Z with caron
+    b'\xc3\xa1'.decode('latin-1'): "á",  # Ã¡ -> á
+    b'\xc3\xa9'.decode('latin-1'): "é",  # Ã© -> é
+    b'\xc3\xad'.decode('latin-1'): "í",  # Ã­ -> í
+    b'\xc3\xb3'.decode('latin-1'): "ó",  # Ã³ -> ó
+    b'\xc3\xba'.decode('latin-1'): "ú",  # Ãº -> ú
+    b'\xc3\xbc'.decode('latin-1'): "ü",  # Ã¼ -> ü
+    b'\xc3\x81'.decode('latin-1'): "Á",  # Ã -> Á
+    b'\xc3\x89'.decode('latin-1'): "É",  # Ã‰ -> É
+    b'\xc3\x8d'.decode('latin-1'): "Í",  # Ã -> Í
+    b'\xc3\x93'.decode('latin-1'): "Ó",  # Ã“ -> Ó
+    b'\xc3\x9a'.decode('latin-1'): "Ú",  # Ãš -> Ú
+    b'\xc3\x9c'.decode('latin-1'): "Ü",  # Ãœ -> Ü
+    b'\xc3\xb1'.decode('latin-1'): "ñ",  # Ã± -> ñ
+    b'\xc3\x91'.decode('latin-1'): "Ñ",  # Ã‘ -> Ñ
+    b'\xc2\xa1'.decode('latin-1'): "¡",  # Â¡ -> ¡
+    b'\xc2\xbf'.decode('latin-1'): "¿",  # Â¿ -> ¿
+    b'\xc2\xaa'.decode('latin-1'): "ª",  # Âª -> ª
+    b'\xc2\xba'.decode('latin-1'): "º",  # Âº -> º
+    b'\xc2\xab'.decode('latin-1'): "«",  # Â« -> «
+    b'\xc2\xbb'.decode('latin-1'): "»",  # Â» -> »
+    b'\xe2\x82\xac'.decode('latin-1', errors='ignore'): "€", # â‚¬ -> € (Ignore errors in case latin-1 can't represent all bytes)
+    b'\xe2\x84\xa2'.decode('latin-1', errors='ignore'): "™", # â„¢ -> ™
+    b'\xe2\x80\x99'.decode('latin-1', errors='ignore'): "’", # â€™ -> ’
+    b'\xe2\x80\x98'.decode('latin-1', errors='ignore'): "‘", # â€˜ -> ‘
+    b'\xe2\x80\x9c'.decode('latin-1', errors='ignore'): "“", # â€œ -> “
+    b'\xe2\x80\x9d'.decode('latin-1', errors='ignore'): "”", # â€ -> ”
+    b'\xe2\x80\xa6'.decode('latin-1', errors='ignore'): "…", # â€¦ -> …
 }
-
 # --- FUNCIÓN PRINCIPAL (Estrategia: unicode_escape FIRST, then Targeted Replace Mojibake) ---
 def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     """
@@ -159,26 +169,35 @@ def aplicarCambiosSobrescritura(archivos_con_contenido, rutaBase, accionOriginal
 
             # --- STEP 2: Replace common Mojibake sequences ---
             contenido_final = contenido_intermedio # Start with the result after escapes
-            replacements_count = 0
-            # Create a temporary variable for replacement to avoid modifying during iteration issues (though less likely with string.replace)
+            replacements_made = False # Flag to track if any change happened
             temp_contenido = contenido_intermedio
-            for mojibake, correct in MOJIBAKE_REPLACEMENTS.items():
-                # Check if the mojibake sequence exists in the current state of the string
-                if mojibake in temp_contenido:
-                    count_before = temp_contenido.count(mojibake)
-                    temp_contenido = temp_contenido.replace(mojibake, correct)
-                    replacements_count += count_before
 
-            # Only update contenido_final if replacements actually happened
-            if replacements_count > 0:
-                 log.info(f"{logPrefix} CORRECTION (Mojibake Replace): {replacements_count} common Mojibake sequence(s) replaced AFTER escapes for '{rutaRel}'.")
+            # --- Debugging ---
+            log.debug(f"{logPrefix} Before Mojibake Replace Loop. String (repr): {repr(temp_contenido)}")
+            target_mojibake_repr = repr(b'\xc3\xa1'.decode('latin-1'))
+            log.debug(f"{logPrefix} Checking for Mojibake key (repr): {target_mojibake_repr}")
+            log.debug(f"{logPrefix} Dictionary value (repr): {repr(MOJIBAKE_REPLACEMENTS.get(b'\xc3\xa1'.decode('latin-1')))}")
+            log.debug(f"{logPrefix} Does string contain the key? {'Yes' if b'\xc3\xa1'.decode('latin-1') in temp_contenido else 'No'}")
+            # --- End Debugging ---
+
+            for mojibake, correct in MOJIBAKE_REPLACEMENTS.items():
+                # Use the most recent replacement logic (with boolean flag)
+                new_temp_contenido = temp_contenido.replace(mojibake, correct)
+                if new_temp_contenido != temp_contenido:
+                    if not replacements_made: # Log first time only
+                         log.info(f"{logPrefix} Mojibake replacement: Found '{repr(mojibake)}', replaced with '{repr(correct)}'.")
+                    replacements_made = True
+                    temp_contenido = new_temp_contenido # Update for the next iteration
+
+            if replacements_made:
+                 # log.info(...) # Already logged inside loop now
                  contenido_final = temp_contenido # Assign the modified string
             else:
                  log.debug(f"{logPrefix} No common Mojibake sequences found/replaced after escapes for '{rutaRel}'.")
-                 # contenido_final remains contenido_intermedio
 
-            contenido_a_escribir = contenido_final
-            log.debug(f"{logPrefix} Content AFTER Mojibake Replace (post-escapes) for '{rutaRel}' (repr): {repr(contenido_a_escribir[:200])}...")
+            log.debug(f"{logPrefix} After Mojibake Replace Loop. String (repr): {repr(contenido_final)}") # Log final result
+
+            # --- END: Mojibake Replacement ---
 
             # --- STEP 3: Final Diagnostics and Writing ---
             log.debug(f"{logPrefix} FINAL content to write for '{rutaRel}' (start, repr): {repr(contenido_a_escribir[:200])}")
