@@ -281,6 +281,16 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
         "6.  **`tipo_analisis`**: Incluye siempre el campo `tipo_analisis` con el valor fijo `\"refactor_decision\"`.")
     promptPartes.append(
         "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")
+    promptPartes.append(
+        "8. No uses namespace, aqui todos los archivos estan al alcance global para que sea mas facil mover cosas."
+    )
+    promptPartes.append(
+        "9. Si vas a mover algo, asegurate de indicar correctamente a donde se tiene que mover o si se tiene que crear un nuevo archivo para ello."
+    )
+    promptPartes.append(
+        "10. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío."
+    )
+    
 
     # <<< NUEVO: Añadir la estructura del proyecto al prompt >>>
     if estructura_proyecto_texto:
