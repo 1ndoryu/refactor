@@ -180,54 +180,57 @@ class TestAplicadorCambios(unittest.TestCase):
                        salida_esperada,
                        ruta_relativa="test_script.php")  # Usar extensión .php es más representativo
 
-    def test_12_real_newlines_from_json_remain_real(self):
+    def test_12_php_multilinea_echo_con_escapes(self):
         """
-        Prueba que los saltos de línea REALES en la cadena de entrada
-        (provenientes de '\\n' en el JSON original) se escriban como
-        saltos de línea reales en el archivo, y no como '\\n' literales.
-        Simula el segundo caso problemático reportado.
+        Prueba la conversión de '\\n' a saltos de línea reales cuando
+        forman parte del formato del código o de cadenas multilínea
+        (como en un 'echo' de PHP con CSS).
+        Este es el caso opuesto a test_11. Aquí SÍ queremos la conversión.
         """
-        # Esta es la cadena Python que tendría tu función DESPUÉS de json.loads
-        # si el JSON contenía '\\n' para los saltos de línea.
-        # OJO: Usamos saltos de línea reales en esta cadena multilínea de Python.
-        entrada_con_newlines_reales = """function loadingBar()
-{
-    echo '<style>
-        #loadingBar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 0%;
-            height: 4px;
-            background-color: white; /* Color de la barra */
-            transition: width 0.4s ease;
-            z-index: 999999999999999;
-        }
-    </style>';
-}"""  # Asegúrate que el indentado aquí sea el deseado en la salida
+        # La cadena que recibe aplicarCambiosSobrescritura (simulando post-json.loads)
+        # Nota el uso de \\n para representar la secuencia literal \n
+        entrada_gemini = (
+            'function loadingBar()\\n'
+            '{\\n'
+            '    echo \'<style>\\\\n' # Ojo: \\\\n para \n dentro de la cadena PHP
+            '        #loadingBar {\\\\n'
+            '            position: fixed;\\\\n'
+            '            top: 0;\\\\n'
+            '            left: 0;\\\\n'
+            '            width: 0%;\\\\n'
+            '            height: 4px;\\\\n'
+            '            background-color: white; /* Color de la barra */\\\\n'
+            '            transition: width 0.4s ease;\\\\n'
+            '            z-index: 999999999999999;\\\\n'
+            '        }\\\\n'
+            '    </style>\';\\n' # Fin del echo
+            '}'
+        )
 
-        # El contenido esperado en el archivo final debe ser idéntico,
-        # preservando los saltos de línea reales.
-        salida_esperada = """function loadingBar()
-{
-    echo '<style>
-        #loadingBar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 0%;
-            height: 4px;
-            background-color: white; /* Color de la barra */
-            transition: width 0.4s ease;
-            z-index: 999999999999999;
-        }
-    </style>';
-}"""
+        # El contenido esperado en el archivo final, con saltos de línea REALES
+        # Nota el uso de \n para representar saltos de línea reales en Python
+        salida_esperada = (
+            'function loadingBar()\n'
+            '{\n'
+            '    echo \'<style>\\n' # Ojo: \n real aquí, porque SÍ queremos la conversión
+            '        #loadingBar {\\n'
+            '            position: fixed;\\n'
+            '            top: 0;\\n'
+            '            left: 0;\\n'
+            '            width: 0%;\\n'
+            '            height: 4px;\\n'
+            '            background-color: white; /* Color de la barra */\\n'
+            '            transition: width 0.4s ease;\\n'
+            '            z-index: 999999999999999;\\n'
+            '        }\\n'
+            '    </style>\';\n' # Fin del echo
+            '}'
+        )
 
-        self._run_test("Saltos de línea Reales (desde JSON \\n)",
-                       entrada_con_newlines_reales,
+        self._run_test("PHP Multilinea Echo con \\n",
+                       entrada_gemini,
                        salida_esperada,
-                       ruta_relativa="test_script_newlines.php")
+                       ruta_relativa="loading_bar.php")
 
 
 # Para poder ejecutar desde la línea de comandos

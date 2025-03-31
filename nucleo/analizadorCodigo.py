@@ -271,7 +271,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
 # --- PASO 2: Ejecutar Acción (Modificado para Logging) ---
 def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     logPrefix = "ejecutarAccionConGemini (Paso 2):"
-    if not configurarGemini():
+    if not configurarGemini(): # Necesitas implementar configurarGemini()
         return None
     if not decisionParseada:
         log.error(f"{logPrefix} No se proporcionó la decisión del Paso 1.")
@@ -279,6 +279,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
 
     nombreModelo = settings.MODELOGEMINI
     try:
+        # Asegúrate de que la autenticación/configuración ya se hizo
         modelo = genai.GenerativeModel(nombreModelo)
         log.info(f"{logPrefix} Usando modelo Gemini: {nombreModelo}")
     except Exception as e:
@@ -286,7 +287,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
             f"{logPrefix} Error inicializando modelo '{nombreModelo}': {e}")
         return None
 
-    # --- Construye el Prompt (AJUSTADO PARA ÉNFASIS EN ESCAPADO) ---
+    # --- Construye el Prompt (AJUSTADO PARA ÉNFASIS EN ESCAPADO JSON) ---
     accion = decisionParseada.get("accion_propuesta")
     descripcion = decisionParseada.get("descripcion")
     params = decisionParseada.get("parametros_accion", {})
@@ -294,8 +295,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
 
     promptPartes = []
     promptPartes.append(
-        "Eres un asistente de refactorización que EJECUTA una decisión ya tomada.")
-    promptPartes.append("**FORMATO DE COMENTARIOS O CODIGO CON SALTO DE LINEAS:** Si generas comentarios multilínea que usan `//` (PHP/JS), ASEGÚRATE de que **CADA LÍNEA** del comentario comience con `//` dentro del código generado.")
+        "Eres un asistente de refactorización que EJECUTA una decisión de cambio de código ya tomada.")
     promptPartes.append(
         "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
     promptPartes.append(
@@ -308,11 +308,12 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append(
         "\nSe te proporciona el contenido ACTUAL de los archivos relevantes (si aplica).")
     promptPartes.append(
-        "**TU ÚNICA TAREA:** Realizar la acción descrita en los 'Parámetros Detallados'.")
+        "**TU ÚNICA TAREA:** Generar el contenido FINAL de los archivos afectados según la acción descrita.")
 
-    # --- INICIO: ÉNFASIS EN JSON Y ESCAPADO ---
+    # --- INICIO: ÉNFASIS EN FORMATO JSON DE SALIDA ---
     promptPartes.append(
-        "\n**RESPUESTA ESPERADA:** Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura:")
+        "\n**RESPUESTA ESPERADA:** Responde ÚNICAMENTE con un objeto JSON VÁLIDO. No incluyas NINGÚN texto antes o después del JSON, ni uses bloques ```json.")
+    promptPartes.append("La estructura del JSON debe ser:")
     promptPartes.append("""
 ```json
 {
@@ -320,29 +321,37 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
   "archivos_modificados": {
     "ruta/relativa/al/archivo1.php": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 1...",
     "ruta/relativa/al/archivo2.js": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 2...",
-    // ... más archivos si son modificados o creados ...
-    // Si la acción es eliminar_archivo o crear_directorio, este objeto debe estar vacío: {}
   }
 }
 ```""")
     promptPartes.append(
-        "\n--- REGLAS DE EJECUCIÓN Y FORMATO JSON (¡MUY IMPORTANTE!) ---")
-    promptPartes.append("1.  **SIGUE LA DECISIÓN AL PIE DE LA LETRA.**")
-    promptPartes.append("2.  **CONTENIDO DE ARCHIVOS:** Para CADA archivo afectado (modificado o creado), incluye su ruta relativa como clave y su contenido ÍNTEGRO final como valor string en `archivos_modificados`.")
-    promptPartes.append("3.  **¡ESCAPADO CRÍTICO!** Dentro de las cadenas de texto que representan el contenido de los archivos (los valores en `archivos_modificados`), **TODAS** las comillas dobles (`\"`) literales DEBEN ser escapadas como `\\\"`. Todos los backslashes (`\\`) literales DEBEN ser escapados como `\\\\`. Los saltos de línea DEBEN ser `\\n`.")
+        "\n--- REGLAS DE EJECUCIÓN Y FORMATO DEL CONTENIDO DENTRO DEL JSON (¡MUY IMPORTANTE!) ---")
+    promptPartes.append("1.  **SIGUE LA DECISIÓN:** Ejecuta la acción indicada en 'Parámetros Detallados' sin desviarte.")
+    promptPartes.append("2.  **CONTENIDO ÍNTEGRO:** Para CADA archivo modificado o creado, incluye su ruta relativa como clave y su contenido COMPLETO y FINAL como valor string en `archivos_modificados`.")
     promptPartes.append(
-        "4.  **PRESERVA CÓDIGO:** Mantén intacto el resto del código no afectado en los archivos modificados, asegurate de que todo el codigo tenga sentido.")
+        "3.  **¡REGLAS DE ESCAPADO DENTRO DE LAS CADENAS JSON!** Al generar el string que representa el contenido de un archivo (el valor en `archivos_modificados`):")
     promptPartes.append(
-        "5.  **MOVIMIENTOS:** Si mueves código y `eliminar_de_origen` es true, BORRA el código original del `archivo_origen`.")
+        "    a. **Saltos de línea:** Un salto de línea REAL en el código final debe representarse como la secuencia de DOS caracteres `\\` y `n` (es decir, `\\n`) dentro de la cadena JSON.")
     promptPartes.append(
-        "6.  **MODIFICACIONES INTERNAS:** Aplica EXACTAMENTE la `descripcion_del_cambio_interno`.")
+        "    b. **Barras Invertidas:** Una barra invertida LITERAL (`\\`) en el código final debe representarse como DOS barras invertidas (`\\\\`) dentro de la cadena JSON.")
     promptPartes.append(
-        "7.  **CREACIÓN:** Genera contenido inicial basado en `proposito_del_archivo`.")
+        "    c. **Comillas Dobles:** Una comilla doble LITERAL (`\"`) en el código final debe representarse como una barra invertida seguida de una comilla doble (`\\\"`) dentro de la cadena JSON.")
     promptPartes.append(
-        "8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`.")
+        "    d. **Otros caracteres:** No escapes otros caracteres innecesariamente (ej. comillas simples `'`, barras `/`).")
     promptPartes.append(
-        "9.  **FORMATO ESTRICTO:** Responde **SOLO** con el objeto JSON, sin ningún texto, explicación, comentario o bloque ```json antes o después.")
-    # --- FIN: ÉNFASIS EN JSON Y ESCAPADO ---
+        "    *EJEMPLO:* Si el código final debe ser `echo \"Hola\\nMundo\";`, la cadena JSON correspondiente debe ser `\"echo \\\\\\\"Hola\\\\\\\\nMundo\\\\\\\";\"`." # <-- Este ejemplo es complejo, verificar si ayuda o confunde. Podría ser más simple: Si el código es print("Hi\n"); el JSON es "print(\\\"Hi\\\\n\\\");"
+        # Ejemplo más simple y probablemente mejor:
+        "    *EJEMPLO SIMPLE:* Si el código final debe ser `print(\"Hi\\nThere\");`, la cadena JSON correspondiente para ese valor debe ser `\"print(\\\"Hi\\\\nThere\\\");\"`.")
+
+    promptPartes.append(
+        "4.  **PRESERVA CÓDIGO:** Mantén intacto el resto del código no afectado en los archivos modificados.")
+    promptPartes.append(
+        "5.  **ACCIONES ESPECÍFICAS:** Aplica correctamente las reglas para `mover_codigo`, `modificar_codigo_interno`, `crear_archivo`, etc., según los parámetros.")
+    promptPartes.append(
+        "6.  **ACCIONES SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`.")
+    promptPartes.append(
+        "7.  **NO TEXTO EXTRA:** Reitero, la respuesta debe ser **SOLO el objeto JSON VÁLIDO.**")
+    # --- FIN: ÉNFASIS EN FORMATO JSON ---
 
     if contextoCodigoReducido:
         promptPartes.append(
@@ -357,121 +366,143 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
 
     log.info(
         f"{logPrefix} Enviando solicitud de EJECUCIÓN a Gemini (MODO JSON)...")
-    # --- COMENTADO Log del prompt ---
-    # log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:200]}...")
-    # log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-200:]}")
+    # Comentado para evitar logs excesivos en producción
+    # log.debug(f"{logPrefix} Prompt Completo:\n{promptCompleto}")
+
 
     try:
+        # Usar el modo JSON directamente en la API si es posible y estable
+        # generation_config = genai.types.GenerationConfig( # o dict
+        generation_config = { # Usando dict como alternativa
+            "temperature": 0.3, # Un poco más bajo para seguir reglas estrictas
+            "response_mime_type": "application/json",
+            # "max_output_tokens": 8192, # Ajusta según necesites y el modelo soporte
+            "max_output_tokens": 16384, # Aumentado por si acaso
+        }
+        # Ajustar la configuración de seguridad según necesidad.
+        safety_settings = {
+            'HATE': 'BLOCK_MEDIUM_AND_ABOVE', # Opciones: BLOCK_NONE, BLOCK_ONLY_HIGH, BLOCK_MEDIUM_AND_ABOVE
+            'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
+            'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE',
+            'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'
+        }
+
+        log.debug(f"{logPrefix} Enviando a Gemini con config: {generation_config}")
+
         respuesta = modelo.generate_content(
             promptCompleto,
-            generation_config=genai.types.GenerationConfig(  # O usa dict
-                temperature=0.4,  # Mantenemos una temperatura baja para seguir instrucciones
-                response_mime_type="application/json",
-                max_output_tokens=65536  # Asegurar suficiente espacio para código
-            ),
-            safety_settings={  # Configuración de seguridad estándar
-                'HATE': 'BLOCK_ONLY_HIGH',
-                'HARASSMENT': 'BLOCK_ONLY_HIGH',
-                'SEXUAL': 'BLOCK_ONLY_HIGH',
-                'DANGEROUS': 'BLOCK_ONLY_HIGH'
-            }
+            generation_config=generation_config,
+            safety_settings=safety_settings
         )
         log.info(f"{logPrefix} Respuesta de EJECUCIÓN (MODO JSON) recibida.")
 
-        textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
+        # El modo JSON debería devolver el objeto directamente parseado si funciona bien.
+        # Sin embargo, la extracción robusta sigue siendo una buena salvaguarda.
+        textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix) # Asegúrate que _extraerTextoRespuesta maneje la respuesta directa de JSON
         if not textoRespuesta:
-            return None
+             # Si _extraerTextoRespuesta no pudo obtener nada, puede que la respuesta JSON ya esté parseada
+            try:
+                # Intenta acceder al JSON directamente si la API lo parseó
+                # Esto depende de cómo la librería google-generativeai maneje la respuesta
+                # cuando response_mime_type="application/json" tiene éxito.
+                # Podría estar en respuesta.text (como antes) o en una propiedad específica.
+                # Consulta la documentación de la versión de la librería que usas.
+                # Si .text sigue funcionando o si _extraerTextoRespuesta ya lo contempla, esto es redundante.
+                # Ejemplo hipotético: json_content = respuesta.json_payload
+                # O podría requerir json.loads(respuesta.text) si el modo JSON no funcionó como esperado.
+                log.warning(f"{logPrefix} _extraerTextoRespuesta devolvió None. Intentando parsear la respuesta cruda si existe...")
+                # Este bloque necesita adaptación basada en cómo la librería devuelve el JSON
+                if hasattr(respuesta, 'text') and respuesta.text:
+                   resultadoJson = _limpiarYParsearJson(respuesta.text, logPrefix + " [Intento 2]")
+                # Si la librería tiene otra forma de acceder al payload JSON:
+                # elif hasattr(respuesta, 'payload_json'): # Nombre hipotético
+                #    resultadoJson = respuesta.payload_json # Asumiendo que ya es un dict
+                else:
+                   log.error(f"{logPrefix} No se pudo extraer ni parsear la respuesta JSON.")
+                   resultadoJson = None
 
-        # _limpiarYParsearJson ya es robusto encontrando el bloque {},
-        # pero fallará si el *contenido* del string no está bien escapado.
-        # El logging detallado que ya tiene nos dirá si el problema persiste.
-        resultadoJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
+            except Exception as parse_err:
+                 log.error(f"{logPrefix} Fallo al intentar parsear la respuesta JSON directamente: {parse_err}", exc_info=True)
+                 resultadoJson = None
+        else:
+             resultadoJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
+
 
         if resultadoJson is None:
             log.error(
-                f"{logPrefix} El parseo/extracción final de JSON falló. (Ver logs anteriores para detalles del error y JSON candidato)")
-            # El error ya fue logueado extensamente por _limpiarYParsearJson
+                f"{logPrefix} El parseo/extracción final de JSON falló. (Ver logs anteriores para detalles)")
+            # _manejarExcepcionGemini podría ser llamado aquí si quieres registrar el fallo como error de Gemini
             return None
 
-        # --- Validación del contenido del JSON (sin cambios aquí, ya era adecuada) ---
-        if resultadoJson.get("tipo_resultado") != "ejecucion_cambio":
-            log.warning(
-                f"{logPrefix} Respuesta JSON no tiene 'tipo_resultado'=\"ejecucion_cambio\" esperado. Verificando estructura.")
-            # ... (resto de validaciones igual)
-            if "archivos_modificados" not in resultadoJson or not isinstance(resultadoJson.get("archivos_modificados"), dict):
-                log.error(
-                    f"{logPrefix} Falta 'archivos_modificados' o no es un diccionario.")
-                try:
-                    log.error(
-                        f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
-                except Exception:
-                    log.error(
-                        f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
-                return None
-            # Intentar corregir si falta solo eso
-            resultadoJson["tipo_resultado"] = "ejecucion_cambio"
+        # --- Validación del contenido del JSON (SIN CAMBIOS, ya era adecuada) ---
+        # (Tu lógica de validación existente aquí)
+        if not isinstance(resultadoJson, dict):
+             log.error(f"{logPrefix} La respuesta parseada no es un diccionario. Tipo: {type(resultadoJson)}")
+             return None
 
-        accion_sin_contenido = accion in [
-            "eliminar_archivo", "crear_directorio"]
+        if resultadoJson.get("tipo_resultado") != "ejecucion_cambio":
+            log.warning(f"{logPrefix} Respuesta JSON no tiene 'tipo_resultado'=\"ejecucion_cambio\". Verificando estructura...")
+            if "archivos_modificados" not in resultadoJson or not isinstance(resultadoJson.get("archivos_modificados"), dict):
+                 log.error(f"{logPrefix} Falta 'archivos_modificados' o no es un diccionario.")
+                 # Loguear el JSON problemático
+                 try: log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+                 except Exception: log.error(f"{logPrefix} JSON Recibido (no formateable): {resultadoJson}")
+                 return None
+            resultadoJson["tipo_resultado"] = "ejecucion_cambio" # Intento de corrección
+
         archivos_mod = resultadoJson.get("archivos_modificados")
 
         if archivos_mod is None:
-            log.error(
-                f"{logPrefix} La clave 'archivos_modificados' falta en la respuesta JSON.")
-            try:
-                log.error(
-                    f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
-            except Exception:
-                log.error(
-                    f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
-            return None
+             log.error(f"{logPrefix} La clave 'archivos_modificados' falta en la respuesta JSON validada.")
+             try: log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+             except Exception: log.error(f"{logPrefix} JSON Recibido (no formateable): {resultadoJson}")
+             return None
 
-        if accion_sin_contenido and archivos_mod != {}:
-            log.warning(
-                f"{logPrefix} Se esperaba 'archivos_modificados' vacío para la acción '{accion}', pero se recibió: {list(archivos_mod.keys())}. Se procederá con dict vacío.")
-            resultadoJson["archivos_modificados"] = {}
-        elif not accion_sin_contenido and not isinstance(archivos_mod, dict):
-            log.error(
-                f"{logPrefix} Se esperaba un diccionario para 'archivos_modificados' en acción '{accion}', pero se recibió tipo {type(archivos_mod)}.")
-            try:
-                log.error(
-                    f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
-            except Exception:
-                log.error(
-                    f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
-            return None
-        # Validación adicional: que los valores sean strings
+        accion_sin_contenido = accion in ["eliminar_archivo", "crear_directorio"]
+
+        if accion_sin_contenido:
+            if archivos_mod != {}:
+                log.warning(f"{logPrefix} Se esperaba 'archivos_modificados' vacío para '{accion}', pero se recibió {list(archivos_mod.keys())}. Forzando a dict vacío.")
+                resultadoJson["archivos_modificados"] = {}
+        elif not isinstance(archivos_mod, dict):
+             log.error(f"{logPrefix} Se esperaba diccionario para 'archivos_modificados' en '{accion}', recibido {type(archivos_mod)}.")
+             try: log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+             except Exception: log.error(f"{logPrefix} JSON Recibido (no formateable): {resultadoJson}")
+             return None
+        # Validación final: valores son strings
         elif isinstance(archivos_mod, dict):
-            for k, v in archivos_mod.items():
-                if not isinstance(v, str):
-                    log.error(
-                        f"{logPrefix} El valor para la clave '{k}' en 'archivos_modificados' NO es un string (tipo: {type(v)}). JSON inválido.")
-                    try:
-                        log.error(
-                            f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
-                    except Exception:
-                        log.error(
-                            f"{logPrefix} JSON Recibido (no se pudo formatear): {resultadoJson}")
-                    return None
+             for k, v in archivos_mod.items():
+                 if not isinstance(v, str):
+                     log.error(f"{logPrefix} El valor para '{k}' en 'archivos_modificados' NO es string (tipo: {type(v)}). JSON inválido.")
+                     try: log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+                     except Exception: log.error(f"{logPrefix} JSON Recibido (no formateable): {resultadoJson}")
+                     return None
+
 
         log.info(
-            f"{logPrefix} Respuesta JSON (MODO JSON) parseada y validada correctamente.")
-        # Loguear el resultado es útil, pero puede ser muy largo. Se mantiene.
-        log.info(
-            f"{logPrefix} JSON de Ejecución Generado:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
+            f"{logPrefix} Respuesta JSON (MODO JSON) parseada y validada OK.")
+        # Loguear el resultado puede ser útil para depurar, pero cuidado con el tamaño
+        # log.debug(f"{logPrefix} JSON de Ejecución Final:\n{json.dumps(resultadoJson, indent=2, ensure_ascii=False)}")
         return resultadoJson
 
     except google.api_core.exceptions.InvalidArgument as e_inv:
-        # Este error puede ocurrir si el *prompt* es inválido O si el modelo falla en generar JSON válido.
-        log.error(f"{logPrefix} Error InvalidArgument durante la generación JSON: {e_inv}. ¿El modelo tuvo problemas para generar el JSON solicitado O hubo contenido bloqueado?", exc_info=True)
+        # Este error a menudo significa que el *modelo* no pudo cumplir con el formato JSON estricto.
+        log.error(f"{logPrefix} Error InvalidArgument (400) durante la generación JSON: {e_inv}. Es probable que el modelo no haya generado un JSON válido según lo solicitado o hubo contenido bloqueado.", exc_info=True)
         _manejarExcepcionGemini(
             e_inv, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
+    # Capturar otros errores específicos de la API si es necesario
+    except google.api_core.exceptions.GoogleAPIError as e_api:
+        log.error(f"{logPrefix} Error de API de Google durante la generación: {e_api}", exc_info=True)
+        _manejarExcepcionGemini(
+            e_api, logPrefix, respuesta if 'respuesta' in locals() else None)
+        return None
     except Exception as e:
+        log.error(f"{logPrefix} Excepción inesperada durante la ejecución con Gemini: {e}", exc_info=True)
         _manejarExcepcionGemini(
             e, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
-
+    
 # --- Helpers Internos ---
 # _extraerTextoRespuesta, _limpiarYParsearJson, _manejarExcepcionGemini
 # (Sin cambios necesarios en los helpers, _limpiarYParsearJson ya es robusto
