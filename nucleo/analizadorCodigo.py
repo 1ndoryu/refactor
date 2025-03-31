@@ -128,11 +128,102 @@ def leerArchivos(listaArchivos, rutaBase):
             f"{logPrefix} No se pudo leer ningún archivo de la lista proporcionada.")
         return None
 
-
-# --- PASO 1: Obtener Decisión (Prompt Modificado) ---
-def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
+def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth=8, incluir_archivos=True, indent_char="    "):
     """
-    PASO 1: Analiza código COMPLETO e historial para DECIDIR una acción DETALLADA.
+    Genera una representación de cadena formateada de la estructura de directorios.
+
+    Args:
+        ruta_base (str): Ruta al directorio raíz del proyecto.
+        directorios_ignorados (set, optional): Conjunto de nombres de directorios a ignorar.
+        max_depth (int, optional): Profundidad máxima a explorar.
+        incluir_archivos (bool, optional): Si incluir archivos en la estructura.
+        indent_char (str, optional): Caracteres a usar para la indentación.
+
+    Returns:
+        str: Cadena formateada con la estructura, o None en caso de error.
+    """
+    logPrefix = "generarEstructuraDirectorio:"
+    if not os.path.isdir(ruta_base):
+        log.error(f"{logPrefix} La ruta base '{ruta_base}' no es un directorio válido.")
+        return None
+
+    if directorios_ignorados is None:
+        directorios_ignorados = set()
+    else:
+        directorios_ignorados = set(directorios_ignorados) # Asegurar que sea set
+
+    estructura_lines = [os.path.basename(ruta_base) + "/"]
+    processed_paths = set() # Para detectar posibles bucles de enlaces simbólicos
+
+    def _walk_recursive(current_path, depth, prefix=""):
+        if depth > max_depth:
+            if depth == max_depth + 1: # Mostrar solo una vez por rama
+                 estructura_lines.append(prefix + "└── ... (Profundidad máxima alcanzada)")
+            return
+
+        # Normalizar y comprobar si ya se procesó para evitar bucles
+        real_path = os.path.realpath(current_path)
+        if real_path in processed_paths:
+            estructura_lines.append(prefix + f"└── -> ... (Enlace circular o repetido a {os.path.basename(real_path)})")
+            return
+        processed_paths.add(real_path)
+
+        try:
+            # Obtener entradas, manejar errores de permisos
+            entries = sorted(os.listdir(current_path))
+        except OSError as e:
+            estructura_lines.append(prefix + f"└── [Error al listar: {e.strerror}]")
+            return
+
+        # Filtrar directorios y archivos
+        items = []
+        for entry in entries:
+            # Ignorar ocultos y los especificados
+            if entry.startswith('.') or entry in directorios_ignorados:
+                continue
+
+            entry_path = os.path.join(current_path, entry)
+            is_dir = False
+            try: # Comprobar si es directorio (manejar enlaces rotos)
+                 is_dir = os.path.isdir(entry_path)
+            except OSError:
+                 continue # Ignorar enlaces rotos u otros errores
+
+            if is_dir:
+                items.append({'name': entry, 'is_dir': True, 'path': entry_path})
+            elif incluir_archivos and os.path.isfile(entry_path):
+                 items.append({'name': entry, 'is_dir': False, 'path': entry_path})
+
+        count = len(items)
+        for i, item in enumerate(items):
+            is_last = (i == count - 1)
+            connector = "└── " if is_last else "├── "
+            line_prefix = prefix + connector
+
+            if item['is_dir']:
+                estructura_lines.append(line_prefix + item['name'] + "/")
+                # Preparar prefijo para el siguiente nivel
+                new_prefix = prefix + (indent_char if is_last else "│" + indent_char[1:]) # Usar "│" si no es el último
+                _walk_recursive(item['path'], depth + 1, new_prefix)
+            else: # Es archivo
+                estructura_lines.append(line_prefix + item['name'])
+
+    try:
+        # Iniciar la recursión
+        _walk_recursive(ruta_base, 0)
+        log.info(f"{logPrefix} Estructura de directorios generada para '{ruta_base}' (hasta {max_depth} niveles).")
+        return "\n".join(estructura_lines)
+    except Exception as e:
+         log.error(f"{logPrefix} Error inesperado generando estructura: {e}", exc_info=True)
+         return None
+
+
+# --- Modificar la firma y el prompt de obtenerDecisionRefactor ---
+
+# <<< MODIFICADO: Añadir parámetro 'estructura_proyecto_texto' >>>
+def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, estructura_proyecto_texto=None):
+    """
+    PASO 1: Analiza código COMPLETO, **estructura del proyecto** e historial para DECIDIR una acción DETALLADA.
     Retorna JSON con ACCIÓN, PARÁMETROS ESPECÍFICOS, RAZONAMIENTO y ARCHIVOS RELEVANTES.
     Utiliza el modo JSON de Gemini.
     """
@@ -140,8 +231,13 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
     if not configurarGemini():
         return None
     if not contextoCodigoCompleto:
-        log.error(f"{logPrefix} No se proporcionó contexto de código.")
-        return None
+        # Permitir continuar si solo se tiene la estructura (aunque es raro)
+        log.warning(f"{logPrefix} No se proporcionó contexto de código, se usará solo la estructura y el historial si existen.")
+        # return None # Opcional: hacer que falle si no hay código
+    if not contextoCodigoCompleto and not estructura_proyecto_texto:
+         log.error(f"{logPrefix} No se proporcionó ni contexto de código ni estructura del proyecto.")
+         return None
+
 
     nombreModelo = settings.MODELOGEMINI
     try:
@@ -152,40 +248,50 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
             f"{logPrefix} Error inicializando modelo '{nombreModelo}': {e}")
         return None
 
-    # ### MODIFICADO ### Prompt ajustado para JSON Mode (quitando formato explícito)
+    # ### MODIFICADO ### Prompt ajustado para incluir la estructura
     promptPartes = []
-    promptPartes.append("Eres un asistente experto en refactorización de código PHP/JS (WordPress). Tu tarea es analizar TODO el código fuente y el historial, y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA. Es importante que seas detallado con la informacion que generas para que el segundo agente que realiza la accion sepa exactamente que hacer. La organización primero y dejeramos para el final la seguriridad, el proyecto carece de arquitectura y todo esta muy desordenado, hay que ordenar primero.")
-    promptPartes.append("Prioriza: eliminar código muerto, simplificar lógica compleja, añadir validaciones FALTANTES y básicas de seguridad, reducir duplicación (mover funciones/clases SOLO si es obvio y mejora claramente la organización), mejorar legibilidad (nombres en español `camelCase`). EVITA cambios masivos o reestructuraciones grandes. Puedes organizar funciones, la estructura del proyecto es desordenada, es importante ordenar. No es importante ni necesario que agregues nuevos comentarios a funciones viejas para explicar lo que hacen. Puedes hacer mejoras de optimización, seguridad, simplificación sin arriesgarte a que el codigo falle.")
+    # Instrucciones generales (enfatizar uso de estructura)
+    promptPartes.append("Eres un asistente experto en refactorización de código PHP/JS (WordPress). Tu tarea es analizar TODO el código fuente, **la estructura del proyecto** y el historial, y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA. Es importante que seas detallado con la informacion que generas para que el segundo agente que realiza la accion sepa exactamente que hacer. La organización primero y dejeramos para el final la seguridad, el proyecto carece de arquitectura y todo esta muy desordenado, hay que ordenar primero.")
+    promptPartes.append("Prioriza: eliminar código muerto, simplificar lógica compleja, añadir validaciones FALTANTES y básicas de seguridad, **mejorar la organización del código (mover funciones/clases a archivos/directorios más apropiados basándote en la estructura proporcionada)**, reducir duplicación, mejorar legibilidad (nombres en español `camelCase`). EVITA cambios masivos o reestructuraciones grandes. **La estructura del proyecto es desordenada; usa la información estructural para proponer movimientos lógicos y crear directorios si es necesario para agrupar funcionalidades relacionadas (ej: `app/Helpers/`, `app/Utils/`, `app/Services/`).** No es importante ni necesario que agregues nuevos comentarios a funciones viejas para explicar lo que hacen. Puedes hacer mejoras de optimización, seguridad, simplificación sin arriesgarte a que el codigo falle.")
     promptPartes.append(
         "Considera el historial para NO repetir errores, NO deshacer trabajo anterior y mantener la consistencia.")
 
+    # Reglas JSON (sin cambios necesarios aquí, pero deben ser respetadas)
     promptPartes.append(
-        # Ajustado
         "\n--- REGLAS ESTRICTAS PARA LA ESTRUCTURA JSON DE TU RESPUESTA (DECISIÓN) ---")
     promptPartes.append("1.  **`accion_propuesta`**: Elige UNA de: `mover_funcion`, `mover_clase`, `modificar_codigo_en_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`. Si NINGUNA acción es segura/útil/necesaria, USA `no_accion`.")
     promptPartes.append(
-        "2.  **`descripcion`**: Sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a helpers/ui.php').")
+        "2.  **`descripcion`**: Sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a app/Helpers/uiHelper.php', 'Refactor(Org): Crea directorio app/Http/Controllers').") # Ejemplo de crear dir
     promptPartes.append(
-        "3.  **`parametros_accion`**: Objeto JSON con TODA la información necesaria para ejecutar el cambio SIN DUDAS. Usa rutas RELATIVAS.")
+        "3.  **`parametros_accion`**: Objeto JSON con TODA la información necesaria para ejecutar el cambio SIN DUDAS. Usa rutas RELATIVAS desde la raíz del proyecto.")
     promptPartes.append(
-        "    -   `mover_funcion`/`mover_clase`: `archivo_origen`, `archivo_destino`, `nombre_funcion`/`nombre_clase`, `eliminar_de_origen` (boolean).")
+        "    -   `mover_funcion`/`mover_clase`: `archivo_origen`, `archivo_destino`, `nombre_funcion`/`nombre_clase`, `eliminar_de_origen` (boolean). ¡Asegúrate que `archivo_destino` sea una ruta válida según la estructura!")
     promptPartes.append("    -   `modificar_codigo_en_archivo`: `archivo`, `descripcion_del_cambio_interno` (MUY detallado: 'Eliminar bloque if comentado entre lineas 80-95', 'Reemplazar bucle for en linea 120 por array_map', 'Añadir `global $wpdb;` al inicio de la función `miQuery()` en linea 30', 'Borrar la declaración completa de la función `funcionObsoleta(arg1)`'). NO incluyas el código aquí.")
     promptPartes.append(
-        "    -   `crear_archivo`: `archivo` (ruta completa relativa), `proposito_del_archivo` (breve).")
+        "    -   `crear_archivo`: `archivo` (ruta completa relativa, ej: 'app/Helpers/stringUtils.php'), `proposito_del_archivo` (breve, ej: 'Funciones auxiliares para manejo de cadenas').")
     promptPartes.append(
-        "    -   `eliminar_archivo`: `archivo` (ruta relativa).")
+        "    -   `eliminar_archivo`: `archivo` (ruta relativa). Asegúrate de que sea seguro eliminarlo (ej: no usado en otros sitios).")
     promptPartes.append(
-        "    -   `crear_directorio`: `directorio` (ruta relativa).")
+        "    -   `crear_directorio`: `directorio` (ruta relativa, ej: 'app/Interfaces').")
     promptPartes.append(
-        "4.  **`archivos_relevantes`**: Lista de strings [ruta1, ruta2, ...] con **TODAS** las rutas relativas de archivos que el Paso 2 NECESITARÁ LEER. ¡CRUCIAL y preciso!")
+        "4.  **`archivos_relevantes`**: Lista de strings [ruta1, ruta2, ...] con **TODAS** las rutas relativas de archivos que el Paso 2 NECESITARÁ LEER para *generar el código modificado*. ¡CRUCIAL y preciso! (Ej: si mueves función de A a B, incluye [A, B]). Si creas directorio, puede ser []. Si creas archivo nuevo, puede ser [].")
     promptPartes.append(
-        "5.  **`razonamiento`**: String justificando CLARAMENTE el *por qué* de esta acción o la razón específica para `no_accion`.")
-    # Añadido como regla explícita
+        "5.  **`razonamiento`**: String justificando CLARAMENTE el *por qué* de esta acción (ej: 'Mejora la organización agrupando helpers', 'Elimina código no utilizado', 'Necesario para nueva estructura MVC') o la razón específica para `no_accion`.")
     promptPartes.append(
         "6.  **`tipo_analisis`**: Incluye siempre el campo `tipo_analisis` con el valor fijo `\"refactor_decision\"`.")
     promptPartes.append(
-        "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")  # Mantenido
-    # --- ELIMINADO Bloque ```json ... ``` ---
+        "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")
+
+    # <<< NUEVO: Añadir la estructura del proyecto al prompt >>>
+    if estructura_proyecto_texto:
+        promptPartes.append("\n--- ESTRUCTURA ACTUAL DEL PROYECTO (Visión Global) ---")
+        promptPartes.append("# Nota: Esta estructura puede estar limitada en profundidad.")
+        promptPartes.append(estructura_proyecto_texto)
+        promptPartes.append("--- FIN ESTRUCTURA ---")
+    else:
+        # Incluir placeholder si no se pudo generar
+        promptPartes.append("\n(No se proporcionó la estructura del proyecto)")
+
 
     if historialCambiosTexto:
         promptPartes.append(
@@ -194,77 +300,69 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None):
         promptPartes.append("--- FIN HISTORIAL ---")
 
     promptPartes.append("\n--- CÓDIGO FUENTE COMPLETO A ANALIZAR ---")
-    promptPartes.append(contextoCodigoCompleto)
+    # Añadir placeholder si no hay código pero sí estructura
+    promptPartes.append(contextoCodigoCompleto if contextoCodigoCompleto else "(No se proporcionó código fuente completo, analiza basado en estructura e historial)")
     promptPartes.append("--- FIN CÓDIGO ---")
+
     promptPartes.append(
-        "\nRecuerda: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores.")  # Ajustado
+        "\nRecuerda: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores, **considerando la estructura del proyecto proporcionada para decisiones de organización.**")
 
     promptCompleto = "\n".join(promptPartes)
     log.info(f"{logPrefix} Enviando solicitud de DECISIÓN a Gemini (MODO JSON)...")
-    # --- COMENTADO Log del prompt ---
-    # log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:200]}...")
-    # log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-200:]}")
+    # Considera loguear solo partes del prompt si es muy grande
+    # log.debug(f"{logPrefix} Prompt (inicio): {promptCompleto[:500]}...")
+    # log.debug(f"{logPrefix} Prompt (fin): ...{promptCompleto[-500:]}")
+    if estructura_proyecto_texto:
+         log.debug(f"{logPrefix} Estructura enviada en prompt (primeras líneas):\n{estructura_proyecto_texto[:500]}...")
 
+
+    # ... (resto de la lógica para llamar a Gemini y procesar la respuesta sin cambios) ...
     try:
+        # ... (llamada a modelo.generate_content) ...
         respuesta = modelo.generate_content(
             promptCompleto,
-            generation_config=genai.types.GenerationConfig(  # Asegúrate de que genai.types esté disponible o usa dict
+            generation_config=genai.types.GenerationConfig(
                 temperature=0.4,
-                # --- AÑADIDO JSON Mode ---
                 response_mime_type="application/json",
-                max_output_tokens=65536
+                max_output_tokens=8192 # Ajusta si necesitas respuestas más largas (cuidado con límites)
             ),
+             # Ajusta safety si es necesario, pero cuidado con bloqueos
             safety_settings={
-                'HATE': 'BLOCK_ONLY_HIGH',
-                'HARASSMENT': 'BLOCK_ONLY_HIGH',
-                'SEXUAL': 'BLOCK_ONLY_HIGH',
-                'DANGEROUS': 'BLOCK_ONLY_HIGH'
+                'HATE': 'BLOCK_MEDIUM_AND_ABOVE', # O BLOCK_ONLY_HIGH si tienes problemas
+                'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
+                'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE',
+                'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'
             }
         )
+        # ... (procesar respuesta, _extraerTextoRespuesta, _limpiarYParsearJson) ...
         log.info(f"{logPrefix} Respuesta de DECISIÓN (MODO JSON) recibida.")
-
-        # Extraer y parsear (el limpiador es robusto)
         textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         if not textoRespuesta:
             return None
-
-        log.debug(
-            f"{logPrefix} Texto crudo recibido de Gemini (antes de parsear JSON):\n{textoRespuesta}")
-
+        log.debug(f"{logPrefix} Texto crudo recibido de Gemini (antes de parsear JSON):\n{textoRespuesta}")
         sugerenciaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
-
-        # Validación básica
+        # ... (validación básica y logueo del JSON) ...
         if sugerenciaJson is None:
-            log.error(f"{logPrefix} El parseo/extracción final de JSON falló.")
-            return None  # Error ya logueado en _limpiarYParsearJson
-
-        # Verificar tipo esperado
+             log.error(f"{logPrefix} El parseo/extracción final de JSON falló.")
+             return None
         if sugerenciaJson.get("tipo_analisis") != "refactor_decision":
-            log.error(
-                f"{logPrefix} Respuesta JSON no es del tipo esperado 'refactor_decision'.")
-            # --- AÑADIDO Log del JSON recibido en caso de error de tipo ---
-            try:
-                log.error(
-                    f"{logPrefix} JSON Recibido:\n{json.dumps(sugerenciaJson, indent=2, ensure_ascii=False)}")
-            except Exception:  # Por si el JSON es inválido para dumps
-                log.error(
-                    f"{logPrefix} JSON Recibido (no se pudo formatear): {sugerenciaJson}")
-            return None
-
-        # --- AÑADIDO Log del JSON de decisión generado (formateado) ---
-        log.info(
-            f"{logPrefix} JSON de Decisión Generado:\n{json.dumps(sugerenciaJson, indent=2, ensure_ascii=False)}")
-        # -------------------------------------------------------------
+             log.error(f"{logPrefix} Respuesta JSON no es del tipo esperado 'refactor_decision'.")
+             try:
+                 log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(sugerenciaJson, indent=2, ensure_ascii=False)}")
+             except Exception:
+                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {sugerenciaJson}")
+             return None
+        log.info(f"{logPrefix} JSON de Decisión Generado:\n{json.dumps(sugerenciaJson, indent=2, ensure_ascii=False)}")
         return sugerenciaJson
 
+    # ... (manejo de excepciones igual) ...
     except google.api_core.exceptions.InvalidArgument as e_inv:
-        log.error(f"{logPrefix} Error InvalidArgument durante la generación JSON: {e_inv}. ¿El modelo tuvo problemas para generar el JSON solicitado?", exc_info=True)
-        _manejarExcepcionGemini(
-            e_inv, logPrefix, respuesta if 'respuesta' in locals() else None)
+         # Loguear más detalles si es posible
+        log.error(f"{logPrefix} Error InvalidArgument durante la generación JSON: {e_inv}. ¿Prompt inválido, contenido bloqueado o problema generando JSON? Verifica las safety settings y el tamaño del prompt/respuesta.", exc_info=True)
+        _manejarExcepcionGemini(e_inv, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
     except Exception as e:
-        _manejarExcepcionGemini(
-            e, logPrefix, respuesta if 'respuesta' in locals() else None)
+        _manejarExcepcionGemini(e, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
 
 

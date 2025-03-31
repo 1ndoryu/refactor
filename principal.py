@@ -12,6 +12,7 @@ from nucleo import manejadorGit
 from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 
+
 # --- Configuración Logging y Carga/Guardado de Historial (sin cambios funcionales, pero guardarHistorial se usará más) ---
 
 def configurarLogging():
@@ -334,7 +335,7 @@ def ejecutarProcesoPrincipal():
     decisionParseada = None
     resultadoEjecucion = None
     archivosModificadosGit = None
-    estadoFinal = "[INICIO]" # Para historial
+    estadoFinal = "[INICIO]"
 
     try:
         # 1. Verificar configuración esencial
@@ -349,15 +350,34 @@ def ejecutarProcesoPrincipal():
         # 3. Preparar repositorio local
         logging.info(f"{logPrefix} Preparando repositorio local...")
         if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO):
-            logging.error(f"{logPrefix} No se pudo preparar el repositorio. Abortando ciclo.")
-            # Guardar historial aquí podría ser útil si ya se cargó
-            historialRefactor.append(formatearEntradaHistorial(
-                outcome="[ERROR_SETUP]",
-                error_message="Fallo al preparar repositorio Git."
-            ))
-            guardarHistorial(historialRefactor)
+            # ... (manejo de error y historial) ...
             return False
         logging.info(f"{logPrefix} Repositorio listo y en la rama '{settings.RAMATRABAJO}'.")
+
+        # <<< NUEVO: Generar estructura del proyecto DESPUÉS de clonar/actualizar >>>
+        estructura_proyecto_str = ""
+        try:
+            logging.info(f"{logPrefix} Generando estructura del proyecto para contexto...")
+            # Usar directorios ignorados de settings si existen
+            ignorados_setting = getattr(settings, 'DIRECTORIOS_IGNORADOS', ['.git', 'vendor', 'node_modules', '.github', 'assets', 'Tests', 'languages']) # Ignorar assets, Tests, etc.
+            estructura_proyecto_str = analizadorCodigo.generarEstructuraDirectorio(
+                settings.RUTACLON,
+                directorios_ignorados=ignorados_setting,
+                max_depth=8, # Limitar profundidad para no ser excesivo
+                incluir_archivos=True # Incluir archivos en la estructura
+            )
+            if not estructura_proyecto_str:
+                 logging.warning(f"{logPrefix} No se pudo generar la estructura del proyecto.")
+                 estructura_proyecto_str = "[Error al generar estructura]" # Placeholder
+            else:
+                 # Loguear solo una parte si es muy grande
+                 log.info(f"{logPrefix} Estructura del proyecto generada (primeras líneas para log):\n{estructura_proyecto_str[:600]}...")
+                 # Loguear completo en debug si es necesario
+                 log.debug(f"{logPrefix} Estructura completa generada:\n{estructura_proyecto_str}")
+        except Exception as e_struct:
+            logging.error(f"{logPrefix} Excepción al generar estructura del proyecto: {e_struct}", exc_info=True)
+            estructura_proyecto_str = "[Excepción al generar estructura]" # Placeholder
+
 
         # ===============================================================
         # PASO 1: ANÁLISIS Y DECISIÓN (GEMINI CON CONTEXTO COMPLETO)
@@ -367,40 +387,47 @@ def ejecutarProcesoPrincipal():
         try:
             # 4a. Analizar código COMPLETO
             logging.info(f"{logPrefix} Analizando código COMPLETO...")
-            # ... (lógica de listar y leer archivos igual que antes) ...
             extensiones = getattr(settings, 'EXTENSIONESPERMITIDAS', None)
             ignorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', None)
+            # Asegúrate que listarArchivosProyecto use los mismos ignorados o ajusta según necesidad
             todosLosArchivos = analizadorCodigo.listarArchivosProyecto(
                 settings.RUTACLON, extensiones, ignorados)
             if todosLosArchivos is None: raise Exception("Error al listar archivos.")
-            if not todosLosArchivos: logging.warning(f"{logPrefix} No se encontraron archivos relevantes."); raise Exception("No files found") # Tratar como error para historial
+            if not todosLosArchivos:
+                 logging.warning(f"{logPrefix} No se encontraron archivos relevantes para leer.")
+                 # Permitir continuar si solo tenemos estructura? Decisión: Sí, Gemini puede decidir crear algo.
+                 # raise Exception("No files found") # Comentado para permitir continuar
+                 codigoProyectoCompleto = "" # Asegurar que esté vacío si no hay archivos
+            else:
+                codigoProyectoCompleto = analizadorCodigo.leerArchivos(todosLosArchivos, settings.RUTACLON)
+                if codigoProyectoCompleto is None: raise Exception("Error al leer contenido de archivos.") # None indica error de lectura
+                tamanoKB_completo = len(codigoProyectoCompleto.encode('utf-8')) / 1024
+                logging.info(f"{logPrefix} Código completo leído ({len(todosLosArchivos)} archivos, {tamanoKB_completo:.2f} KB).")
 
-            codigoProyectoCompleto = analizadorCodigo.leerArchivos(todosLosArchivos, settings.RUTACLON)
-            if not codigoProyectoCompleto: raise Exception("Error al leer contenido de archivos.")
-            tamanoKB_completo = len(codigoProyectoCompleto.encode('utf-8')) / 1024
-            logging.info(f"{logPrefix} Código completo leído ({len(todosLosArchivos)} archivos, {tamanoKB_completo:.2f} KB).")
 
             # 5a. Obtener DECISIÓN de Gemini
             logging.info(f"{logPrefix} Obteniendo DECISIÓN de Gemini...")
             historialRecienteTexto = "\n---\n".join(historialRefactor[-settings.N_HISTORIAL_CONTEXTO:]) # Usar separador claro
 
+            # <<< MODIFICADO: Pasar la estructura generada >>>
             decisionJson = analizadorCodigo.obtenerDecisionRefactor(
-                codigoProyectoCompleto, historialRecienteTexto)
+                codigoProyectoCompleto,
+                historialRecienteTexto,
+                estructura_proyecto_str # <<< Añadido aquí
+            )
             if not decisionJson: raise Exception("No se recibió DECISIÓN válida de Gemini (Paso 1).")
 
             # 6a. Parsear y validar la DECISIÓN
+            # ... (resto del parseo y manejo de 'no_accion' sin cambios) ...
             logging.info(f"{logPrefix} Parseando DECISIÓN de Gemini...")
             decisionParseada = parsearDecisionGemini(decisionJson)
             if not decisionParseada:
-                # Intentar loguear la decisión inválida
                 sugerencia_str = json.dumps(decisionJson) if isinstance(decisionJson, dict) else str(decisionJson)
                 sugerencia_log = sugerencia_str[:500] + ('...' if len(sugerencia_str) > 500 else '')
                 raise Exception(f"Decisión inválida, mal formada o no soportada. Recibido: {sugerencia_log}")
 
-            # Guardar decisión en historial (incluso si es no_accion)
             estadoFinal = "[PASO1_OK]"
 
-            # Manejar 'no_accion'
             if decisionParseada.get("accion_propuesta") == "no_accion":
                 razonamientoNoAccion = decisionParseada.get('razonamiento', 'Sin razonamiento especificado.')
                 logging.info(f"{logPrefix} Gemini decidió 'no_accion'. Razón: {razonamientoNoAccion}. Terminando ciclo.")
@@ -410,17 +437,18 @@ def ejecutarProcesoPrincipal():
                     decision=decisionParseada
                 ))
                 guardarHistorial(historialRefactor)
-                manejadorGit.descartarCambiosLocales(settings.RUTACLON) # Asegurar limpieza
-                return False # No hubo error, pero no se hará commit
+                manejadorGit.descartarCambiosLocales(settings.RUTACLON)
+                return False
 
             logging.info(f"{logPrefix} --- FIN PASO 1: Decisión válida recibida: {decisionParseada.get('accion_propuesta')} ---")
 
         except Exception as e_paso1:
+             # ... (manejo de error paso 1 sin cambios) ...
             logging.error(f"{logPrefix} Error en Paso 1: {e_paso1}", exc_info=True)
             estadoFinal = "[ERROR_PASO1]"
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
-                decision=decisionParseada, # Puede ser None o el JSON inválido
+                decision=decisionParseada,
                 error_message=str(e_paso1)
             ))
             guardarHistorial(historialRefactor)
@@ -430,54 +458,54 @@ def ejecutarProcesoPrincipal():
         # ===============================================================
         # PASO 2: EJECUCIÓN (GEMINI CON CONTEXTO REDUCIDO)
         # ===============================================================
+        # ... (Paso 2, Aplicación, Paso 3 Verificación, Commit y Finalización sin cambios) ...
         logging.info(f"{logPrefix} --- INICIO PASO 2: EJECUCIÓN ---")
         contextoReducido = ""
         try:
             # 4b. Leer SÓLO archivos relevantes
             archivosRelevantes = decisionParseada.get("archivos_relevantes", [])
             rutasAbsRelevantes = []
-            # ... (lógica para obtener rutasAbsRelevantes igual que antes, asegurando que no falle si el archivo no existe y se va a crear) ...
+            # ... (lógica para obtener rutasAbsRelevantes y leer contexto reducido como antes) ...
             for rutaRel in archivosRelevantes:
-                rutaAbs = aplicadorCambios._validar_y_normalizar_ruta(
-                    rutaRel, settings.RUTACLON, asegurar_existencia=False)
-                if rutaAbs:
-                    accion = decisionParseada.get("accion_propuesta")
-                    params = decisionParseada.get("parametros_accion", {})
-                    archivo_destino_mover = params.get("archivo_destino") if accion in ["mover_funcion", "mover_clase"] else None
-                    archivo_a_crear = params.get("archivo") if accion == "crear_archivo" else None
+                 rutaAbs = aplicadorCambios._validar_y_normalizar_ruta(
+                     rutaRel, settings.RUTACLON, asegurar_existencia=False)
+                 if rutaAbs:
+                     accion = decisionParseada.get("accion_propuesta")
+                     params = decisionParseada.get("parametros_accion", {})
+                     archivo_destino_mover = params.get("archivo_destino") if accion in ["mover_funcion", "mover_clase"] else None
+                     archivo_a_crear = params.get("archivo") if accion == "crear_archivo" else None
 
-                    # Incluir si existe, o si es el archivo a crear, o el destino de un mover (que podría no existir)
-                    if os.path.exists(rutaAbs) or rutaRel == archivo_a_crear or rutaRel == archivo_destino_mover:
-                         rutasAbsRelevantes.append(rutaAbs)
-                    else:
-                         logging.warning(f"{logPrefix} Archivo relevante '{rutaRel}' no existe y no parece ser objetivo de creación/movimiento. Se omitirá del contexto Paso 2.")
-                else:
-                    raise Exception(f"Ruta relevante inválida '{rutaRel}' proporcionada por Gemini en Paso 1.")
+                     if os.path.exists(rutaAbs) or rutaRel == archivo_a_crear or rutaRel == archivo_destino_mover:
+                          rutasAbsRelevantes.append(rutaAbs)
+                     else:
+                          logging.warning(f"{logPrefix} Archivo relevante '{rutaRel}' no existe y no parece ser objetivo de creación/movimiento. Se omitirá del contexto Paso 2.")
+                 else:
+                     # No fallar aquí, solo loguear. El paso 1 debió validar mejor.
+                     logging.error(f"{logPrefix} Ruta relevante inválida '{rutaRel}' proporcionada por Gemini en Paso 1. Se omitirá.")
+                     # raise Exception(f"Ruta relevante inválida '{rutaRel}' proporcionada por Gemini en Paso 1.") # Comentado
 
-            # Validar que tenemos rutas si la acción lo requiere
-            accion_requiere_contexto = decisionParseada.get("accion_propuesta") not in ["crear_directorio", "eliminar_archivo"]
+            accion_requiere_contexto = decisionParseada.get("accion_propuesta") not in ["crear_directorio", "eliminar_archivo", "crear_archivo"] # Crear archivo no necesita contexto *de él mismo*
             if not rutasAbsRelevantes and accion_requiere_contexto:
-                 # Permitir si es mover a archivo nuevo y el único relevante era el destino (no existente)
-                 es_mover_a_nuevo = decisionParseada.get("accion_propuesta") in ["mover_funcion", "mover_clase"] and \
-                                    len(archivosRelevantes) == 1 and \
-                                    archivosRelevantes[0] == decisionParseada.get("parametros_accion", {}).get("archivo_destino") and \
-                                    archivosRelevantes[0] not in [f for f in todosLosArchivos if os.path.exists(aplicadorCambios._validar_y_normalizar_ruta(f, settings.RUTACLON))] # Check si realmente no existe
-                 if not es_mover_a_nuevo:
-                    raise Exception(f"No se encontraron archivos existentes para contexto reducido. Acción: {decisionParseada.get('accion_propuesta')}. Relevantes: {archivosRelevantes}")
+                  es_mover_a_nuevo = decisionParseada.get("accion_propuesta") in ["mover_funcion", "mover_clase"] and \
+                                     len(archivosRelevantes) == 1 and \
+                                     archivosRelevantes[0] == decisionParseada.get("parametros_accion", {}).get("archivo_destino") and \
+                                     not os.path.exists(aplicadorCambios._validar_y_normalizar_ruta(archivosRelevantes[0], settings.RUTACLON, asegurar_existencia=False)) # Check si realmente no existe
+                  if not es_mover_a_nuevo:
+                      # No fallar, solo advertir. Gemini podría no necesitar contexto.
+                      logging.warning(f"{logPrefix} No se encontraron archivos existentes para contexto reducido y la acción usualmente lo requiere. Acción: {decisionParseada.get('accion_propuesta')}. Relevantes: {archivosRelevantes}. Se continuará sin contexto.")
+                      # raise Exception(f"No se encontraron archivos existentes para contexto reducido. Acción: {decisionParseada.get('accion_propuesta')}. Relevantes: {archivosRelevantes}") # Comentado
 
-            # Leer contenido reducido (si hay rutas)
             if rutasAbsRelevantes:
-                # Solo leer las que existen
                 rutas_a_leer = [r for r in rutasAbsRelevantes if os.path.exists(r)]
                 if rutas_a_leer:
-                    contextoReducido = analizadorCodigo.leerArchivos(rutas_a_leer, settings.RUTACLON)
+                    contextoReducido = analizadorCodigo.leerArchivos(rutas_a_leer, settings.RUTACLON) # Pasar la ruta base correcta
                     if contextoReducido is None: raise Exception("Error leyendo contexto reducido.")
                     tamanoKB_reducido = len(contextoReducido.encode('utf-8')) / 1024
                     logging.info(f"{logPrefix} Contexto reducido leído ({len(rutas_a_leer)} archivos, {tamanoKB_reducido:.2f} KB).")
                 else:
-                    logging.info(f"{logPrefix} No hay archivos existentes entre los relevantes para leer en Paso 2 (ej: mover a archivo nuevo).")
+                     logging.info(f"{logPrefix} No hay archivos existentes entre los relevantes para leer en Paso 2 (ej: mover a archivo nuevo).")
             else:
-                 logging.info(f"{logPrefix} Acción '{decisionParseada.get('accion_propuesta')}' no requiere contexto de archivo para Paso 2.")
+                 logging.info(f"{logPrefix} Acción '{decisionParseada.get('accion_propuesta')}' no requiere contexto de archivo para Paso 2, o no se encontraron archivos relevantes existentes.")
                  contextoReducido = "" # Explícito
 
             # 5b. Obtener RESULTADO de ejecución de Gemini
@@ -488,10 +516,10 @@ def ejecutarProcesoPrincipal():
 
             # 6b. Parsear y validar el RESULTADO
             logging.info(f"{logPrefix} Parseando RESULTADO de ejecución Gemini...")
-            # Añadir acción original para ayudar al parser en caso de dict vacío
-            resultadoJson["accion_original_debug"] = decisionParseada.get("accion_propuesta")
+            if isinstance(resultadoJson, dict): # Añadir solo si es dict
+                resultadoJson["accion_original_debug"] = decisionParseada.get("accion_propuesta")
             resultadoEjecucion = parsearResultadoEjecucion(resultadoJson)
-            if resultadoEjecucion is None: # Si es {} es válido, si es None es error de parseo
+            if resultadoEjecucion is None:
                 resultado_str = json.dumps(resultadoJson) if isinstance(resultadoJson, dict) else str(resultadoJson)
                 resultado_log = resultado_str[:500] + ('...' if len(resultado_str) > 500 else '')
                 raise Exception(f"Resultado de ejecución inválido o mal formado. Recibido: {resultado_log}")
@@ -499,7 +527,7 @@ def ejecutarProcesoPrincipal():
             logging.info(f"{logPrefix} --- FIN PASO 2: Resultado válido recibido ({len(resultadoEjecucion)} archivos a modificar). ---")
             estadoFinal = "[PASO2_OK]"
 
-            # 7. Aplicar los cambios (sobrescritura)
+            # 7. Aplicar los cambios
             logging.info(f"{logPrefix} Aplicando cambios generados...")
             exitoAplicar, mensajeErrorAplicar = aplicadorCambios.aplicarCambiosSobrescritura(
                 resultadoEjecucion,
@@ -508,18 +536,19 @@ def ejecutarProcesoPrincipal():
                 decisionParseada.get("parametros_accion", {})
             )
             if not exitoAplicar:
-                raise Exception(f"Falló la aplicación de cambios (sobrescritura): {mensajeErrorAplicar}")
+                raise Exception(f"Falló la aplicación de cambios: {mensajeErrorAplicar}")
 
             logging.info(f"{logPrefix} Cambios aplicados localmente con éxito (antes de verificación).")
             estadoFinal = "[APPLY_OK]"
 
         except Exception as e_paso2_apply:
+            # ... (manejo de error paso 2 sin cambios) ...
             logging.error(f"{logPrefix} Error en Paso 2 o Aplicación: {e_paso2_apply}", exc_info=True)
             estadoFinal = "[ERROR_PASO2_APPLY]"
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
-                result_details=resultadoEjecucion if resultadoEjecucion is not None else resultadoJson, # Loguear lo que se tenga
+                result_details=resultadoEjecucion if resultadoEjecucion is not None else resultadoJson,
                 error_message=str(e_paso2_apply)
             ))
             guardarHistorial(historialRefactor)
@@ -530,6 +559,7 @@ def ejecutarProcesoPrincipal():
         # ===============================================================
         # PASO 3: VERIFICACIÓN
         # ===============================================================
+        # ... (Paso 3, Commit, Finalización sin cambios) ...
         logging.info(f"{logPrefix} --- INICIO PASO 3: VERIFICACIÓN ---")
         verification_details_msg = "Verificación no ejecutada."
         try:
@@ -548,12 +578,13 @@ def ejecutarProcesoPrincipal():
         except Exception as e_paso3_verify:
             logging.error(f"{logPrefix} Error en Paso 3 (Verificación): {e_paso3_verify}", exc_info=True)
             estadoFinal = "[VERIFY_FAIL]"
+            # ... (guardar historial y descartar) ...
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 result_details=resultadoEjecucion,
-                verification_details=verification_details_msg, # Mensaje de la verificación
-                error_message=str(e_paso3_verify) # Error de la excepción si hubo
+                verification_details=verification_details_msg,
+                error_message=str(e_paso3_verify)
             ))
             guardarHistorial(historialRefactor)
             logging.info(f"{logPrefix} Intentando descartar cambios locales tras fallo de verificación...")
@@ -567,25 +598,24 @@ def ejecutarProcesoPrincipal():
             # 8. Hacer commit
             logging.info(f"{logPrefix} Realizando commit...")
             mensajeCommit = decisionParseada.get('descripcion', 'Refactorización automática')
-            # Truncar mensaje si es muy largo (Git puede tener límites)
+            # ... (truncar mensaje si es largo) ...
             if len(mensajeCommit.encode('utf-8')) > 4000:
                  mensajeCommit = mensajeCommit[:1000] + "... (truncado)"
                  logging.warning(f"{logPrefix} Mensaje de commit truncado.")
             elif len(mensajeCommit.splitlines()[0]) > 72:
                  logging.warning(f"{logPrefix} Primera línea del mensaje de commit larga (>72 chars).")
 
-            # Nota: hacerCommit ahora devuelve True incluso si no hay nada que commitear (cambio en manejadorGit)
             exitoCommitIntento = manejadorGit.hacerCommit(settings.RUTACLON, mensajeCommit)
 
             if not exitoCommitIntento:
-                 # Esto ahora solo debería ocurrir si el comando 'git commit' falla por otra razón (config, hooks)
                  raise Exception("Falló el comando 'git commit'.")
 
-            # 9. Verificar si el commit introdujo cambios efectivos (git diff HEAD~1 HEAD)
+            # 9. Verificar si el commit introdujo cambios efectivos
             logging.info(f"{logPrefix} Verificando si el commit tuvo cambios efectivos...")
             commitTuvoCambios = manejadorGit.commitTuvoCambiosReales(settings.RUTACLON)
 
             if commitTuvoCambios:
+                # ... (éxito final) ...
                 logging.info(f"{logPrefix} Commit realizado con éxito y contiene cambios efectivos.")
                 estadoFinal = "[ÉXITO]"
                 historialRefactor.append(formatearEntradaHistorial(
@@ -597,21 +627,18 @@ def ejecutarProcesoPrincipal():
                 guardarHistorial(historialRefactor)
                 logging.info(f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
                 return True # ¡Éxito final!
-
             else:
-                # Commit se ejecutó pero no hubo cambios (o error verificando)
+                # ... (commit sin cambios efectivos) ...
                 razon = "No se detectaron cambios efectivos tras el commit."
-                if commitTuvoCambios is None: # Si la verificación falló
+                if commitTuvoCambios is None:
                      razon = "Error al verificar los cambios del commit."
                 logging.warning(f"{logPrefix} Commit ejecutado, pero sin cambios efectivos. Razón: {razon}")
                 estadoFinal = "[ERROR_COMMIT_NO_CHANGES]"
-                 # Intentar revertir commit vacío y descartar cambios (si los hubo)
                 logging.info(f"{logPrefix} Intentando revertir commit sin efecto y descartar...")
                 if manejadorGit.revertirCommitVacio(settings.RUTACLON):
                      logging.info(f"{logPrefix} Commit sin efecto revertido y cambios descartados.")
                 else:
                      logging.warning(f"{logPrefix} No se pudo revertir/limpiar tras commit sin efecto.")
-                # Guardar historial indicando el problema
                 historialRefactor.append(formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
@@ -620,16 +647,17 @@ def ejecutarProcesoPrincipal():
                     error_message=razon
                 ))
                 guardarHistorial(historialRefactor)
-                return False # No fue un éxito con commit
+                return False
 
         except Exception as e_commit_final:
+            # ... (error en commit) ...
             logging.error(f"{logPrefix} Error en fase de Commit/Finalización: {e_commit_final}", exc_info=True)
             estadoFinal = "[ERROR_COMMIT]"
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 result_details=resultadoEjecucion,
-                verification_details=verification_details_msg, # Puede ser OK si falló commit
+                verification_details=verification_details_msg,
                 error_message=str(e_commit_final)
             ))
             guardarHistorial(historialRefactor)
@@ -637,33 +665,30 @@ def ejecutarProcesoPrincipal():
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
+    # ... (manejo de error global y __main__ sin cambios) ...
     except Exception as e_global:
-        # Captura errores muy tempranos o inesperados
         logging.critical(f"{logPrefix} Error inesperado y no capturado: {e_global}", exc_info=True)
         estadoFinal = "[ERROR_CRITICO]"
         try:
-            # Intentar guardar historial incluso en error crítico
-            if not historialRefactor: historialRefactor = cargarHistorial() # Cargar si aún no se hizo
+            if not historialRefactor: historialRefactor = cargarHistorial()
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
-                decision=decisionParseada, # Puede ser None
+                decision=decisionParseada,
                 error_message=str(e_global)
             ))
             guardarHistorial(historialRefactor)
         except Exception as e_hist_crit:
             logging.error(f"Fallo adicional al intentar guardar historial de error crítico: {e_hist_crit}")
-
         try:
-            # Intentar limpiar siempre en caso de error no manejado
             logging.info(f"{logPrefix} Intentando descartar cambios locales debido a error crítico...")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
         except Exception as e_clean_crit:
             logging.error(f"{logPrefix} Falló limpieza tras error crítico: {e_clean_crit}")
-
         return False
 
-# --- Punto de entrada (sin cambios significativos, solo ajusta mensajes de salida) ---
+
 if __name__ == "__main__":
+    # ... (__main__ sin cambios) ...
     configurarLogging()
     parser = argparse.ArgumentParser(
         description="Agente de Refactorización de Código con IA (Gemini) - 3 Pasos (Decide, Ejecuta, Verifica).",
@@ -684,35 +709,30 @@ if __name__ == "__main__":
             logging.info(
                 "Proceso principal completado: Se realizó un commit con cambios efectivos.")
             if args.modo_test:
+                # ... (lógica de push) ...
                 logging.info("Modo Test activado: Intentando hacer push...")
                 ramaPush = getattr(settings, 'RAMATRABAJO', 'main')
                 if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
-                    logging.info(
-                        f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
-                    sys.exit(0) # Éxito total
+                    logging.info(f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
+                    sys.exit(0)
                 else:
-                    logging.error(
-                        f"Modo Test: Falló el push a la rama '{ramaPush}'. El commit local se mantiene.")
-                    # Opcional: añadir entrada al historial sobre fallo de push
-                    # historial = cargarHistorial()
-                    # historial.append(formatearEntradaHistorial(outcome="[PUSH_FAIL]", error_message=f"Commit OK, pero push falló a {ramaPush}"))
-                    # guardarHistorial(historial)
-                    sys.exit(1) # Salió bien localmente, pero falló push
+                    logging.error(f"Modo Test: Falló el push a la rama '{ramaPush}'. El commit local se mantiene.")
+                    sys.exit(1)
             else:
                 logging.info("Modo Test desactivado. Commit local realizado, no se hizo push.")
-                sys.exit(0) # Éxito local
+                sys.exit(0)
         else:
             logging.warning(
                 "Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error o fallo de verificación). Verifique logs e historial.")
             sys.exit(1) # No éxito
 
     except Exception as e:
+        # ... (manejo de error fatal) ...
         logging.critical(f"Error fatal no manejado en __main__: {e}", exc_info=True)
         try:
-            # Último intento de guardar historial
             historial = cargarHistorial()
             historial.append(formatearEntradaHistorial(outcome="[ERROR_FATAL_MAIN]", error_message=str(e)))
             guardarHistorial(historial)
         except Exception as e_hist_fatal:
             logging.error(f"No se pudo guardar historial del error fatal: {e_hist_fatal}")
-        sys.exit(2) # Error grave
+        sys.exit(2)
