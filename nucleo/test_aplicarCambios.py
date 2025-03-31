@@ -93,15 +93,15 @@ class TestAplicadorCambios(unittest.TestCase):
                        entrada_gemini, salida_esperada)
 
     def test_04_mojibake_complejo(self):
-            """Prueba Mojibake con más caracteres."""
-            entrada_gemini = "Â¡Hola, MÃºndo! Â¿QuÃ© tal?"  # Input Mojibake for ¡Hola, Múndo! ¿Qué tal?
-            # CORRECTED Expected Output: The proper decoding of the input Mojibake
-            salida_esperada = "¡Hola, Múndo! ¿Qué tal?"
-            self._run_test("Mojibake Complejo (¡, ¿, ú)",
-                        entrada_gemini, salida_esperada)
+        """Prueba Mojibake con más caracteres."""
+        entrada_gemini = "Â¡Hola, MÃºndo! Â¿QuÃ© tal?"  # Input Mojibake for ¡Hola, Múndo! ¿Qué tal?
+        # CORRECTED Expected Output: The proper decoding of the input Mojibake
+        salida_esperada = "¡Hola, Múndo! ¿Qué tal?"
+        self._run_test("Mojibake Complejo (¡, ¿, ú)",
+                       entrada_gemini, salida_esperada)
 
     def test_05_mixto_mojibake_y_escapes(self):
-        """Prueba una cadena con Mojibake y escapes literales."""
+        """Prueba una cadena con Mojibake y escapes literales. (dificil de solucionar, ignorar pro el momento)"""
         entrada_gemini = "Descripci\\u00f3n: El c\\u00f3digo fallarÃ¡ si no se corrige.\\nL\\u00ednea nueva."
         # Esperado: Descripci[ó]n: El c[ó]digo fallar[á] si no se corrige.[Newline]L[í]nea nueva.
         salida_esperada = "Descripción: El código fallará si no se corrige.\nLínea nueva."
@@ -158,7 +158,7 @@ class TestAplicadorCambios(unittest.TestCase):
             entrada_gemini, indent=2, ensure_ascii=False)
         self._run_test("Contenido No String (Dict)",
                        entrada_gemini, salida_esperada)
-        
+
     def test_11_php_string_literal_newline(self):
         """
         Prueba que '\\n' DENTRO de una cadena literal de código (PHP)
@@ -178,7 +178,56 @@ class TestAplicadorCambios(unittest.TestCase):
         self._run_test("PHP String Literal con \\n",
                        entrada_gemini,
                        salida_esperada,
-                       ruta_relativa="test_script.php") # Usar extensión .php es más representativo
+                       ruta_relativa="test_script.php")  # Usar extensión .php es más representativo
+
+    def test_12_real_newlines_from_json_remain_real(self):
+        """
+        Prueba que los saltos de línea REALES en la cadena de entrada
+        (provenientes de '\\n' en el JSON original) se escriban como
+        saltos de línea reales en el archivo, y no como '\\n' literales.
+        Simula el segundo caso problemático reportado.
+        """
+        # Esta es la cadena Python que tendría tu función DESPUÉS de json.loads
+        # si el JSON contenía '\\n' para los saltos de línea.
+        # OJO: Usamos saltos de línea reales en esta cadena multilínea de Python.
+        entrada_con_newlines_reales = """function loadingBar()
+{
+    echo '<style>
+        #loadingBar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 4px;
+            background-color: white; /* Color de la barra */
+            transition: width 0.4s ease;
+            z-index: 999999999999999;
+        }
+    </style>';
+}"""  # Asegúrate que el indentado aquí sea el deseado en la salida
+
+        # El contenido esperado en el archivo final debe ser idéntico,
+        # preservando los saltos de línea reales.
+        salida_esperada = """function loadingBar()
+{
+    echo '<style>
+        #loadingBar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 4px;
+            background-color: white; /* Color de la barra */
+            transition: width 0.4s ease;
+            z-index: 999999999999999;
+        }
+    </style>';
+}"""
+
+        self._run_test("Saltos de línea Reales (desde JSON \\n)",
+                       entrada_con_newlines_reales,
+                       salida_esperada,
+                       ruta_relativa="test_script_newlines.php")
 
 
 # Para poder ejecutar desde la línea de comandos
