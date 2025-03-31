@@ -100,7 +100,7 @@ def _validar_y_normalizar_ruta(rutaRelativa, rutaBase, asegurar_existencia=False
 # --- Helper function for controlled escape replacement ---
 def _reemplazar_escapes_controlado(text):
     """
-    Replaces specific escape sequences (\n, \t, \r, \\, \uXXXX) manually.
+    Replaces specific escape sequences (\n, \t, \r, \\, \\uXXXX) manually.
     Avoids the broad and potentially problematic 'unicode_escape' codec.
     """
     logPrefix = "_reemplazar_escapes_controlado:"
