@@ -371,9 +371,9 @@ def ejecutarProcesoPrincipal():
                  estructura_proyecto_str = "[Error al generar estructura]" # Placeholder
             else:
                  # Loguear solo una parte si es muy grande
-                 log.info(f"{logPrefix} Estructura del proyecto generada (primeras líneas para log):\n{estructura_proyecto_str[:600]}...")
+                 logging.info(f"{logPrefix} Estructura del proyecto generada (primeras líneas para log):\n{estructura_proyecto_str[:600]}...")
                  # Loguear completo en debug si es necesario
-                 log.debug(f"{logPrefix} Estructura completa generada:\n{estructura_proyecto_str}")
+                 logging.debug(f"{logPrefix} Estructura completa generada:\n{estructura_proyecto_str}")
         except Exception as e_struct:
             logging.error(f"{logPrefix} Excepción al generar estructura del proyecto: {e_struct}", exc_info=True)
             estructura_proyecto_str = "[Excepción al generar estructura]" # Placeholder
