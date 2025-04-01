@@ -402,8 +402,23 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
 
     promptPartes = []
     promptPartes.append(
-        "Eres un asistente de refactorización que EJECUTA una decisión ya tomada.")
+        "Eres un asistente de refactorización que EJECUTA una decisión ya tomada (la decisiones se toman de forma automatica por otro agente gemini IA).")
     promptPartes.append("**FORMATO DE COMENTARIOS O CODIGO CON SALTO DE LINEAS:** Si generas comentarios multilínea que usan `//` (PHP/JS), ASEGÚRATE de que **CADA LÍNEA** del comentario comience con `//` dentro del código generado.")
+    promptPartes.append(
+        "1. No uses namespace, aqui todos los archivos estan al alcance global para que sea mas facil mover cosas, si se te pide usarlos o hacerlos, fue un error, decide no hacer nada si te causa confusión una decisión."
+    )
+    promptPartes.append(
+        "2. Si vas a mover algo, de que realmente se esta moviendo algo, asegurate de tener el contexto necesario para mover lo que se te pide a los archivos indicados, si la decisión parece erronea, mejor no hagas nada."
+    )
+    promptPartes.append(
+        "3. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío, el agente puede cometer el error depedir eliminar un archivo supuestamente vacío pero a veces no lo esta, mejor no hagas nada si la decisión parece confusa."
+    )
+    promptPartes.append(
+        "4. Si algo parece romper la logica de wordpress, (estamos trabajando en el contexto de un theme de wordpress), mejor no hagas nada."
+    )
+    promptPartes.append(
+        "5. Puedes aprovechar cuando se te pida modificar un archivo, de ordenar mejor los comentarios, funciones, optimizar sin romper la logica, siempre y cuando los cambios sean pequeños y ayuden a mejorar el archivo, no me gustan los codigos con muchos comentarios, no puedes tomar decisiones complejas solo cambios muy pequeño por ejemplo, mejorar la claridad de los comentarios (mientras menos comentarios mejor), mejorar la legibilidad sin arriesgarte a dañar el codigo, en resumen, mejor la profesionalidad del codigo escrito por los humanos"
+    )
     promptPartes.append(
         "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
     promptPartes.append(
