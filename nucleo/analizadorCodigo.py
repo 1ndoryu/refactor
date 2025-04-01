@@ -282,7 +282,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
     promptPartes.append(
         "7. Evita las tareas de legibilidad, no son importantes, no es importante agregar comentarios Añade comentario phpDoc descriptivo o cosas asi.")
     promptPartes.append(
-        "8. No uses namespace, aqui todos los archivos estan al alcance global para que sea mas facil mover cosas."
+        "8. No uses namespace, por favor no importa que parezca una decisión optima, no usaremos namespace en este proyecto, aqui todos los archivos estan al alcance global para que sea mas facil mover cosas."
     )
     promptPartes.append(
         "9. Si vas a mover algo, asegurate de indicar correctamente a donde se tiene que mover o si se tiene que crear un nuevo archivo para ello."
