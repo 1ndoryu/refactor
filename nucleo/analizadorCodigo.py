@@ -414,12 +414,6 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
         "3. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío, el agente puede cometer el error depedir eliminar un archivo supuestamente vacío pero a veces no lo esta, mejor no hagas nada si la decisión parece confusa."
     )
     promptPartes.append(
-        "4. Si algo parece romper la logica de wordpress, (estamos trabajando en el contexto de un theme de wordpress), mejor no hagas nada."
-    )
-    promptPartes.append(
-        "5. Puedes aprovechar cuando se te pida modificar un archivo, de ordenar mejor los comentarios, funciones, optimizar sin romper la logica, siempre y cuando los cambios sean pequeños y ayuden a mejorar el archivo, no me gustan los codigos con muchos comentarios, no puedes tomar decisiones complejas solo cambios muy pequeño por ejemplo, mejorar la claridad de los comentarios (mientras menos comentarios mejor), mejorar la legibilidad sin arriesgarte a dañar el codigo, en resumen, mejor la profesionalidad del codigo escrito por los humanos"
-    )
-    promptPartes.append(
         "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
     promptPartes.append(
         "\n--- DECISIÓN DEL PASO 1 (Debes seguirla EXACTAMENTE) ---")
