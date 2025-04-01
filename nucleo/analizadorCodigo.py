@@ -417,7 +417,10 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
         "2. Si vas a mover algo, segurate de que realmente se esta moviendo algo, asegurate de tener el contexto necesario para mover lo que se te pide a los archivos indicados, si la decisión parece erronea, mejor no hagas nada y regresa el codigo igual sin cambiar nada."
     )
     promptPartes.append(
-        "3. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío, el anterior agente puede cometer el error de pedir eliminar un archivo supuestamente vacío pero a veces no lo esta, mejor no hagas nada si la decisión parece confusa y regresa el codigo igual sin cambiar nada.."
+        "3. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío, el anterior agente puede cometer el error de pedir eliminar un archivo supuestamente vacío pero a veces no lo esta, mejor no hagas nada si la decisión parece confusa y regresa el codigo igual sin cambiar nada."
+    )
+    promptPartes.append(
+        "4. Siempre deja un comentario en el codigo indicando brevemente la acción que realizaste."
     )
     promptPartes.append(
         "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
