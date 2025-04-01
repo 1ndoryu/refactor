@@ -255,6 +255,12 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
     promptPartes.append("Prioriza: eliminar código muerto, simplificar lógica compleja, añadir validaciones FALTANTES y básicas de seguridad, **mejorar la organización del código (mover funciones/clases a archivos/directorios más apropiados basándote en la estructura proporcionada)**, reducir duplicación, mejorar legibilidad (nombres en español `camelCase`). EVITA cambios masivos o reestructuraciones grandes. **La estructura del proyecto es desordenada; usa la información estructural para proponer movimientos lógicos y crear directorios si es necesario para agrupar funcionalidades relacionadas (ej: `app/Helpers/`, `app/Utils/`, `app/Services/`).** No es importante ni necesario que agregues nuevos comentarios a funciones viejas para explicar lo que hacen. Puedes hacer mejoras de optimización, seguridad, simplificación sin arriesgarte a que el codigo falle.")
     promptPartes.append(
         "Considera el historial para NO repetir errores, NO deshacer trabajo anterior y mantener la consistencia.")
+    promptPartes.append(
+        "A veces cometes el error de eliminar archivos que no estan vacíos, no se por qué pero no pidas eliminar algo si realmente no esta vacío.")
+    promptPartes.append(
+        "Archivos pequeños con funciones especificas es mucho mejor que archivos grandes con muchas funciones.")
+
+    
 
     # Reglas JSON (sin cambios necesarios aquí, pero deben ser respetadas)
     promptPartes.append(
@@ -456,7 +462,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido):
     promptPartes.append(
         "7.  **CREACIÓN:** Genera contenido inicial basado en `proposito_del_archivo`.")
     promptPartes.append(
-        "8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`.")
+        "8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`, es decir, un objeto JSON vacío, hay una excepción, si la solicitud dice elimiar un archivo vacío y no esta vacío, entonces no hagas nada, mejor no hagas nada si la decisión parece confusa, regresa el json completo sin cambiar nada del archivo, esto porque el agente anterior a veces comete el error de creer que el archivo esta vacío pero no lo esta, esto es importante por favor, evita ese error de borrar archivos vacíos que no estan vacíos (al menos que tengan comentarios o cosas nulas es justificable borrarlo).")
     promptPartes.append(
         "10. **VALIDACIÓN CRÍTICA DE STRINGS JSON PARA CÓDIGO:** Al incluir contenido de archivos (especialmente código fuente PHP, JS, etc.) dentro de un string JSON (ej: en la clave 'archivos_modificados'), es **absolutamente esencial** que ese string sea JSON válido y completo. \n"
         "    - **ESCAPA CORRECTAMENTE:** Todas las comillas dobles (`\"`) dentro del código deben escaparse como `\\\"`. Todas las barras invertidas (`\\`) deben escaparse como `\\\\`. Los saltos de línea literales deben representarse como `\\n`. \n"
