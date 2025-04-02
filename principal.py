@@ -467,7 +467,7 @@ def ejecutarProcesoPrincipal(api_provider: str):
 
             # <<< MODIFICADO: Pasa el api_provider >>>
             decisionJson = analizadorCodigo.obtenerDecisionRefactor(
-                contextoCodigoCompleto,
+                codigoProyectoCompleto,   
                 historialRecienteTexto,
                 estructura_proyecto_str,
                 api_provider=api_provider  # <<< AÑADIDO AQUÍ >>>
