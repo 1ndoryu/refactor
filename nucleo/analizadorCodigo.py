@@ -404,21 +404,31 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
             )
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
-                log.debug(
-                    f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
+                log.debug(f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
             else:
-                log.error(
-                    f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
-            try:
-                completion_json = completion.model_dump_json(indent=2) # Intenta obtener como JSON formateado
-                log.debug(f"{logPrefix} Respuesta completa OpenRouter (JSON):\n{completion_json}")
-            except Exception as log_e:
-                # Si falla el volcado JSON, muestra el objeto raw
-                log.debug(
-                    f"{logPrefix} Respuesta completa OpenRouter (raw object): {completion}")
-                log.debug(
-                    f"{logPrefix} Error al intentar volcar JSON de respuesta: {log_e}")
-            return None
+                # <<< INICIO CAMBIOS PARA DIAGNÓSTICO >>>
+                log.error(f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.") # Tu error original (sabemos que este se ve)
+
+                # Fuerza un mensaje WARNING para asegurarnos de que la ejecución llega aquí
+                log.warning(f"{logPrefix} [DIAGNÓSTICO] Ejecución dentro del bloque 'else' (no choices). Intentando ver 'completion'...")
+
+                try:
+                    # Intenta imprimir el objeto 'completion' directamente. str() es más seguro que model_dump_json()
+                    log.warning(f"{logPrefix} [DIAGNÓSTICO] Objeto 'completion' (como string): {str(completion)}")
+
+                    # Intenta de nuevo con model_dump_json, pero ahora con log.warning
+                    try:
+                         completion_json = completion.model_dump_json(indent=2)
+                         log.warning(f"{logPrefix} [DIAGNÓSTICO] Respuesta completa OpenRouter (JSON):\n{completion_json}")
+                    except Exception as dump_err:
+                         log.error(f"{logPrefix} [DIAGNÓSTICO] ¡FALLÓ completion.model_dump_json()!: {dump_err}", exc_info=True) # Muestra el traceback del error de volcado
+
+                except Exception as log_e:
+                    # Si incluso str(completion) falla, loguea ese error
+                    log.error(f"{logPrefix} [DIAGNÓSTICO] ¡FALLÓ al intentar loguear 'completion' directamente!: {log_e}", exc_info=True) # Muestra el traceback
+
+                # <<< FIN CAMBIOS PARA DIAGNÓSTICO >>>
+                return None # La función sigue retornando None aquí
 
         else:
             log.error(
