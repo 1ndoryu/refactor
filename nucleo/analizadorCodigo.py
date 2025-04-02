@@ -399,7 +399,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
                 model=settings.OPENROUTER_MODEL,
                 messages=mensajes,
                 temperature=0.4,
-                max_tokens=8192,
+                max_tokens=65536,
                 # response_format={"type": "json_object"} # Intentar si OpenRouter lo soporta, pero es más seguro pedirlo en prompt
             )
             if completion.choices:
