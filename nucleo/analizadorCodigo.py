@@ -4,14 +4,16 @@ import logging
 import json
 import google.generativeai as genai
 import google.api_core.exceptions
-from openai import OpenAI, APIError # <<< NUEVO IMPORT OpenAI y errores >>>
+from openai import OpenAI, APIError  # <<< NUEVO IMPORT OpenAI y errores >>>
 from config import settings
 # from google.generativeai import types # Ya no se usa directamente aquí
 
 log = logging.getLogger(__name__)
-geminiConfigurado = False # Estado solo para Google Gemini
+geminiConfigurado = False  # Estado solo para Google Gemini
 
 # --- Configuración Google Gemini (sin cambios) ---
+
+
 def configurarGemini():
     global geminiConfigurado
     if geminiConfigurado:
@@ -27,25 +29,32 @@ def configurarGemini():
         geminiConfigurado = True
         return True
     except Exception as e:
-        log.critical(f"{logPrefix} Error configurando cliente Google Gemini: {e}")
+        log.critical(
+            f"{logPrefix} Error configurando cliente Google Gemini: {e}")
         return False
 
 # --- Listar/Leer Archivos (sin cambios) ---
+
+
 def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directoriosIgnorados=None):
     # ... (tu código existente sin cambios) ...
     logPrefix = "listarArchivosProyecto:"
     archivosProyecto = []
     if extensionesPermitidas is None:
-        extensionesPermitidas = getattr(settings, 'EXTENSIONESPERMITIDAS', ['.php', '.js', '.py', '.md', '.txt'])
+        extensionesPermitidas = getattr(settings, 'EXTENSIONESPERMITIDAS', [
+                                        '.php', '.js', '.py', '.md', '.txt'])
         extensionesPermitidas = [ext.lower() for ext in extensionesPermitidas]
     if directoriosIgnorados is None:
         # Usar los directorios ignorados de settings si están definidos
-        directoriosIgnorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', ['.git', 'vendor', 'node_modules'])
+        directoriosIgnorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', [
+                                       '.git', 'vendor', 'node_modules'])
     try:
-        log.info(f"{logPrefix} Listando archivos en: {rutaProyecto} (Ignorando: {directoriosIgnorados})")
+        log.info(
+            f"{logPrefix} Listando archivos en: {rutaProyecto} (Ignorando: {directoriosIgnorados})")
         for raiz, dirs, archivos in os.walk(rutaProyecto, topdown=True):
             # Excluir directorios ignorados
-            dirs[:] = [d for d in dirs if d not in directoriosIgnorados and not d.startswith('.')]
+            dirs[:] = [
+                d for d in dirs if d not in directoriosIgnorados and not d.startswith('.')]
 
             for nombreArchivo in archivos:
                 # Ignorar archivos ocultos
@@ -53,19 +62,22 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
                     continue
 
                 _, ext = os.path.splitext(nombreArchivo)
-                if not extensionesPermitidas or ext.lower() in extensionesPermitidas: # Permitir si no hay extensiones definidas
+                # Permitir si no hay extensiones definidas
+                if not extensionesPermitidas or ext.lower() in extensionesPermitidas:
                     rutaCompleta = os.path.join(raiz, nombreArchivo)
                     # Normalizar la ruta para consistencia
                     archivosProyecto.append(os.path.normpath(rutaCompleta))
                 # else:
                 #     log.debug(f"{logPrefix} Archivo omitido por extensión: {nombreArchivo}")
 
-
-        log.info(f"{logPrefix} Archivos relevantes encontrados: {len(archivosProyecto)}")
+        log.info(
+            f"{logPrefix} Archivos relevantes encontrados: {len(archivosProyecto)}")
         return archivosProyecto
     except Exception as e:
-        log.error(f"{logPrefix} Error listando archivos en {rutaProyecto}: {e}", exc_info=True)
+        log.error(
+            f"{logPrefix} Error listando archivos en {rutaProyecto}: {e}", exc_info=True)
         return None
+
 
 def leerArchivos(listaArchivos, rutaBase):
     # ... (tu código existente sin cambios) ...
@@ -84,7 +96,7 @@ def leerArchivos(listaArchivos, rutaBase):
         # Ajuste: permitir leer la propia ruta base si es un archivo? No, leerArchivos espera una lista.
         # Comprobar si empieza con la ruta base + separador, o si es exactamente la ruta base (poco probable)
         if not rutaAbsNorm.startswith(rutaBaseNorm + os.sep) and rutaAbsNorm != rutaBaseNorm:
-             # Excepción: Si rutaBase es un archivo y rutaAbsoluta es ese mismo archivo? No, no debería pasar.
+            # Excepción: Si rutaBase es un archivo y rutaAbsoluta es ese mismo archivo? No, no debería pasar.
             log.error(
                 f"{logPrefix} Archivo '{rutaAbsoluta}' parece estar fuera de la ruta base '{rutaBase}'. Se omitirá.")
             archivosFallidos.append(rutaAbsoluta)
@@ -99,7 +111,8 @@ def leerArchivos(listaArchivos, rutaBase):
         try:
             # Calcular ruta relativa de forma segura
             rutaRelativa = os.path.relpath(
-                rutaAbsNorm, rutaBaseNorm).replace(os.sep, '/') # Usar / para consistencia
+                # Usar / para consistencia
+                rutaAbsNorm, rutaBaseNorm).replace(os.sep, '/')
 
             with open(rutaAbsNorm, 'r', encoding='utf-8', errors='ignore') as f:
                 contenido = f.read()
@@ -111,7 +124,8 @@ def leerArchivos(listaArchivos, rutaBase):
                 archivosLeidos += 1
                 bytesTotales += bytesArchivo
         except Exception as e:
-            log.error(f"{logPrefix} Error leyendo '{rutaAbsNorm}' (Relativa: '{rutaRelativa if 'rutaRelativa' in locals() else 'N/A'}'): {e}")
+            log.error(
+                f"{logPrefix} Error leyendo '{rutaAbsNorm}' (Relativa: '{rutaRelativa if 'rutaRelativa' in locals() else 'N/A'}'): {e}")
             archivosFallidos.append(rutaAbsoluta)
 
     tamanoKB = bytesTotales / 1024
@@ -125,11 +139,11 @@ def leerArchivos(listaArchivos, rutaBase):
         return contenidoConcatenado
     elif not listaArchivos:
         log.info(f"{logPrefix} La lista de archivos a leer estaba vacía.")
-        return "" # Devolver cadena vacía si la lista estaba vacía
+        return ""  # Devolver cadena vacía si la lista estaba vacía
     else:
         log.error(
             f"{logPrefix} No se pudo leer ningún archivo de la lista proporcionada (contenía {len(listaArchivos)} rutas).")
-        return None # Error
+        return None  # Error
 
 
 # --- Generar Estructura Directorio (sin cambios) ---
@@ -137,30 +151,34 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
     # ... (tu código existente sin cambios) ...
     logPrefix = "generarEstructuraDirectorio:"
     if not os.path.isdir(ruta_base):
-        log.error(f"{logPrefix} La ruta base '{ruta_base}' no es un directorio válido.")
+        log.error(
+            f"{logPrefix} La ruta base '{ruta_base}' no es un directorio válido.")
         return None
 
     if directorios_ignorados is None:
         directorios_ignorados = set()
     else:
-        directorios_ignorados = set(directorios_ignorados) # Asegurar que sea set
+        directorios_ignorados = set(
+            directorios_ignorados)  # Asegurar que sea set
 
     # Añadir .git siempre por seguridad si no está
     directorios_ignorados.add('.git')
 
     estructura_lines = [os.path.basename(ruta_base) + "/"]
-    processed_paths = set() # Para detectar posibles bucles de enlaces simbólicos
+    processed_paths = set()  # Para detectar posibles bucles de enlaces simbólicos
 
     def _walk_recursive(current_path, depth, prefix=""):
         if depth > max_depth:
-            if depth == max_depth + 1: # Mostrar solo una vez por rama
-                 estructura_lines.append(prefix + "└── ... (Profundidad máxima alcanzada)")
+            if depth == max_depth + 1:  # Mostrar solo una vez por rama
+                estructura_lines.append(
+                    prefix + "└── ... (Profundidad máxima alcanzada)")
             return
 
         # Normalizar y comprobar si ya se procesó para evitar bucles
         real_path = os.path.realpath(current_path)
         if real_path in processed_paths:
-            estructura_lines.append(prefix + f"└── -> ... (Enlace circular o repetido a {os.path.basename(real_path)})")
+            estructura_lines.append(
+                prefix + f"└── -> ... (Enlace circular o repetido a {os.path.basename(real_path)})")
             return
         processed_paths.add(real_path)
 
@@ -168,7 +186,8 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
             # Obtener entradas, manejar errores de permisos
             entries = sorted(os.listdir(current_path))
         except OSError as e:
-            estructura_lines.append(prefix + f"└── [Error al listar: {e.strerror}]")
+            estructura_lines.append(
+                prefix + f"└── [Error al listar: {e.strerror}]")
             return
 
         # Filtrar directorios y archivos
@@ -180,21 +199,23 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
 
             entry_path = os.path.join(current_path, entry)
             is_dir = False
-            try: # Comprobar si es directorio (manejar enlaces rotos)
-                 is_dir = os.path.isdir(entry_path)
-                 # Podríamos añadir chequeo de enlace simbólico aquí si quisiéramos tratarlo diferente
-                 # is_link = os.path.islink(entry_path)
+            try:  # Comprobar si es directorio (manejar enlaces rotos)
+                is_dir = os.path.isdir(entry_path)
+                # Podríamos añadir chequeo de enlace simbólico aquí si quisiéramos tratarlo diferente
+                # is_link = os.path.islink(entry_path)
             except OSError:
-                 # Podría ser un enlace roto, lo ignoramos
-                 # log.debug(f"{logPrefix} Ignorando entrada con error OS (posible enlace roto): {entry_path}")
-                 continue
+                # Podría ser un enlace roto, lo ignoramos
+                # log.debug(f"{logPrefix} Ignorando entrada con error OS (posible enlace roto): {entry_path}")
+                continue
 
             if is_dir:
                 # Ignorar si es un directorio que está en la lista de ignorados (doble check)
                 if os.path.basename(entry_path) not in directorios_ignorados:
-                    items.append({'name': entry, 'is_dir': True, 'path': entry_path})
+                    items.append(
+                        {'name': entry, 'is_dir': True, 'path': entry_path})
             elif incluir_archivos and os.path.isfile(entry_path):
-                 items.append({'name': entry, 'is_dir': False, 'path': entry_path})
+                items.append(
+                    {'name': entry, 'is_dir': False, 'path': entry_path})
 
         count = len(items)
         for i, item in enumerate(items):
@@ -205,22 +226,28 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
             if item['is_dir']:
                 estructura_lines.append(line_prefix + item['name'] + "/")
                 # Preparar prefijo para el siguiente nivel
-                new_prefix = prefix + (indent_char if is_last else "│" + indent_char[1:]) # Usar "│" si no es el último
+                # Usar "│" si no es el último
+                new_prefix = prefix + \
+                    (indent_char if is_last else "│" + indent_char[1:])
                 _walk_recursive(item['path'], depth + 1, new_prefix)
-            else: # Es archivo
+            else:  # Es archivo
                 estructura_lines.append(line_prefix + item['name'])
 
     try:
         # Iniciar la recursión
         _walk_recursive(ruta_base, 0)
-        log.info(f"{logPrefix} Estructura de directorios generada para '{ruta_base}' (hasta {max_depth} niveles).")
+        log.info(
+            f"{logPrefix} Estructura de directorios generada para '{ruta_base}' (hasta {max_depth} niveles).")
         return "\n".join(estructura_lines)
     except Exception as e:
-         log.error(f"{logPrefix} Error inesperado generando estructura: {e}", exc_info=True)
-         return None
+        log.error(
+            f"{logPrefix} Error inesperado generando estructura: {e}", exc_info=True)
+        return None
 
 # --- OBTENER DECISIÓN (MODIFICADO) ---
 # <<< Añadir parámetro api_provider >>>
+
+
 def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, estructura_proyecto_texto=None, api_provider='google'):
     """
     PASO 1: Analiza código, estructura e historial para DECIDIR una acción.
@@ -231,10 +258,12 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
     log.info(f"{logPrefix} Iniciando análisis para obtener decisión...")
 
     if not contextoCodigoCompleto and not estructura_proyecto_texto:
-         log.error(f"{logPrefix} No se proporcionó ni contexto de código ni estructura del proyecto.")
-         return None
+        log.error(
+            f"{logPrefix} No se proporcionó ni contexto de código ni estructura del proyecto.")
+        return None
     if not contextoCodigoCompleto:
-        log.warning(f"{logPrefix} No se proporcionó contexto de código, se usará solo estructura e historial.")
+        log.warning(
+            f"{logPrefix} No se proporcionó contexto de código, se usará solo estructura e historial.")
 
     # --- Construcción del Prompt (común para ambos proveedores) ---
     # (El prompt que ya tenías es detallado y debería funcionar bien con ambos,
@@ -258,7 +287,8 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
         "\n--- REGLAS ESTRICTAS PARA LA ESTRUCTURA JSON DE TU RESPUESTA (DECISIÓN) ---")
     promptPartes.append("1.  **`accion_propuesta`**: Elige UNA de: `mover_funcion`, `mover_clase`, `modificar_codigo_en_archivo`, `crear_archivo`, `eliminar_archivo`, `crear_directorio`. Si NINGUNA acción es segura/útil/necesaria, USA `no_accion`.")
     promptPartes.append(
-        "2.  **`descripcion`**: Sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a app/Helpers/uiHelper.php', 'Refactor(Org): Crea directorio app/Http/Controllers').") # Ejemplo de crear dir
+        # Ejemplo de crear dir
+        "2.  **`descripcion`**: Sé MUY específico para un mensaje de commit útil (ej: 'Refactor(Seguridad): Añade isset() a $_GET['param'] en archivo.php', 'Refactor(Clean): Elimina función duplicada viejaFuncion() de utils_old.php', 'Refactor(Org): Mueve función auxiliar miHelper() de main.php a app/Helpers/uiHelper.php', 'Refactor(Org): Crea directorio app/Http/Controllers').")
     promptPartes.append(
         "3.  **`parametros_accion`**: Objeto JSON con TODA la información necesaria para ejecutar el cambio SIN DUDAS. Usa rutas RELATIVAS desde la raíz del proyecto.")
     promptPartes.append(
@@ -290,8 +320,10 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
 
     # Añadir estructura
     if estructura_proyecto_texto:
-        promptPartes.append("\n--- ESTRUCTURA ACTUAL DEL PROYECTO (Visión Global) ---")
-        promptPartes.append("# Nota: Esta estructura puede estar limitada en profundidad.")
+        promptPartes.append(
+            "\n--- ESTRUCTURA ACTUAL DEL PROYECTO (Visión Global) ---")
+        promptPartes.append(
+            "# Nota: Esta estructura puede estar limitada en profundidad.")
         promptPartes.append(estructura_proyecto_texto)
         promptPartes.append("--- FIN ESTRUCTURA ---")
     else:
@@ -306,7 +338,8 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
 
     # Añadir código
     promptPartes.append("\n--- CÓDIGO FUENTE COMPLETO A ANALIZAR ---")
-    promptPartes.append(contextoCodigoCompleto if contextoCodigoCompleto else "(No se proporcionó código fuente completo, analiza basado en estructura e historial)")
+    promptPartes.append(
+        contextoCodigoCompleto if contextoCodigoCompleto else "(No se proporcionó código fuente completo, analiza basado en estructura e historial)")
     promptPartes.append("--- FIN CÓDIGO ---")
 
     # Instrucción final JSON
@@ -322,18 +355,19 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
     # --- Lógica condicional para API ---
     try:
         if api_provider == 'google':
-            log.info(f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
+            log.info(
+                f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
             if not configurarGemini():
-                return None # Error ya logueado en configurarGemini
+                return None  # Error ya logueado en configurarGemini
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             respuesta = modelo.generate_content(
                 promptCompleto,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.4,
-                    response_mime_type="application/json", # Gemini soporta esto
+                    response_mime_type="application/json",  # Gemini soporta esto
                     max_output_tokens=8192
                 ),
-                safety_settings={ # Ajusta según necesidad
+                safety_settings={  # Ajusta según necesidad
                     'HATE': 'BLOCK_MEDIUM_AND_ABOVE',
                     'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
                     'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE',
@@ -343,10 +377,12 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
 
         elif api_provider == 'openrouter':
-            log.info(f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
+            log.info(
+                f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
             if not settings.OPENROUTER_API_KEY:
-                 log.error(f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
-                 return None
+                log.error(
+                    f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
+                return None
             client = OpenAI(
                 base_url=settings.OPENROUTER_BASE_URL,
                 api_key=settings.OPENROUTER_API_KEY,
@@ -356,7 +392,7 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
 
             log.debug(f"{logPrefix} Enviando solicitud a OpenRouter...")
             completion = client.chat.completions.create(
-                extra_headers={ # Headers opcionales
+                extra_headers={  # Headers opcionales
                     "HTTP-Referer": settings.OPENROUTER_REFERER,
                     "X-Title": settings.OPENROUTER_TITLE,
                 },
@@ -368,56 +404,85 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
             )
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
-                log.debug(f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
+                log.debug(
+                    f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
             else:
-                log.error(f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
-                log.debug(f"{logPrefix} Respuesta completa OpenRouter: {completion}")
-                return None
+                log.error(
+                    f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
+            # <<< MODIFICACIÓN/ADICIÓN >>>
+            try:
+                # Intenta volcar la respuesta como JSON para verla bien
+                completion_json = completion.model_dump_json(indent=2)
+                log.debug(
+                    f"{logPrefix} Respuesta completa OpenRouter (JSON):\n{completion_json}")
+            except Exception as log_e:
+                # Si falla el volcado JSON, muestra el objeto raw
+                log.debug(
+                    f"{logPrefix} Respuesta completa OpenRouter (raw object): {completion}")
+                log.debug(
+                    f"{logPrefix} Error al intentar volcar JSON de respuesta: {log_e}")
+            # <<< FIN MODIFICACIÓN/ADICIÓN >>>
+            return None
 
         else:
-            log.error(f"{logPrefix} Proveedor de API no soportado: {api_provider}")
+            log.error(
+                f"{logPrefix} Proveedor de API no soportado: {api_provider}")
             return None
 
         # --- Procesamiento común de la respuesta ---
         if not textoRespuesta:
-             log.error(f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
-             # El error específico (bloqueo, etc.) ya debería haberse logueado en _extraerTextoRespuesta o en el bloque OpenRouter
-             return None
+            log.error(
+                f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
+            # El error específico (bloqueo, etc.) ya debería haberse logueado en _extraerTextoRespuesta o en el bloque OpenRouter
+            return None
 
-        log.debug(f"{logPrefix} Texto crudo recibido de IA:\n{textoRespuesta[:1000]}...")
+        log.debug(
+            f"{logPrefix} Texto crudo recibido de IA:\n{textoRespuesta[:1000]}...")
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
         if respuestaJson is None:
-             log.error(f"{logPrefix} El parseo/extracción final de JSON falló.")
-             return None
+            log.error(f"{logPrefix} El parseo/extracción final de JSON falló.")
+            return None
 
         # Validación básica del JSON (ya la tenías)
         if respuestaJson.get("tipo_analisis") != "refactor_decision":
-             log.error(f"{logPrefix} Respuesta JSON no es del tipo esperado 'refactor_decision'.")
-             try:
-                 log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
-             except Exception:
-                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
-             return None
+            log.error(
+                f"{logPrefix} Respuesta JSON no es del tipo esperado 'refactor_decision'.")
+            try:
+                log.error(
+                    f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+            except Exception:
+                log.error(
+                    f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
+            return None
 
-        log.info(f"{logPrefix} JSON de Decisión Generado y parseado correctamente.")
-        log.debug(f"{logPrefix} JSON:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+        log.info(
+            f"{logPrefix} JSON de Decisión Generado y parseado correctamente.")
+        log.debug(
+            f"{logPrefix} JSON:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
         return respuestaJson
 
     # --- Manejo de excepciones específico de cada API y genérico ---
     except google.api_core.exceptions.GoogleAPIError as e_gemini:
-        log.error(f"{logPrefix} Error API Google Gemini: {e_gemini}", exc_info=True)
-        _manejarExcepcionGemini(e_gemini, logPrefix, respuesta if 'respuesta' in locals() else None)
+        log.error(
+            f"{logPrefix} Error API Google Gemini: {e_gemini}", exc_info=True)
+        _manejarExcepcionGemini(e_gemini, logPrefix,
+                                respuesta if 'respuesta' in locals() else None)
         return None
-    except APIError as e_openai: # Captura errores de la librería OpenAI (usada para OpenRouter)
-        log.error(f"{logPrefix} Error API OpenRouter (via OpenAI lib): {e_openai}", exc_info=True)
+    # Captura errores de la librería OpenAI (usada para OpenRouter)
+    except APIError as e_openai:
+        log.error(
+            f"{logPrefix} Error API OpenRouter (via OpenAI lib): {e_openai}", exc_info=True)
         # Podrías añadir manejo más específico si quieres (e.g., e_openai.status_code)
         return None
     except Exception as e:
-        log.error(f"{logPrefix} Error inesperado durante llamada a API: {e}", exc_info=True)
+        log.error(
+            f"{logPrefix} Error inesperado durante llamada a API: {e}", exc_info=True)
         # Si fue Gemini, intenta manejarlo específicamente
-        if api_provider == 'google' and isinstance(e, Exception): # Evita doble manejo si ya fue GoogleAPIError
-             _manejarExcepcionGemini(e, logPrefix, respuesta if 'respuesta' in locals() else None)
+        # Evita doble manejo si ya fue GoogleAPIError
+        if api_provider == 'google' and isinstance(e, Exception):
+            _manejarExcepcionGemini(
+                e, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
 
 
@@ -502,7 +567,8 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
     promptPartes.append(
         "7.  **CREACIÓN:** Genera contenido inicial basado en `proposito_del_archivo`.")
     promptPartes.append(
-        "8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`, un objeto JSON vacío. EXCEPCIÓN: Si se pide eliminar un archivo NO VACÍO, devuelve el JSON con el contenido original del archivo (no lo borres) y añade una nota en un campo 'advertencia_ejecucion'.") # Ajuste para manejo de error en eliminar
+        # Ajuste para manejo de error en eliminar
+        "8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`, un objeto JSON vacío. EXCEPCIÓN: Si se pide eliminar un archivo NO VACÍO, devuelve el JSON con el contenido original del archivo (no lo borres) y añade una nota en un campo 'advertencia_ejecucion'.")
     promptPartes.append(
         "9. **VALIDACIÓN CRÍTICA DE STRINGS JSON PARA CÓDIGO:** Asegúrate de que el contenido de los archivos (especialmente código PHP/JS) sea un string JSON VÁLIDO Y COMPLETO (escapa `\"` como `\\\"`, `\\` como `\\\\`, saltos de línea como `\\n`). Evita truncamiento. Presta MÁXIMA atención a esto.")
 
@@ -526,7 +592,8 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
     # --- Lógica condicional para API ---
     try:
         if api_provider == 'google':
-            log.info(f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
+            log.info(
+                f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
             if not configurarGemini():
                 return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
@@ -534,23 +601,25 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
                 promptCompleto,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.4,
-                    response_mime_type="application/json", # Gemini soporta esto
-                    max_output_tokens=65536 # Más espacio para código generado
+                    response_mime_type="application/json",  # Gemini soporta esto
+                    max_output_tokens=65536  # Más espacio para código generado
                 ),
-                 safety_settings={ # Configuración más permisiva aquí? O mantener estándar
+                safety_settings={  # Configuración más permisiva aquí? O mantener estándar
                     'HATE': 'BLOCK_ONLY_HIGH',
                     'HARASSMENT': 'BLOCK_ONLY_HIGH',
                     'SEXUAL': 'BLOCK_ONLY_HIGH',
                     'DANGEROUS': 'BLOCK_ONLY_HIGH'
-                 }
+                }
             )
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
 
         elif api_provider == 'openrouter':
-            log.info(f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
+            log.info(
+                f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
             if not settings.OPENROUTER_API_KEY:
-                 log.error(f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
-                 return None
+                log.error(
+                    f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
+                return None
             client = OpenAI(
                 base_url=settings.OPENROUTER_BASE_URL,
                 api_key=settings.OPENROUTER_API_KEY,
@@ -565,26 +634,32 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
                 model=settings.OPENROUTER_MODEL,
                 messages=mensajes,
                 temperature=0.4,
-                max_tokens=65536, # Permitir respuesta larga
+                max_tokens=65536,  # Permitir respuesta larga
             )
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
-                log.debug(f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
+                log.debug(
+                    f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
             else:
-                log.error(f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
-                log.debug(f"{logPrefix} Respuesta completa OpenRouter: {completion}")
+                log.error(
+                    f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
+                log.debug(
+                    f"{logPrefix} Respuesta completa OpenRouter: {completion}")
                 return None
 
         else:
-            log.error(f"{logPrefix} Proveedor de API no soportado: {api_provider}")
+            log.error(
+                f"{logPrefix} Proveedor de API no soportado: {api_provider}")
             return None
 
         # --- Procesamiento común de la respuesta ---
         if not textoRespuesta:
-             log.error(f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
-             return None
+            log.error(
+                f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
+            return None
 
-        log.debug(f"{logPrefix} Texto crudo recibido de IA:\n{textoRespuesta[:1000]}...")
+        log.debug(
+            f"{logPrefix} Texto crudo recibido de IA:\n{textoRespuesta[:1000]}...")
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
         if respuestaJson is None:
@@ -597,31 +672,41 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
                 f"{logPrefix} Respuesta JSON no tiene 'tipo_resultado'=\"ejecucion_cambio\" esperado. Intentando continuar si 'archivos_modificados' existe.")
             # No fallar aquí si el resto está bien
             if "archivos_modificados" not in respuestaJson:
-                 log.error(f"{logPrefix} Falta clave 'archivos_modificados'. JSON inválido.")
-                 try:
-                     log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
-                 except Exception:
-                     log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
-                 return None
+                log.error(
+                    f"{logPrefix} Falta clave 'archivos_modificados'. JSON inválido.")
+                try:
+                    log.error(
+                        f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+                except Exception:
+                    log.error(
+                        f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
+                return None
 
         archivos_mod = respuestaJson.get("archivos_modificados")
-        if archivos_mod is None: # Doble check por si no entró en el warning anterior
-            log.error(f"{logPrefix} La clave 'archivos_modificados' falta en la respuesta JSON.")
+        if archivos_mod is None:  # Doble check por si no entró en el warning anterior
+            log.error(
+                f"{logPrefix} La clave 'archivos_modificados' falta en la respuesta JSON.")
             try:
-                 log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+                log.error(
+                    f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
             except Exception:
-                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
+                log.error(
+                    f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
             return None
         if not isinstance(archivos_mod, dict):
-             log.error(f"{logPrefix} 'archivos_modificados' no es un diccionario (tipo: {type(archivos_mod)}). JSON inválido.")
-             try:
-                 log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
-             except Exception:
-                 log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
-             return None
+            log.error(
+                f"{logPrefix} 'archivos_modificados' no es un diccionario (tipo: {type(archivos_mod)}). JSON inválido.")
+            try:
+                log.error(
+                    f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+            except Exception:
+                log.error(
+                    f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
+            return None
 
         # Validación de acciones sin contenido
-        accion_sin_contenido = accion in ["eliminar_archivo", "crear_directorio"]
+        accion_sin_contenido = accion in [
+            "eliminar_archivo", "crear_directorio"]
         if accion_sin_contenido and archivos_mod != {}:
             # Permitir la advertencia de ejecución para el caso de 'no eliminar archivo no vacío'
             if not respuestaJson.get("advertencia_ejecucion"):
@@ -629,37 +714,48 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
                     f"{logPrefix} Se esperaba 'archivos_modificados' vacío {{}} para la acción '{accion}', pero se recibió: {list(archivos_mod.keys())}. Se procederá con dict vacío.")
                 respuestaJson["archivos_modificados"] = {}
             else:
-                 log.warning(f"{logPrefix} Acción '{accion}' resultó en advertencia: {respuestaJson.get('advertencia_ejecucion')}. 'archivos_modificados' no está vacío, se mantendrá.")
+                log.warning(
+                    f"{logPrefix} Acción '{accion}' resultó en advertencia: {respuestaJson.get('advertencia_ejecucion')}. 'archivos_modificados' no está vacío, se mantendrá.")
 
         # Validación de tipos dentro del diccionario
         for k, v in archivos_mod.items():
             if not isinstance(k, str) or not isinstance(v, str):
-                 log.error(f"{logPrefix} Entrada inválida en 'archivos_modificados'. Clave '{k}' (tipo {type(k)}) o valor (tipo {type(v)}) no son strings. JSON inválido.")
-                 try:
-                     log.error(f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
-                 except Exception:
-                     log.error(f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
-                 return None
+                log.error(
+                    f"{logPrefix} Entrada inválida en 'archivos_modificados'. Clave '{k}' (tipo {type(k)}) o valor (tipo {type(v)}) no son strings. JSON inválido.")
+                try:
+                    log.error(
+                        f"{logPrefix} JSON Recibido:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+                except Exception:
+                    log.error(
+                        f"{logPrefix} JSON Recibido (no se pudo formatear): {respuestaJson}")
+                return None
 
-        log.info(f"{logPrefix} Respuesta JSON de Ejecución parseada y validada correctamente.")
+        log.info(
+            f"{logPrefix} Respuesta JSON de Ejecución parseada y validada correctamente.")
         # Loguear el resultado puede ser muy grande, opcionalmente solo las claves
         # log.debug(f"{logPrefix} JSON Ejecución (claves): {list(respuestaJson.keys())}, Archivos Modificados Claves: {list(respuestaJson.get('archivos_modificados', {}).keys())}")
-        log.debug(f"{logPrefix} JSON Ejecución Completo:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
+        log.debug(
+            f"{logPrefix} JSON Ejecución Completo:\n{json.dumps(respuestaJson, indent=2, ensure_ascii=False)}")
 
         return respuestaJson
 
     # --- Manejo de excepciones específico de cada API y genérico ---
     except google.api_core.exceptions.GoogleAPIError as e_gemini:
-        log.error(f"{logPrefix} Error API Google Gemini: {e_gemini}", exc_info=True)
-        _manejarExcepcionGemini(e_gemini, logPrefix, respuesta if 'respuesta' in locals() else None)
+        log.error(
+            f"{logPrefix} Error API Google Gemini: {e_gemini}", exc_info=True)
+        _manejarExcepcionGemini(e_gemini, logPrefix,
+                                respuesta if 'respuesta' in locals() else None)
         return None
     except APIError as e_openai:
-        log.error(f"{logPrefix} Error API OpenRouter (via OpenAI lib): {e_openai}", exc_info=True)
+        log.error(
+            f"{logPrefix} Error API OpenRouter (via OpenAI lib): {e_openai}", exc_info=True)
         return None
     except Exception as e:
-        log.error(f"{logPrefix} Error inesperado durante llamada a API: {e}", exc_info=True)
+        log.error(
+            f"{logPrefix} Error inesperado durante llamada a API: {e}", exc_info=True)
         if api_provider == 'google' and isinstance(e, Exception):
-             _manejarExcepcionGemini(e, logPrefix, respuesta if 'respuesta' in locals() else None)
+            _manejarExcepcionGemini(
+                e, logPrefix, respuesta if 'respuesta' in locals() else None)
         return None
 
 
@@ -736,6 +832,8 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
         return None
 
 # _limpiarYParsearJson (sin cambios)
+
+
 def _limpiarYParsearJson(textoRespuesta, logPrefix):
     # ... (tu código existente sin cambios) ...
     textoLimpio = textoRespuesta.strip()
@@ -799,6 +897,8 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         return None
 
 # _manejarExcepcionGemini (solo para Google Gemini)
+
+
 def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
     # ... (tu código existente sin cambios) ...
     """Maneja y loguea excepciones comunes de la API de Google Gemini."""
