@@ -8,7 +8,7 @@ load_dotenv()
 
 # --- Constantes para Rotación de Clave API ---
 API_KEY_BASE_NAME = "GEMINI_API_KEY"
-NUM_API_KEYS = 5  # GEMINI_API_KEY (0), GEMINI_API_KEY1 (1), ..., GEMINI_API_KEY4 (4)
+NUM_API_KEYS = 1 # GEMINI_API_KEY (0), GEMINI_API_KEY1 (1), ..., GEMINI_API_KEY4 (4)
 # Archivo para guardar el índice de la última clave usada (en el mismo directorio que settings.py)
 _CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 API_KEY_STATE_FILE = os.path.join(_CONFIG_DIR, '.api_key_last_index.txt') # Nombre con punto para indicar que es 'privado'
