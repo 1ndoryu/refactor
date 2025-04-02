@@ -259,6 +259,9 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
         "A veces cometes el error de eliminar archivos que no estan vacíos, no se por qué pero no pidas eliminar algo si realmente no esta vacío.")
     promptPartes.append(
         "Archivos pequeños con funciones especificas es mucho mejor que archivos grandes con muchas funciones.")
+    promptPartes.append(
+        "Ultimamente me di cuenta que mueves muchas funciones a un mismo archivo, por ejemplo a postService las cosas relacionada a los post, parece algo logico pero, necesito que los archivos no sean tan grande y que las funciones esten en archivos mas especificos, para que los archivos no se vuelvan tan largo y extensos. Es importante que los archivos sean pequenos y que las funciones esten en archivos mas especificos."
+    )
 
     
 
