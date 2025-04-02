@@ -409,19 +409,15 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
             else:
                 log.error(
                     f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
-            # <<< MODIFICACIÓN/ADICIÓN >>>
             try:
-                # Intenta volcar la respuesta como JSON para verla bien
-                completion_json = completion.model_dump_json(indent=2)
-                log.debug(
-                    f"{logPrefix} Respuesta completa OpenRouter (JSON):\n{completion_json}")
+                completion_json = completion.model_dump_json(indent=2) # Intenta obtener como JSON formateado
+                log.debug(f"{logPrefix} Respuesta completa OpenRouter (JSON):\n{completion_json}")
             except Exception as log_e:
                 # Si falla el volcado JSON, muestra el objeto raw
                 log.debug(
                     f"{logPrefix} Respuesta completa OpenRouter (raw object): {completion}")
                 log.debug(
                     f"{logPrefix} Error al intentar volcar JSON de respuesta: {log_e}")
-            # <<< FIN MODIFICACIÓN/ADICIÓN >>>
             return None
 
         else:
