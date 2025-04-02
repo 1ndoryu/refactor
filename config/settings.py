@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 
 # Cargar variables de entorno desde .env al inicio
 load_dotenv()
+print(f"DEBUG: Raw OPENROUTER_API_KEY from env: '{os.getenv('OPENROUTER_API_KEY')}'") # <-- Añade esto
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "") # Tu línea original
 
 # --- Constantes para Rotación de Clave API Google Gemini ---
 API_KEY_BASE_NAME = "GEMINI_API_KEY"
@@ -104,7 +106,6 @@ else:
 
 
 # --- NUEVO: Configuración OpenRouter ---
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "") # Tu clave por defecto o desde .env
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 # Asegúrate de tener estas variables en tu .env o pon los valores directamente aquí si son fijos
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "<YOUR_SITE_URL>") # Reemplaza o pon en .env
