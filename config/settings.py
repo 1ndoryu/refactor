@@ -165,7 +165,7 @@ else:
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "<YOUR_SITE_URL>")
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "<YOUR_SITE_NAME>")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "gemini-2.5-pro-exp-03-25:free") # Mantenemos tu modelo
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-pro-exp-03-25:free") # Mantenemos tu modelo
 
 
 # --- Configuracion Esencial (sin cambios) ---
