@@ -158,7 +158,7 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-pro-exp-03-2
 
 
 # --- Configuracion Esencial (sin cambios) ---
-REPOSITORIOURL = "git@github.com:doctormebarak/wp-domain-redirect.git" # Cambia a tu repo real
+REPOSITORIOURL = "git@github.com:2upra/v4.git"
 
 # --- Configuracion de Rutas (sin cambios) ---
 RUTA_BASE_PROYECTO = os.path.dirname(
