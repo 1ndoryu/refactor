@@ -10,7 +10,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "") # Tu línea original
 
 # --- Constantes para Rotación de Clave API Google Gemini ---
 API_KEY_BASE_NAME = "GEMINI_API_KEY"
-NUM_API_KEYS = 1 # O el número que tengas configurado
+NUM_API_KEYS = 5 # O el número que tengas configurado
 _CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 API_KEY_STATE_FILE = os.path.join(_CONFIG_DIR, '.api_key_last_index.txt')
 
