@@ -165,7 +165,7 @@ else:
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "<YOUR_SITE_URL>")
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "<YOUR_SITE_NAME>")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-1.5-flash-latest") # Mantenemos tu modelo
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "gemini-2.5-pro-exp-03-25:free") # Mantenemos tu modelo
 
 
 # --- Configuracion Esencial (sin cambios) ---
@@ -181,7 +181,7 @@ RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 RAMATRABAJO = "refactor-test-19" # Manteniendo tu configuración
 
 # --- Configuracion de Modelos (sin cambios) ---
-MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-1.5-pro-latest") # Manteniendo tu configuración
+MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-exp-03-25") # Manteniendo tu configuración
 # OPENROUTER_MODEL ya está definido arriba
 
 N_HISTORIAL_CONTEXTO = 30 # Manteniendo tu configuración
