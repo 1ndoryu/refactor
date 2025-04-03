@@ -154,7 +154,7 @@ OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "<YOUR_SITE_NAME>")   # Reempla
 # OPENROUTER_MODEL ya no se define aquí, se toma de la variable de entorno
 # OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-1.5-pro-preview:free") # Modelo por defecto si no está en .env
 # -- CORRECCIÓN: Mantener la definición del modelo como estaba antes --
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-1.5-pro-preview:free") # Modelo por defecto si no está en .env
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-pro-exp-03-25:free") # Modelo por defecto si no está en .env
 
 
 # --- Configuracion Esencial (sin cambios) ---
@@ -170,7 +170,7 @@ RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 RAMATRABAJO = "develop" # Cambia a tu rama real
 
 # --- Configuracion de Modelos (Nombres/Identificadores) ---
-MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-1.5-pro-latest") # Modelo Gemini
+MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-exp-03-25") # Modelo Gemini
 # MODELO_OPENROUTER ahora está en OPENROUTER_MODEL arriba
 
 N_HISTORIAL_CONTEXTO = 30
