@@ -617,7 +617,7 @@ def ejecutarProcesoPrincipal(api_provider: str):
             )
             if not resultadoJson:
                 raise Exception(
-                    f"No se recibió RESULTADO válido de IA ({api_provider.upper()}) (Paso 2).")
+                    f"No se recibió RESULTADO válido de IA ({api_provider.upper()}) (Paso 2) Probablemente porque la api esta sobrecargada, vuelve a intentar más tarde.")
 
             # 6b. Parsear y validar el RESULTADO (Usa la función existente)
             logging.info(f"{logPrefix} Parseando RESULTADO de ejecución IA...")
