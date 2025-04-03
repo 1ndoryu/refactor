@@ -647,11 +647,21 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
                 log.debug(
                     f"{logPrefix} Respuesta recibida de OpenRouter (Choice 0).")
             else:
+                # ESTE ES EL BLOQUE DONDE OCURRE EL ERROR
                 log.error(
-                    f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.")
-                log.debug(
-                    f"{logPrefix} Respuesta completa OpenRouter: {completion}")
-                return None
+                    f"{logPrefix} No se recibieron 'choices' en la respuesta de OpenRouter.") # Tu error original
+
+                # Añadir logging detallado del objeto completion
+                try:
+                    # Intentar volcar a JSON para verlo estructurado
+                    completion_json_dump = completion.model_dump_json(indent=2)
+                    log.warning(f"{logPrefix} [DEBUG] Respuesta COMPLETA de OpenRouter (JSON Dump) cuando choices faltaba:\n{completion_json_dump}")
+                except Exception as dump_err:
+                    log.error(f"{logPrefix} [DEBUG] No se pudo hacer model_dump_json. Error: {dump_err}")
+                    # Como fallback, intentar mostrar la representación del objeto
+                    log.warning(f"{logPrefix} [DEBUG] Respuesta COMPLETA de OpenRouter (repr) cuando choices faltaba: {repr(completion)}")
+
+                return None # Mantener el retorno None para que falle como antes
 
         else:
             log.error(
