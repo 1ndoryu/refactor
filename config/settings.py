@@ -178,7 +178,7 @@ RUTACLON = os.path.join(RUTA_BASE_PROYECTO, 'clonProyecto')
 RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 
 # --- Configuracion de Git (sin cambios) ---
-RAMATRABAJO = "main" # Manteniendo tu configuración
+RAMATRABAJO = "refactor" # Manteniendo tu configuración
 
 # --- Configuracion de Modelos (sin cambios) ---
 MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-exp-03-25") # Manteniendo tu configuración
