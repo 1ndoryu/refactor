@@ -1,22 +1,27 @@
-#principal.py
 import logging
 import sys
 import os
 import json
 import argparse
 import subprocess
-import time  # Necesario para time.sleep
+import time
+import signal
 from datetime import datetime
 from config import settings
 from nucleo import manejadorGit
 from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 
-# --- Configuración Logging y Carga/Guardado de Historial (sin cambios) ---
+class TimeoutException(Exception):
+    """Excepción para indicar que el tiempo límite de ejecución fue alcanzado."""
+    pass
 
+def _timeout_handler(signum, frame):
+    """Manejador para la señal SIGALRM. Lanza TimeoutException."""
+    logging.error("¡Tiempo límite de ejecución alcanzado!")
+    raise TimeoutException("El script excedió el tiempo máximo de ejecución.")
 
 def configurarLogging():
-    # ... (tu código existente sin cambios) ...
     log_raiz = logging.getLogger()
     if log_raiz.handlers:
         return
@@ -43,9 +48,7 @@ def configurarLogging():
     logging.info(
         f"configurarLogging: Nivel de log establecido a {logging.getLevelName(log_raiz.level)}")
 
-
 def cargarHistorial():
-    # ... (tu código existente sin cambios) ...
     logPrefix = "cargarHistorial:"
     historial = []
     rutaArchivoHistorial = settings.RUTAHISTORIAL
@@ -55,7 +58,6 @@ def cargarHistorial():
         return historial
     try:
         with open(rutaArchivoHistorial, 'r', encoding='utf-8') as f:
-            # Leemos todas las líneas, cada línea es una entrada de historial potencialmente multilínea separada por '--- END ENTRY ---'
             buffer = ""
             for line in f:
                 if line.strip() == "--- END ENTRY ---":
@@ -64,7 +66,7 @@ def cargarHistorial():
                         buffer = ""
                 else:
                     buffer += line
-            if buffer:  # Añadir la última entrada si el archivo no termina con el separador
+            if buffer:
                 historial.append(buffer.strip())
         logging.info(
             f"{logPrefix} Historial cargado desde {rutaArchivoHistorial} ({len(historial)} entradas).")
@@ -74,36 +76,25 @@ def cargarHistorial():
         historial = []
     return historial
 
-
 def guardarHistorial(historial):
-    # ... (tu código existente sin cambios) ...
     logPrefix = "guardarHistorial:"
     rutaArchivoHistorial = settings.RUTAHISTORIAL
     try:
         os.makedirs(os.path.dirname(rutaArchivoHistorial), exist_ok=True)
-        entradas_filtradas_paso1 = 0 # Contador para saber cuántas se filtraron
+        entradas_filtradas_paso1 = 0
         with open(rutaArchivoHistorial, 'w', encoding='utf-8') as f:
             for entrada in historial:
-                # --- INICIO: MODIFICACIÓN TEMPORAL ---
-                # Comenta la siguiente línea 'if' y su contenido (hasta el 'else')
-                # para volver a guardar las entradas [ERROR_PASO1] normalmente.
                 if "[[ERROR_PASO1]]" in entrada:
                     entradas_filtradas_paso1 += 1
-                    # Si la entrada contiene el marcador de error de Paso 1, simplemente NO la escribimos.
-                    # Puedes descomentar la siguiente línea si quieres un log que indique que se saltó
-                    # log.debug(f"{logPrefix} Omitiendo entrada de historial [ERROR_PASO1]")
-                    pass # No hacer nada con esta entrada
+                    pass
                 else:
-                    # Si no es un error de Paso 1, la escribimos normalmente.
                     f.write(entrada.strip() + "\n")
-                    f.write("--- END ENTRY ---\n")  # Separador explícito
-                # --- FIN: MODIFICACIÓN TEMPORAL ---
+                    f.write("--- END ENTRY ---\n")
 
         num_entradas_originales = len(historial)
         num_entradas_guardadas = num_entradas_originales - entradas_filtradas_paso1
 
         if entradas_filtradas_paso1 > 0:
-            # Añade un warning para que sepas que se está filtrando activamente
             logging.warning(
                 f"{logPrefix} **TEMPORALMENTE** se filtraron y NO se guardaron {entradas_filtradas_paso1} entradas con '[[ERROR_PASO1]]'.")
 
@@ -115,10 +106,7 @@ def guardarHistorial(historial):
             f"{logPrefix} Error crítico guardando historial en {rutaArchivoHistorial}: {e}")
         return False
 
-
-# --- Parseadores (sin cambios) ---
 def parsearDecisionGemini(decisionJson):
-    # ... (tu código existente sin cambios) ...
     logPrefix = "parsearDecision:"
     accionesSoportadas = [
         "mover_funcion", "mover_clase", "modificar_codigo_en_archivo",
@@ -164,9 +152,7 @@ def parsearDecisionGemini(decisionJson):
 
     return decisionJson
 
-
 def parsearResultadoEjecucion(resultadoJson):
-    # ... (tu código existente sin cambios) ...
     logPrefix = "parsearResultadoEjecucion:"
 
     if not isinstance(resultadoJson, dict):
@@ -207,11 +193,7 @@ def parsearResultadoEjecucion(resultadoJson):
         f"{logPrefix} Resultado de ejecución parseado exitosamente. {len(archivosModificados)} archivos a modificar.")
     return archivosModificados
 
-# --- NUEVO: Formateador Historial (sin cambios) ---
-
-
 def formatearEntradaHistorial(outcome, decision=None, result_details=None, verification_details=None, error_message=None):
-    # ... (tu código existente sin cambios) ...
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = f"[{timestamp}] [{outcome}]\n"
 
@@ -245,11 +227,7 @@ def formatearEntradaHistorial(outcome, decision=None, result_details=None, verif
 
     return entry.strip()
 
-# --- NUEVO: Verificación (sin cambios) ---
-
-
 def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
-    # ... (tu código existente sin cambios) ...
     logPrefix = "verificarCambiosAplicados (Paso 3):"
     logging.info(f"{logPrefix} Iniciando verificación...")
 
@@ -337,8 +315,6 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
         logging.info(f"{logPrefix} {msg}")
         return True, msg
 
-
-# --- Función Principal (Modificada con Reintentos en Paso 2) ---
 def ejecutarProcesoPrincipal(api_provider: str):
     logPrefix = f"ejecutarProcesoPrincipal({api_provider.upper()}):"
     logging.info(
@@ -350,7 +326,6 @@ def ejecutarProcesoPrincipal(api_provider: str):
     estadoFinal = "[INICIO]"
 
     try:
-        # 1. Verificar configuración esencial
         configuracion_ok = False
         if api_provider == 'google':
             if settings.GEMINIAPIKEY and settings.REPOSITORIOURL:
@@ -373,10 +348,8 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 f"{logPrefix} Configuración esencial faltante (API Key o Repo URL). Abortando.")
             return False
 
-        # 2. Cargar historial
         historialRefactor = cargarHistorial()
 
-        # 3. Preparar repositorio local
         logging.info(f"{logPrefix} Preparando repositorio local...")
         if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO):
             logging.error(f"{logPrefix} Falló la preparación del repositorio.")
@@ -390,7 +363,6 @@ def ejecutarProcesoPrincipal(api_provider: str):
         logging.info(
             f"{logPrefix} Repositorio listo y en la rama '{settings.RAMATRABAJO}'.")
 
-        # 4. Generar estructura del proyecto
         estructura_proyecto_str = ""
         try:
             logging.info(
@@ -417,13 +389,10 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 f"{logPrefix} Excepción al generar estructura del proyecto: {e_struct}", exc_info=True)
             estructura_proyecto_str = "[Excepción al generar estructura]"
 
-        # ===============================================================
-        # PASO 1: ANÁLISIS Y DECISIÓN (USA EL PROVEEDOR ELEGIDO)
-        # ===============================================================
+        # PASO 1: ANÁLISIS Y DECISIÓN
         logging.info(f"{logPrefix} --- INICIO PASO 1: ANÁLISIS Y DECISIÓN ---")
         codigoProyectoCompleto = ""
         try:
-            # 4a. Analizar código COMPLETO
             logging.info(f"{logPrefix} Analizando código COMPLETO...")
             extensiones = getattr(settings, 'EXTENSIONESPERMITIDAS', None)
             ignorados = getattr(settings, 'DIRECTORIOS_IGNORADOS', None)
@@ -445,7 +414,6 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 logging.info(
                     f"{logPrefix} Código completo leído ({len(todosLosArchivos)} archivos, {tamanoKB_completo:.2f} KB).")
 
-            # 5a. Obtener DECISIÓN de la IA
             logging.info(
                 f"{logPrefix} Obteniendo DECISIÓN de IA ({api_provider.upper()})...")
             historialRecienteTexto = "\n---\n".join(
@@ -461,7 +429,6 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 raise Exception(
                     f"No se recibió DECISIÓN válida de IA ({api_provider.upper()}) (Paso 1).")
 
-            # 6a. Parsear y validar la DECISIÓN
             logging.info(f"{logPrefix} Parseando DECISIÓN de IA...")
             decisionParseada = parsearDecisionGemini(decisionJson)
             if not decisionParseada:
@@ -486,7 +453,7 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 ))
                 guardarHistorial(historialRefactor)
                 manejadorGit.descartarCambiosLocales(settings.RUTACLON)
-                return False  # Indica que no hubo commit
+                return False
 
             logging.info(
                 f"{logPrefix} --- FIN PASO 1: Decisión válida recibida: {decisionParseada.get('accion_propuesta')} ---")
@@ -504,14 +471,11 @@ def ejecutarProcesoPrincipal(api_provider: str):
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
-        # ===============================================================
-        # PASO 2: EJECUCIÓN (USA EL PROVEEDOR ELEGIDO CON REINTENTOS)
-        # ===============================================================
+        # PASO 2: EJECUCIÓN
         logging.info(f"{logPrefix} --- INICIO PASO 2: EJECUCIÓN ---")
         contextoReducido = ""
-        resultadoJson = None # Inicializar fuera del bucle de reintento
+        resultadoJson = None
         try:
-            # 4b. Leer SÓLO archivos relevantes
             archivosRelevantes = decisionParseada.get(
                 "archivos_relevantes", [])
             rutasAbsRelevantes = []
@@ -564,13 +528,11 @@ def ejecutarProcesoPrincipal(api_provider: str):
                     f"{logPrefix} Acción '{decisionParseada.get('accion_propuesta')}' no requiere contexto de archivo para Paso 2, o no se encontraron archivos relevantes existentes.")
                 contextoReducido = ""
 
-            # 5b. Obtener RESULTADO de ejecución de la IA (CON REINTENTOS)
             logging.info(f"{logPrefix} Obteniendo RESULTADO de ejecución de IA ({api_provider.upper()})...")
 
-            # --- INICIO: Lógica de Reintentos para Paso 2 ---
             MAX_RETRIES_PASO2 = 7
-            RETRY_DELAY_SECONDS_PASO2 = 5 # Retardo simple entre intentos
-            resultadoJson = None # Reiniciar aquí por si acaso
+            RETRY_DELAY_SECONDS_PASO2 = 5
+            resultadoJson = None
 
             for intento in range(MAX_RETRIES_PASO2):
                 try:
@@ -582,35 +544,26 @@ def ejecutarProcesoPrincipal(api_provider: str):
                     )
 
                     if resultadoJson is not None:
-                        # Éxito, salir del bucle de reintentos
                         logging.info(f"{logPrefix} Resultado obtenido con éxito en intento {intento + 1}.")
                         break
                     else:
-                        # La función ejecutarAccionConGemini ya debería haber logueado el error interno
                         logging.warning(f"{logPrefix} Intento {intento + 1} fallido (API devolvió None o respuesta inválida).")
 
                 except Exception as e_api_call:
-                    # Capturar excepciones que pudieran ocurrir DENTRO de la llamada API
                     logging.error(f"{logPrefix} Excepción durante el intento {intento + 1} de llamada API (Paso 2): {e_api_call}", exc_info=True)
-                    resultadoJson = None # Asegurarse que es None para reintentar o fallar al final
+                    resultadoJson = None
 
-                # Si falló y no es el último intento, esperar antes de reintentar
                 if resultadoJson is None and intento < MAX_RETRIES_PASO2 - 1:
                     logging.info(f"{logPrefix} Esperando {RETRY_DELAY_SECONDS_PASO2} segundos antes del reintento...")
                     time.sleep(RETRY_DELAY_SECONDS_PASO2)
                 elif resultadoJson is None and intento == MAX_RETRIES_PASO2 - 1:
-                    # Último intento fallido
                     logging.error(f"{logPrefix} Fallaron todos los {MAX_RETRIES_PASO2} intentos para obtener el resultado de ejecución (Paso 2).")
-                    # No hacemos break, el bucle terminará y la siguiente comprobación fallará
 
-            # Comprobar si, después de todos los reintentos, seguimos sin resultado
+
             if resultadoJson is None:
-                # Lanzar una excepción para que sea capturada por el bloque 'except' principal del Paso 2
                 raise Exception(f"Fallaron todos los {MAX_RETRIES_PASO2} intentos para obtener el resultado de ejecución de IA (Paso 2). La API puede estar inestable o la solicitud es inválida.")
-            # --- FIN: Lógica de Reintentos ---
 
 
-            # 6b. Parsear y validar el RESULTADO (Solo si se obtuvo resultadoJson)
             logging.info(f"{logPrefix} Parseando RESULTADO de ejecución IA...")
             if isinstance(resultadoJson, dict):
                 resultadoJson["accion_original_debug"] = decisionParseada.get(
@@ -628,7 +581,6 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 f"{logPrefix} --- FIN PASO 2: Resultado válido recibido ({len(resultadoEjecucion)} archivos a modificar). ---")
             estadoFinal = "[PASO2_OK]"
 
-            # 7. Aplicar los cambios
             logging.info(f"{logPrefix} Aplicando cambios generados...")
             exitoAplicar, mensajeErrorAplicar = aplicadorCambios.aplicarCambiosSobrescritura(
                 resultadoEjecucion,
@@ -645,14 +597,12 @@ def ejecutarProcesoPrincipal(api_provider: str):
             estadoFinal = "[APPLY_OK]"
 
         except Exception as e_paso2_apply:
-            # Esta excepción capturará tanto los fallos tras reintentos como otros errores en Paso 2/Apply
             logging.error(
                 f"{logPrefix} Error en Paso 2 o Aplicación: {e_paso2_apply}", exc_info=True)
             estadoFinal = "[ERROR_PASO2_APPLY]"
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
-                # resultadoJson puede ser None si fallaron todos los reintentos
                 result_details=resultadoEjecucion if resultadoEjecucion is not None else resultadoJson,
                 error_message=str(e_paso2_apply)
             ))
@@ -660,11 +610,9 @@ def ejecutarProcesoPrincipal(api_provider: str):
             logging.info(
                 f"{logPrefix} Intentando descartar cambios locales tras error...")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
-            return False  # Indica que no hubo commit
+            return False
 
-        # ===============================================================
-        # PASO 3: VERIFICACIÓN (sin cambios funcionales)
-        # ===============================================================
+        # PASO 3: VERIFICACIÓN
         VERIFICACION_ACTIVADA = False
         logging.info(
             f"{logPrefix} --- INICIO PASO 3: VERIFICACIÓN ({'ACTIVADA' if VERIFICACION_ACTIVADA else 'DESACTIVADA'}) ---")
@@ -710,9 +658,7 @@ def ejecutarProcesoPrincipal(api_provider: str):
         if VERIFICACION_ACTIVADA and exitoVerificacion:
             estadoFinal = estadoFinalTemporal
 
-        # ===============================================================
-        # COMMIT Y FINALIZACIÓN (sin cambios)
-        # ===============================================================
+        # COMMIT Y FINALIZACIÓN
         try:
             logging.info(f"{logPrefix} Realizando commit...")
             mensajeCommit = decisionParseada.get(
@@ -774,7 +720,6 @@ def ejecutarProcesoPrincipal(api_provider: str):
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
-    # --- Error Global (sin cambios) ---
     except Exception as e_global:
         logging.critical(
             f"{logPrefix} Error inesperado y no capturado: {e_global}", exc_info=True)
@@ -822,7 +767,6 @@ if __name__ == "__main__":
     logging.info(
         f"Iniciando script principal. Proveedor API: {api_provider_seleccionado.upper()}. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
 
-    # Validación de configuración específica del proveedor
     if api_provider_seleccionado == 'google' and not settings.GEMINIAPIKEY:
         logging.critical(
             "Error: Se seleccionó Google Gemini pero GEMINI_API_KEY no está configurada en .env o settings.py. Abortando.")
@@ -831,6 +775,17 @@ if __name__ == "__main__":
         logging.critical(
             "Error: Se seleccionó OpenRouter (--openrouter) pero OPENROUTER_API_KEY no está configurada en .env o settings.py. Abortando.")
         sys.exit(2)
+
+    TIMEOUT_SECONDS = 5 * 60
+
+    if hasattr(signal, 'SIGALRM'):
+        logging.info(f"Configurando timeout de ejecución a {TIMEOUT_SECONDS} segundos usando signal.alarm.")
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(TIMEOUT_SECONDS)
+    else:
+        logging.warning("signal.alarm no está disponible en este sistema operativo (ej. Windows). El timeout de ejecución general no estará activo.")
+
+    exit_code = 1
 
     try:
         cicloTuvoExitoConCommit = ejecutarProcesoPrincipal(
@@ -845,19 +800,30 @@ if __name__ == "__main__":
                 if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
                     logging.info(
                         f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
-                    sys.exit(0)
+                    exit_code = 0
                 else:
                     logging.error(
                         f"Modo Test: Falló el push a la rama '{ramaPush}'. El commit local se mantiene.")
-                    sys.exit(1)
+                    exit_code = 1
             else:
                 logging.info(
                     "Modo Test desactivado. Commit local realizado, no se hizo push.")
-                sys.exit(0)
+                exit_code = 0
         else:
             logging.warning(
                 "Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error, fallo de verificación, API inestable o commit sin cambios). Verifique logs e historial.")
-            sys.exit(1)
+            exit_code = 1
+
+    except TimeoutException as e:
+        logging.critical(f"TIMEOUT: El script fue terminado porque excedió el límite de {TIMEOUT_SECONDS} segundos.")
+        try:
+            historial = cargarHistorial()
+            historial.append(formatearEntradaHistorial(outcome="[TIMEOUT]", error_message=str(e)))
+            guardarHistorial(historial)
+            logging.info("Intentando guardar historial tras timeout (puede fallar).")
+        except Exception as e_hist_timeout:
+            logging.error(f"Fallo al guardar historial durante manejo de timeout: {e_hist_timeout}")
+        exit_code = 124
 
     except Exception as e:
         logging.critical(
@@ -870,4 +836,12 @@ if __name__ == "__main__":
         except Exception as e_hist_fatal:
             logging.error(
                 f"No se pudo guardar historial del error fatal: {e_hist_fatal}")
-        sys.exit(2)
+        exit_code = 2
+
+    finally:
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
+            logging.debug("Alarma de timeout cancelada.")
+
+    logging.info(f"Script finalizado con código de salida: {exit_code}")
+    sys.exit(exit_code)
