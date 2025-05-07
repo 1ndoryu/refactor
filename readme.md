@@ -1,3 +1,4 @@
+
 # 1ndoryu-Refactor: Agente Autónomo de Refactorización de Código con IA
 
 Este proyecto es un agente autónomo diseñado para refactorizar código de forma iterativa utilizando modelos de lenguaje de IA (Google Gemini o OpenRouter). El agente sigue un proceso de tres pasos principales para analizar el código, proponer cambios, ejecutar dichos cambios y, opcionalmente, verificarlos antes de realizar un commit en un repositorio Git.
@@ -67,23 +68,22 @@ Este proyecto es un agente autónomo diseñado para refactorizar código de form
 
 ## Estructura del Directorio
 
-```text
+```
 └── 1ndoryu-refactor/
-    ├── principal.py # Script principal que orquesta el proceso.
-    ├── requirements.txt # Dependencias del proyecto.
-    ├── status.md # Estado y problemas detectados (manual).
-    ├── .env.example # Ejemplo para el archivo de configuración .env
+    ├── principal.py           # Script principal que orquesta el proceso.
+    ├── requirements.txt       # Dependencias del proyecto.
+    ├── status.md              # Estado y problemas detectados (manual).
+    ├── .env.example           # Ejemplo para el archivo de configuración .env
     ├── config/
-    │   ├── init.py
-    │   └── settings.py # Carga configuración y gestiona API keys.
+    │   ├── __init__.py
+    │   └── settings.py        # Carga configuración y gestiona API keys.
     └── nucleo/
-        ├── init.py
-        ├── analizadorCodigo.py # Interactúa con la IA para análisis y generación de código.
-        ├── aplicadorCambios.py # Aplica los cambios de código a los archivos.
-        ├── manejadorGit.py # Gestiona las operaciones de Git.
+        ├── __init__.py
+        ├── analizadorCodigo.py    # Interactúa con la IA para análisis y generación de código.
+        ├── aplicadorCambios.py  # Aplica los cambios de código a los archivos.
+        ├── manejadorGit.py      # Gestiona las operaciones de Git.
         └── test_aplicarCambios.py # Pruebas unitarias para aplicadorCambios.py.
 ```
-
 *(Nota: `refactor.log` y `historial_refactor.log` se crearán en el directorio raíz del proyecto al ejecutar el script).*
 
 ## Requisitos Previos
@@ -105,12 +105,14 @@ Este proyecto es un agente autónomo diseñado para refactorizar código de form
     python -m venv venv
     source venv/bin/activate  # En Windows: venv\Scripts\activate
     ```
+
 3.  **Instalar dependencias:**
     ```bash
     pip install -r requirements.txt
     ```
 
 ## Configuración
+
 El proyecto se configura principalmente a través de variables de entorno y el archivo `config/settings.py`.
 
 1.  **Crear archivo `.env`:**
@@ -169,73 +171,58 @@ Ejecuta el script principal desde la raíz del proyecto:
 python principal.py [opciones]
 ```
 
-Opciones:
+**Opciones:**
 
-`--modo-test`: Si se activa y el ciclo de refactorización resulta en un commit efectivo, el script intentará hacer `git push` a la rama de trabajo.
+*   `--modo-test`: Si se activa y el ciclo de refactorización resulta en un commit efectivo, el script intentará hacer `git push` a la rama de trabajo.
+*   `--openrouter`: Utiliza OpenRouter como proveedor de IA en lugar de Google Gemini (que es el predeterminado).
 
-`--openrouter`: Utiliza OpenRouter como proveedor de IA en lugar de Google Gemini (que es el predeterminado).
+**Ejemplos:**
 
-Ejemplos:
+*   Ejecutar un ciclo usando Google Gemini (predeterminado):
+    ```bash
+    python principal.py
+    ```
+*   Ejecutar un ciclo usando OpenRouter y activar el push en caso de éxito:
+    ```bash
+    python principal.py --openrouter --modo-test
+    ```
 
-Ejecutar un ciclo usando Google Gemini (predeterminado):
+El script tiene un **timeout global** (actualmente 5 minutos, configurable en `principal.py`) para prevenir ejecuciones excesivamente largas.
 
-```bash
-python principal.py
-```
+## Logging
 
-Ejecutar un ciclo usando OpenRouter y activar el push en caso de éxito:
+*   **Consola:** Muestra logs informativos y de error durante la ejecución.
+*   **Archivo `refactor.log`:** Se crea en la raíz del proyecto y contiene un registro detallado de todas las operaciones, incluyendo mensajes de debug.
+*   **Archivo `historial_refactor.log`:** Se crea en la raíz del proyecto. Guarda un resumen de cada ciclo de refactorización, incluyendo la decisión de la IA, el resultado y cualquier error. Este historial se usa como contexto para futuras decisiones de la IA.
 
-```bash
-python principal.py --openrouter --modo-test
-```
+## Pruebas
 
-El script tiene un timeout global (actualmente 5 minutos, configurable en principal.py) para prevenir ejecuciones excesivamente largas.
-
-Logging
-
-Consola: Muestra logs informativos y de error durante la ejecución.
-
-Archivo refactor.log: Se crea en la raíz del proyecto y contiene un registro detallado de todas las operaciones, incluyendo mensajes de debug.
-
-Archivo historial_refactor.log: Se crea en la raíz del proyecto. Guarda un resumen de cada ciclo de refactorización, incluyendo la decisión de la IA, el resultado y cualquier error. Este historial se usa como contexto para futuras decisiones de la IA.
-
-Pruebas
-
-El proyecto incluye pruebas unitarias para el módulo aplicadorCambios.py, que se enfoca en la correcta manipulación de strings (escapes, Mojibake) al escribir archivos. Para ejecutar las pruebas:
+El proyecto incluye pruebas unitarias para el módulo `aplicadorCambios.py`, que se enfoca en la correcta manipulación de strings (escapes, Mojibake) al escribir archivos. Para ejecutar las pruebas:
 
 ```bash
 python -m unittest nucleo/test_aplicarCambios.py
 ```
-
-o si estás en el directorio nucleo:
-
+o si estás en el directorio `nucleo`:
 ```bash
 python test_aplicarCambios.py
 ```
 
-## Problemas Conocidos y Limitaciones (basado en status.md)
+## Problemas Conocidos y Limitaciones (basado en `status.md`)
 
-Modelo Gemini Pro (más antiguo, si se usara):
-
-Puede tener problemas con acentos, punto y coma, etc.
-
-Los saltos de línea en logs o código pueden interpretarse/generarse de forma literal.
-
-Modelo Gemini Flash (o modelos más nuevos):
-
-A veces puede borrar contenido válido por alucinaciones u olvidos. Se intenta mitigar con prompts más detallados.
-
-Calidad de la Refactorización: La calidad de los cambios depende enteramente de la capacidad del modelo de IA y la claridad del prompt.
-
-Seguridad: Aunque se intenta priorizar, la IA podría introducir vulnerabilidades. La revisión humana es crucial.
-
-Verificación Desactivada: El Paso 3 de verificación está actualmente desactivado en principal.py. Si se activa, podría ayudar a detectar inconsistencias, pero también podría ser demasiado restrictivo.
-
-Manejo de Archivos Grandes: El contexto enviado a la IA puede ser muy grande si el proyecto tiene muchos archivos o archivos muy extensos, lo que podría llevar a timeouts o respuestas truncadas de la API.
+*   **Modelo Gemini Pro (más antiguo, si se usara):**
+    *   Puede tener problemas con acentos, punto y coma, etc.
+    *   Los saltos de línea en logs o código pueden interpretarse/generarse de forma literal.
+*   **Modelo Gemini Flash (o modelos más nuevos):**
+    *   A veces puede borrar contenido válido por alucinaciones u olvidos. Se intenta mitigar con prompts más detallados.
+*   **Calidad de la Refactorización:** La calidad de los cambios depende enteramente de la capacidad del modelo de IA y la claridad del prompt.
+*   **Seguridad:** Aunque se intenta priorizar, la IA podría introducir vulnerabilidades. La revisión humana es crucial.
+*   **Verificación Desactivada:** El Paso 3 de verificación está actualmente desactivado en `principal.py`. Si se activa, podría ayudar a detectar inconsistencias, pero también podría ser demasiado restrictivo.
+*   **Manejo de Archivos Grandes:** El contexto enviado a la IA puede ser muy grande si el proyecto tiene muchos archivos o archivos muy extensos, lo que podría llevar a timeouts o respuestas truncadas de la API.
 
 ## Contribuciones
 
 Las contribuciones son bienvenidas. Por favor, abre un issue para discutir cambios importantes o reportar bugs. Si deseas contribuir con código, considera hacer un fork y enviar un Pull Request.
 
 ## Licencia
-Este proyecto se distribuye bajo la Licencia MIT. Ver el archivo LICENSE para más detalles (actualmente no incluido, pero es una sugerencia estándar).
+
+Este proyecto se distribuye bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles (actualmente no incluido, pero es una sugerencia estándar).
