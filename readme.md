@@ -96,7 +96,7 @@ Este proyecto es un agente autónomo diseñado para refactorizar código de form
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone https://github.com/tu-usuario/1ndoryu-refactor.git
+    git clone https://github.com/1ndoryu/1ndoryu-refactor.git
     cd 1ndoryu-refactor
     ```
 
