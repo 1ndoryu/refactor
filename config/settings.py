@@ -153,7 +153,7 @@ RUTACLON = os.getenv("RUTACLON", os.path.join(RUTA_BASE_PROYECTO, 'clonProyecto'
 RUTAHISTORIAL = os.getenv("RUTAHISTORIAL", os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor_adaptativo.log')) # Nombre de log adaptado
 
 # --- Configuracion de Git ---
-RAMATRABAJO = os.getenv("RAMATRABAJO", "refactor-main")
+RAMATRABAJO = os.getenv("RAMATRABAJO", "Orion")
 
 # --- Configuracion de Modelos IA ---
 MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-05-20")
