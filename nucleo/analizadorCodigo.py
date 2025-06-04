@@ -534,7 +534,7 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
 
     promptPartes = [
         f"Eres un asistente de IA experto en análisis de código. Tu tarea es evaluar el archivo '{ruta_archivo_seleccionado_rel}' y decidir si necesita refactorización.",
-        "Considera las siguientes REGLAS GENERALES DE REFACTORIZACIÓN (si se proporcionan) y buenas prácticas de desarrollo (claridad, mantenibilidad, DRY, SRP, seguridad básica, optimización leve).",
+        "Considera las siguientes REGLAS GENERALES DE REFACTORIZACIÓN (si se proporcionan) y buenas prácticas de desarrollo (claridad, refactorizacion, simplificacion, mantenibilidad, DRY, SRP, seguridad básica, optimización leve).",
         "Reglas Específicas del Proyecto (si hay):",
         reglas_refactor if reglas_refactor else "No se proporcionaron reglas específicas adicionales para este proyecto. Usa tu juicio experto general.",
         "\n--- ESTRUCTURA DEL PROYECTO (para contexto de ubicación y posibles movimientos) ---",
