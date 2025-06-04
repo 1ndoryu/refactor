@@ -142,30 +142,36 @@ def leerArchivos(listaArchivos, rutaBase, api_provider='google'):  # Añadido ap
         tamanoKB = bytesTotales / 1024
         log_msg_base = f"{logPrefix} Leídos {archivosLeidos} archivos. Tamaño total: {tamanoKB:.2f} KB."
 
-        # Conteo de tokens (principalmente para Gemini, OpenRouter es aproximado)
         if contenidoConcatenado:
-            if api_provider == 'google':
-                try:
-                    modelo_gemini_para_conteo = getattr(settings, 'MODELO_GOOGLE_GEMINI', None)
-                    if modelo_gemini_para_conteo:
-                        # Asumimos que genai ya está configurado por principal.py
-                        model = genai.GenerativeModel(modelo_gemini_para_conteo)
-                        respuesta_conteo = model.count_tokens(contenidoConcatenado)
-                        tokensTotales = respuesta_conteo.total_tokens
-                        log.info(f"{log_msg_base} Tokens estimados (Gemini): {tokensTotales}.")
-                    else:
-                        log.warning(f"{logPrefix} MODELO_GOOGLE_GEMINI no definido. Tokens no contados para Google.")
-                        tokensTotales = len(contenidoConcatenado) // 4 # Aproximación muy general
-                        log.info(f"{log_msg_base} Tokens aproximados (fallback): {tokensTotales}.")
-                except Exception as e_count_tokens:
-                    log.error(f"{logPrefix} Error contando tokens con Gemini: {e_count_tokens}", exc_info=True)
-                    tokensTotales = len(contenidoConcatenado) // 4 
-                    log.info(f"{log_msg_base} Tokens aproximados (fallback por error): {tokensTotales}.")
-            else: # OpenRouter u otros
-                tokensTotales = len(contenidoConcatenado) // 4 # Aproximación general
-                log.info(f"{log_msg_base} Tokens aproximados (OpenRouter/otro): {tokensTotales}.")
-        else: # Contenido vacío
-             log.info(log_msg_base + " Contenido vacío, 0 tokens.")
+            tokensTotales = contarTokensTexto(contenidoConcatenado, api_provider)
+            log.info(f"{log_msg_base} Tokens estimados: {tokensTotales}.")
+        else:
+            log.info(log_msg_base + " Contenido vacío, 0 tokens.")
+
+def contarTokensTexto(texto, api_provider='google'):
+    logPrefix = "contarTokensTexto:"
+    tokens = 0
+    if not texto:
+        return 0
+
+    if api_provider == 'google':
+        try:
+            modelo_gemini_para_conteo = getattr(settings, 'MODELO_GOOGLE_GEMINI', None)
+            if modelo_gemini_para_conteo:
+                if not geminiConfigurado:
+                    configurarGemini()
+                model = genai.GenerativeModel(modelo_gemini_para_conteo)
+                respuesta_conteo = model.count_tokens(texto)
+                tokens = respuesta_conteo.total_tokens
+            else:
+                log.warning(f"{logPrefix} MODELO_GOOGLE_GEMINI no definido. Tokens no contados para Google.")
+                tokens = len(texto) // 4  # Aproximación muy general
+        except Exception as e_count_tokens:
+            log.error(f"{logPrefix} Error contando tokens con Gemini: {e_count_tokens}", exc_info=True)
+            tokens = len(texto) // 4
+    else:  # OpenRouter u otros
+        tokens = len(texto) // 4  # Aproximación general
+    return tokens
 
 
         return {'contenido': contenidoConcatenado, 'bytes': bytesTotales, 'tokens': tokensTotales, 'archivos_leidos': archivosLeidos}
