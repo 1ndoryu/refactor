@@ -1027,20 +1027,32 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
                     return True # Fase OK, script sale, se reiniciará
                 
                 elif res_paso2 == "mision_completada":
-                    logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada. Procediendo a merge y limpieza.")
-                    if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
-                        logging.error(f"{logPrefix} No se pudo cambiar a '{settings.RAMATRABAJO}' para merge. Misión no mergeada."); return False
-                    if manejadorGit.hacerMergeRama(settings.RUTACLON, nombre_clave_mision_activa, settings.RAMATRABAJO):
-                        logging.info(f"{logPrefix} Merge de '{nombre_clave_mision_activa}' a '{settings.RAMATRABAJO}' exitoso.")
-                        if modo_test:
-                             if manejadorGit.hacerPush(settings.RUTACLON, settings.RAMATRABAJO):
-                                logging.info(f"{logPrefix} Push de '{settings.RAMATRABAJO}' exitoso (modo test).")
-                                # Solo eliminar rama remota si el push de la rama de trabajo fue exitoso
-                                # manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=False, remota=True)
-                        manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True)
-                    else: logging.error(f"{logPrefix} Falló merge de '{nombre_clave_mision_activa}' a '{settings.RAMATRABAJO}'. Rama de misión persiste.")
+                    logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada. Todas las tareas procesadas.")
+                    
+                    # Si modo_test está activo, hacer push de la rama de la misión a origin.
+                    # Esto asegura que los últimos cambios de la misión (incluyendo el misionOrion.md final) se suban.
+                    if modo_test:
+                        logging.info(f"{logPrefix} Modo test activo. Haciendo push de la rama de misión '{nombre_clave_mision_activa}' completada.")
+                        manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_mision_activa)
+                    
+                    # REGLA CRÍTICA: NO se realiza merge a RAMATRABAJO ni se elimina la rama de misión automáticamente.
+                    logging.info(f"{logPrefix} La rama de misión '{nombre_clave_mision_activa}' NO será mergeada ni eliminada automáticamente según las reglas actuales.")
+                    
+                    # Limpiar el estado de misión activa para permitir la creación de una nueva misión en la siguiente ejecución.
                     limpiar_estado_mision_activa()
-                    return True # Fase OK, script sale
+                    
+                    # Cambiar de vuelta a la rama de trabajo principal (settings.RAMATRABAJO)
+                    # Esto prepara el terreno para que la próxima ejecución del agente pueda crear una nueva misión desde una base limpia.
+                    logging.info(f"{logPrefix} Cambiando a la rama de trabajo principal '{settings.RAMATRABAJO}'.")
+                    if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
+                        logging.error(f"{logPrefix} CRÍTICO: No se pudo cambiar a '{settings.RAMATRABAJO}' después de completar la misión '{nombre_clave_mision_activa}'. El estado del repositorio puede ser inesperado para la próxima ejecución del agente.")
+                        # Considerar el impacto: La misión actual se completó en su rama y se hizo push (si modo_test).
+                        # El problema es para la SIGUIENTE fase. Se devuelve True porque la fase actual de "ejecutar misión" fue "exitosa" en sus términos.
+                    else:
+                        logging.info(f"{logPrefix} Cambiado a '{settings.RAMATRABAJO}'. El agente está listo para una nueva fase (probablemente crear una nueva misión).")
+
+                    return True # Fase OK: la misión se completó en su rama, el script se detendrá.
+                                # La próxima ejecución, al no encontrar misión activa, creará una nueva.
                 
                 elif res_paso2 == "tarea_fallida":
                     logging.error(f"{logPrefix} Tarea falló en misión '{nombre_clave_mision_activa}'. Script se detendrá.")
@@ -1054,17 +1066,18 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
                     return False # Fase falló
 
             elif res_paso0 == "mision_existente_finalizada":
-                 logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' en rama ya estaba finalizada (sin tareas pendientes). Limpiando estado y procediendo a crear nueva.")
+                 logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' en rama ya estaba finalizada (sin tareas pendientes o estado completado/fallido). Limpiando estado y procediendo a crear nueva.")
+                 # Aquí tampoco se hace merge ni se elimina la rama, solo se limpia el estado activo.
+                 # El usuario es responsable de gestionar las ramas de misión completadas.
                  manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO) # Asegurar volver
-                 # No se hace merge aquí porque se asume que ya fue mergeada o no era necesaria
-                 manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True)
                  limpiar_estado_mision_activa()
                  # Flujo continúa para crear nueva misión
             
             else: # no_hay_mision_local en la rama activa, o ignorar_mision_actual...
                 logging.warning(f"{logPrefix} {MISION_ORION_MD} no encontrado o inválido en rama activa '{nombre_clave_mision_activa}' (Resultado paso0: {res_paso0}). Limpiando estado y procediendo a crear nueva.")
                 manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
-                manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True) # Limpiar rama si el MD no está
+                # Considerar si eliminar la rama local aquí si el MD no está. Por ahora, se deja para que el usuario la gestione.
+                # manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True)
                 limpiar_estado_mision_activa()
                 # Flujo continúa para crear nueva misión
 
@@ -1130,19 +1143,3 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
     else: # Error inesperado de paso1.1
         logging.error(f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Saliendo.")
         return False # Fase falló
-
-
-if __name__ == "__main__":
-    configurarLogging()
-    parser = argparse.ArgumentParser(
-        description="Agente Adaptativo de Refactorización de Código con IA.",
-        epilog="Ejecuta una fase del ciclo adaptativo (crear misión o ejecutar tarea) y luego se detiene."
-    )
-    parser.add_argument("--modo-test", action="store_true", help="Activa modo prueba (hace push a Git).")
-    parser.add_argument("--openrouter", action="store_true", help="Utilizar OpenRouter como proveedor de IA.")
-    args = parser.parse_args()
-    
-    codigo_salida = orchestrarEjecucionScript(args)
-    
-    logging.info(f"Script principal (adaptativo) finalizado con código: {codigo_salida}")
-    sys.exit(codigo_salida)
