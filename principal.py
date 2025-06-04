@@ -278,53 +278,93 @@ def _parse_tarea_individual(tarea_buffer: dict):
     in_descripcion = False
 
     match_titulo_linea = lineas_tarea[0] if lineas_tarea else ""
-    match_titulo = re.match(r"###\s*Tarea\s*([\w-]+):\s*(.+)", match_titulo_linea, re.IGNORECASE) # ID puede tener guiones
-    if match_titulo:
-        tarea_dict["id"] = match_titulo.group(1).strip()
-        tarea_dict["titulo"] = match_titulo.group(2).strip()
+    # Regex para extraer ID y Título de la línea de encabezado de la tarea
+    # Ejemplo: ### Tarea MI-ID-123: Implementar nueva funcionalidad
+    match_titulo_encabezado = re.match(r"###\s*Tarea\s*([\w.-]+):\s*(.+)", match_titulo_linea, re.IGNORECASE) # ID puede tener guiones y puntos
+    if match_titulo_encabezado:
+        tarea_dict["id_titulo"] = match_titulo_encabezado.group(1).strip() # Guardar temporalmente el ID del título
+        tarea_dict["titulo"] = match_titulo_encabezado.group(2).strip()
     else:
-        logging.warning(f"{logPrefix} No se pudo parsear ID/Título de la tarea: '{match_titulo_linea}'")
+        logging.warning(f"{logPrefix} No se pudo parsear ID/Título del encabezado de la tarea: '{match_titulo_linea}'")
 
-    for linea_original_tarea in lineas_tarea[1:]:
+    id_del_campo_encontrado = None
+
+    for linea_original_tarea in lineas_tarea[1:]: # Empezar desde la segunda línea para los campos
         linea_strip = linea_original_tarea.strip()
         
-        match_id_field = re.match(r"-\s*\*\*ID:\*\*\s*([\w-]+)", linea_original_tarea, re.IGNORECASE)
-        if match_id_field: 
-            # Priorizar ID de campo si existe y difiere del de título (aunque no debería)
-            parsed_id_field = match_id_field.group(1).strip()
-            if not tarea_dict["id"]: tarea_dict["id"] = parsed_id_field
-            elif tarea_dict["id"] != parsed_id_field:
-                 logging.warning(f"{logPrefix} ID de tarea en título ('{tarea_dict['id']}') difiere de ID en campo ('{parsed_id_field}'). Usando ID de campo.")
-                 tarea_dict["id"] = parsed_id_field
-            in_descripcion = False; continue
+        # Regex para extraer el ID de un campo específico "- **ID:** MI-ID-CAMPO"
+        match_id_campo_explicito = re.match(r"-\s*\*\*ID:\*\*\s*([\w.-]+)", linea_original_tarea, re.IGNORECASE)
+        if match_id_campo_explicito: 
+            id_del_campo_encontrado = match_id_campo_explicito.group(1).strip()
+            in_descripcion = False # Salir del modo descripción si se encuentra otro campo
+            continue # Procesar el resto de los campos
 
         match_estado = re.match(r"-\s*\*\*Estado:\*\*\s*(PENDIENTE|COMPLETADA|SALTADA|FALLIDA_TEMPORALMENTE)", linea_original_tarea, re.IGNORECASE)
-        if match_estado: tarea_dict["estado"] = match_estado.group(1).upper().strip(); in_descripcion = False; continue
+        if match_estado: 
+            tarea_dict["estado"] = match_estado.group(1).upper().strip()
+            in_descripcion = False
+            continue
         
         match_intentos = re.match(r"-\s*\*\*Intentos:\*\*\s*(\d+)", linea_original_tarea, re.IGNORECASE)
-        if match_intentos: tarea_dict["intentos"] = int(match_intentos.group(1).strip()); in_descripcion = False; continue
+        if match_intentos: 
+            tarea_dict["intentos"] = int(match_intentos.group(1).strip())
+            in_descripcion = False
+            continue
 
         match_aie = re.match(r"-\s*\*\*Archivos Implicados .*:\*\*\s*(.+)", linea_original_tarea, re.IGNORECASE)
         if match_aie:
             archivos_str = match_aie.group(1).strip()
             if archivos_str and archivos_str.lower() not in ["ninguno", "opcional:", "ninguno."]:
                 tarea_dict["archivos_implicados_especificos"] = [a.strip() for a in archivos_str.split(',') if a.strip()]
-            in_descripcion = False; continue
+            in_descripcion = False
+            continue
             
         match_desc_start = re.match(r"-\s*\*\*Descripción:\*\*\s*(.*)", linea_original_tarea, re.IGNORECASE)
         if match_desc_start:
             in_descripcion = True
             desc_first_line = match_desc_start.group(1).strip()
-            if desc_first_line: descripcion_parts.append(desc_first_line)
+            if desc_first_line: 
+                descripcion_parts.append(desc_first_line)
             continue
 
-        if in_descripcion and not re.match(r"-\s*\*\*\w+:\*\*", linea_original_tarea):
-             descripcion_parts.append(linea_original_tarea.strip())
+        if in_descripcion and not re.match(r"-\s*\*\*\w+:\*\*", linea_original_tarea): # Si estamos en descripción y no es otro campo
+             descripcion_parts.append(linea_original_tarea.strip()) # Mantener indentación original o .strip()? Por ahora .strip()
+
+    # --- Lógica de asignación y validación de ID ---
+    id_del_titulo = tarea_dict.pop("id_titulo", None) # Recuperar y quitar el id_titulo temporal
+
+    if id_del_titulo and id_del_campo_encontrado:
+        # Ambos IDs existen, deben coincidir
+        if id_del_titulo == id_del_campo_encontrado:
+            tarea_dict["id"] = id_del_titulo # o id_del_campo_encontrado, son iguales
+            logging.debug(f"{logPrefix} ID del título y del campo coinciden: '{tarea_dict['id']}'.")
+        else:
+            # ¡DISCREPANCIA! -> Error de formato, más estricto.
+            logging.error(f"{logPrefix} ¡DISCREPANCIA FATAL DE ID! ID en encabezado de tarea ('{id_del_titulo}') "
+                          f"difiere de ID en campo '- **ID:**' ('{id_del_campo_encontrado}'). "
+                          f"Formato de misión inválido para la tarea en líneas {tarea_dict['line_start_index']}-{tarea_dict['line_end_index']}. Tarea ignorada.")
+            return None # No se parsea la tarea
+    elif id_del_titulo:
+        # Solo existe el ID del título
+        tarea_dict["id"] = id_del_titulo
+        logging.debug(f"{logPrefix} Usando ID del encabezado de tarea: '{id_del_titulo}'.")
+    elif id_del_campo_encontrado:
+        # Solo existe el ID del campo (el encabezado no tenía formato ID o no había encabezado de tarea)
+        tarea_dict["id"] = id_del_campo_encontrado
+        logging.debug(f"{logPrefix} Usando ID del campo '- **ID:**': '{id_del_campo_encontrado}'.")
+    else:
+        # No se encontró ID ni en título ni en campo
+        logging.error(f"{logPrefix} Tarea parseada SIN ID. No se encontró ID en el encabezado (### Tarea ID: Título) ni en un campo '- **ID:** ID'. Líneas: {tarea_dict['raw_lines']}")
+        return None
 
     tarea_dict["descripcion"] = "\n".join(descripcion_parts).strip()
+    
+    # Verificación final: ¿Tenemos un ID? (Ya debería estar cubierto por la lógica anterior)
     if not tarea_dict["id"]:
-        logging.error(f"{logPrefix} Tarea parseada sin ID. Buffer: {tarea_dict['raw_lines']}")
+        logging.error(f"{logPrefix} Error Lógico: Tarea finalizada sin ID a pesar de las validaciones. Esto no debería ocurrir. Líneas: {tarea_dict['raw_lines']}")
         return None
+        
+    logging.debug(f"{logPrefix} Tarea parseada exitosamente. ID: '{tarea_dict['id']}', Título: '{tarea_dict['titulo']}', Estado: '{tarea_dict['estado']}'")
     return tarea_dict
 
 def parsear_mision_orion(contenido_mision: str):
