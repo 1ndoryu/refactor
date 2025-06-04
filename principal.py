@@ -110,6 +110,38 @@ def orchestrarEjecucionScript(args):
     return exit_code
 
 
+def _validarConfiguracionEsencial(api_provider: str) -> bool:
+    """Valida que la configuración esencial (API Keys, Repo URL) esté presente."""
+    logPrefix = f"_validarConfiguracionEsencial({api_provider.upper()}):"
+    configuracion_ok = False
+    if api_provider == 'google':
+        if settings.GEMINIAPIKEY and settings.REPOSITORIOURL:
+            configuracion_ok = True
+        else:
+            logging.critical(
+                f"{logPrefix} Configuración Google Gemini faltante (GEMINIAPIKEY o REPOSITORIOURL). Abortando.")
+    elif api_provider == 'openrouter':
+        if settings.OPENROUTER_API_KEY and settings.REPOSITORIOURL:
+            configuracion_ok = True
+        else:
+            logging.critical(
+                f"{logPrefix} Configuración OpenRouter faltante (OPENROUTER_API_KEY o REPOSITORIOURL). Abortando.")
+    else:
+        logging.critical(
+            f"{logPrefix} Proveedor API desconocido: '{api_provider}'. Abortando.")
+        return False  # Proveedor desconocido es un fallo de configuración
+
+    if not configuracion_ok:
+        # Este log es un poco redundante si ya se logueó arriba, pero confirma el fallo.
+        logging.critical(
+            f"{logPrefix} Configuración esencial faltante para proveedor '{api_provider}' o REPOSITORIOURL. Abortando.")
+        return False
+
+    logging.info(
+        f"{logPrefix} Configuración esencial validada para proveedor '{api_provider}'.")
+    return True
+
+
 def _timeout_handler(signum, frame):
     """Manejador para la señal SIGALRM. Lanza TimeoutException."""
     logging.error("¡Tiempo límite de ejecución alcanzado!")
@@ -424,31 +456,14 @@ def ejecutarProcesoPrincipal(api_provider: str):
     historialRefactor = []
     decisionParseada = None
     resultadoEjecucion = None
-    archivosModificadosGit = None
+    # archivosModificadosGit = None # Esta variable no se usa, la comento/elimino
     estadoFinal = "[INICIO]"
 
     try:
-        configuracion_ok = False
-        if api_provider == 'google':
-            if settings.GEMINIAPIKEY and settings.REPOSITORIOURL:
-                configuracion_ok = True
-            else:
-                logging.critical(
-                    f"{logPrefix} Configuración Google Gemini faltante (GEMINIAPIKEY). Abortando.")
-        elif api_provider == 'openrouter':
-            if settings.OPENROUTER_API_KEY and settings.REPOSITORIOURL:
-                configuracion_ok = True
-            else:
-                logging.critical(
-                    f"{logPrefix} Configuración OpenRouter faltante (OPENROUTER_API_KEY). Abortando.")
-        else:
-            logging.critical(
-                f"{logPrefix} Proveedor API desconocido: '{api_provider}'. Abortando.")
-
-        if not configuracion_ok or not settings.REPOSITORIOURL:
-            logging.critical(
-                f"{logPrefix} Configuración esencial faltante (API Key o Repo URL). Abortando.")
-            return False
+        if not _validarConfiguracionEsencial(api_provider):
+            # No es necesario guardar historial aquí, ya que _validarConfiguracionEsencial ya loguea el crítico.
+            # El script principal (orchestrar) manejará el código de salida si esto falla.
+            return False  # Indica fallo temprano
 
         historialRefactor = cargarHistorial()
 
@@ -833,11 +848,11 @@ def ejecutarProcesoPrincipal(api_provider: str):
             f"{logPrefix} Error inesperado y no capturado: {e_global}", exc_info=True)
         estadoFinal = "[ERROR_CRITICO]"
         try:
-            if not historialRefactor:
+            if not historialRefactor:  # Cargar solo si está vacío
                 historialRefactor = cargarHistorial()
             historialRefactor.append(formatearEntradaHistorial(
                 outcome=estadoFinal,
-                decision=decisionParseada,
+                decision=decisionParseada,  # Puede ser None si el error es muy temprano
                 error_message=str(e_global)
             ))
             guardarHistorial(historialRefactor)
