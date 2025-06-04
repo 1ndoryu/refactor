@@ -11,7 +11,7 @@ _CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Constantes para Rotación de Clave API Google Gemini ---
 GEMINI_API_KEY_BASE_NAME = "GEMINI_API_KEY"
-GEMINI_NUM_API_KEYS = 5 # O el número que tengas configurado para Gemini
+GEMINI_NUM_API_KEYS = 1 # O el número que tengas configurado para Gemini
 GEMINI_API_KEY_STATE_FILE = os.path.join(_CONFIG_DIR, '.api_key_last_index.txt')
 
 # --- NUEVO: Constantes para Rotación de Clave API OpenRouter ---
