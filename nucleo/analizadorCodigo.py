@@ -837,6 +837,7 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
         'properties': {
             'archivos_modificados': {
                 'type': 'OBJECT',
+                'additionalProperties': {'type': 'STRING'}
             },
             'advertencia_ejecucion': {
                 'type': 'STRING',
