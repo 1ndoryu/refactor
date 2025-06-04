@@ -866,7 +866,7 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
 
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=GenerationConfig(**generation_config_dict),
+                generation_config=types.GenerationConfig(**generation_config_dict),
                 safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH',
                                  'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
             )
