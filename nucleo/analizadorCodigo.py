@@ -4,6 +4,7 @@ import logging
 import json
 import random
 import google.generativeai as genai
+from google.generativeai.types import Schema, Type, GenerationConfig
 import google.api_core.exceptions
 # Mantenido por si se usa OpenRouter directamente
 from openai import OpenAI, APIError
@@ -829,24 +830,20 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
     respuestaJson = None
 
     # Definición del esquema de respuesta para Gemini
-    response_schema_ejecutar_tarea = genai.types.Schema(
-        type=genai.types.Type.OBJECT,
+    # Asumimos que Schema y Type han sido importados como:
+    # from google.generativeai.types import Schema, Type, GenerationConfig
+    response_schema_ejecutar_tarea = Schema(
+        type=Type.OBJECT,
         properties={
-            'archivos_modificados': genai.types.Schema(
-                type=genai.types.Type.OBJECT,
-                # No podemos predefinir las claves (rutas de archivo), pero sí el tipo de valor.
-                # Se asume que los valores serán strings (contenido del archivo).
-                # Esta es una limitación de Schema si las claves son dinámicas.
-                # Sin embargo, la IA debería entender que los valores son strings.
-                # Para una validación más estricta con claves dinámicas, Gemini necesitaría soportar `additionalProperties` o `patternProperties`.
-                # Por ahora, nos centramos en que la estructura general sea correcta.
+            'archivos_modificados': Schema(
+                type=Type.OBJECT,
             ),
-            'advertencia_ejecucion': genai.types.Schema(
-                type=genai.types.Type.STRING,
-                nullable=True # Hacerlo opcional
+            'advertencia_ejecucion': Schema(
+                type=Type.STRING,
+                nullable=True 
             )
         },
-        required=['archivos_modificados'] # advertencia_ejecucion es opcional
+        required=['archivos_modificados'] 
     )
 
 
@@ -857,22 +854,19 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             
             generation_config_dict = {
-                "temperature": 0.3, # Reducir un poco para mayor adherencia al formato
+                "temperature": 0.3, 
                 "response_mime_type": "application/json",
                 "max_output_tokens": settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 60000
             }
             
-            # Añadir response_schema si el modelo y la configuración lo permiten
-            if hasattr(genai.types, 'GenerationConfig') and hasattr(genai.types, 'Schema'):
-                 generation_config_dict["response_schema"] = response_schema_ejecutar_tarea
-                 log.debug(f"{logPrefix} Incluyendo response_schema en GenerationConfig.")
-            else:
-                 log.warning(f"{logPrefix} genai.types.GenerationConfig o genai.types.Schema no encontrado como se esperaba. No se pudo añadir response_schema. Procediendo sin él.")
-
+            # Se asume que Schema, Type, GenerationConfig están disponibles si api_provider es 'google'
+            # y la configuración de Gemini fue exitosa.
+            generation_config_dict["response_schema"] = response_schema_ejecutar_tarea
+            log.debug(f"{logPrefix} Incluyendo response_schema en GenerationConfig.")
 
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(**generation_config_dict),
+                generation_config=GenerationConfig(**generation_config_dict),
                 safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH',
                                  'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
             )
@@ -884,8 +878,6 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
             client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
                             api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
-            # OpenRouter no soporta response_schema en la misma forma que Gemini.
-            # La instrucción de formato JSON en el prompt es la principal guía.
             completion = client.chat.completions.create(
                 extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
                                "X-Title": settings.OPENROUTER_TITLE},
