@@ -788,22 +788,27 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         "\n--- CONTENIDO ACTUAL DE ARCHIVOS RELEVANTES PARA ESTA TAREA ---",
         contexto_archivos_tarea if contexto_archivos_tarea else "(No se proporcionó contenido de archivo específico para esta tarea, usa el contexto de la misión general si es necesario o opera sobre el archivo principal implicado en la tarea)",
         "\n--- TU RESPUESTA ---",
-        "Realiza la tarea descrita. Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura:",
+        "Realiza la tarea descrita. Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura EXACTA:",
+        # Se define el schema abajo, así que el ejemplo aquí es para claridad.
         """
-```json
+El JSON debe tener una clave principal "archivos_modificados", que es un objeto.
+Dentro de "archivos_modificados", cada clave es una ruta de archivo relativa (string) y su valor es el contenido completo y final del archivo (string).
+Ejemplo:
 {
   "archivos_modificados": {
     "ruta/relativa/al/archivo1.php": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 1...",
-    "ruta/relativa/al/archivo2.js": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 2...",
-    // ... más archivos si son modificados o creados por esta tarea ...
+    "ruta/relativa/al/archivo2.js": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 2..."
   }
 }
-```""",
-        "REGLAS PARA `archivos_modificados`:",
-        "1. Incluye la ruta relativa como clave y el contenido ÍNTEGRO y FINAL del archivo como valor string.",
-        "2. Si la tarea implica crear un nuevo archivo, inclúyelo aquí.",
-        "3. Si la tarea implica eliminar un archivo, NO lo incluyas aquí (la eliminación se maneja externamente si la tarea lo indica explícitamente, tú solo genera el código de los archivos que QUEDAN o CAMBIAN).",
-        "4. **ESCAPADO CRÍTICO DENTRO DEL CONTENIDO DEL ARCHIVO EN JSON:** Para que el JSON sea parseable, el *contenido del archivo* (que es un string dentro del JSON) debe tener los siguientes caracteres especiales escapados:",
+Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver un objeto "archivos_modificados" vacío {} Y añadir un campo "advertencia_ejecucion" (string) al nivel raíz del JSON con tu explicación.
+""",
+        "REGLAS PARA `archivos_modificados` Y EL JSON DE RESPUESTA:",
+        "1. El JSON de respuesta DEBE ser un objeto con una clave `archivos_modificados` (que es un objeto de strings a strings) y opcionalmente una clave `advertencia_ejecucion` (string).",
+        "2. Dentro de `archivos_modificados`:",
+        "   a. Incluye la ruta relativa (string) como clave y el contenido ÍNTEGRO y FINAL del archivo (string) como valor.",
+        "   b. Si la tarea implica crear un nuevo archivo, inclúyelo aquí.",
+        "   c. Si la tarea implica eliminar un archivo, NO lo incluyas aquí (la eliminación se maneja externamente si la tarea lo indica explícitamente, tú solo genera el código de los archivos que QUEDAN o CAMBIAN).",
+        "3. **ESCAPADO CRÍTICO DENTRO DEL CONTENIDO DEL ARCHIVO EN JSON (VALORES DE `archivos_modificados`):** Para que el JSON sea parseable, el *contenido del archivo* (que es un string dentro del JSON) debe tener los siguientes caracteres especiales escapados:",
         "   - Una **comilla doble literal (`\"`):** debe ser `\\\"` (barra invertida, comilla doble).",
         "   - Una **barra invertida literal (`\\`):** debe ser `\\\\` (doble barra invertida).",
         "   - Un **salto de línea:** debe ser `\\n` (barra invertida, n).",
@@ -811,11 +816,11 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         "   - Un **retorno de carro:** debe ser `\\r` (barra invertida, r).",
         "   - Un **avance de página:** debe ser `\\f` (barra invertida, f).",
         "   - Un **retroceso:** debe ser `\\b` (barra invertida, b).",
-        "   **EJEMPLO:** Si el código original es `path = \"C:\\new\\file.txt\"\\nprint(\"OK\")` (donde \\n es un salto de línea real),",
-        "              en el JSON, la cadena de contenido sería: `\"path = \\\"C:\\\\\\\\new\\\\\\\\file.txt\\\"\\\\nprint(\\\"OK\\\")\"`.",
-        "   **ERROR COMÚN:** El error `Invalid \\escape` ocurre si una barra invertida (`\\`) no está escapada como `\\\\` o si va seguida de un carácter que no forma una secuencia de escape válida (ej. `\\ `). Asegúrate de que TODAS las barras invertidas literales sean `\\\\` y que los caracteres especiales como saltos de línea sean `\\n`, tabulaciones `\\t`, etc.",
-        "5. Mantén intacto el código no afectado en los archivos modificados. Asegúrate de que el código siga siendo funcional y completo.",
-        "6. Si la tarea es ambigua o no se puede realizar de forma segura con el contexto proporcionado, puedes devolver un objeto `archivos_modificados` vacío `{}` y añadir un campo `\"advertencia_ejecucion\": \"Tu explicación aquí\"` al JSON principal.",
+        "   **EJEMPLO CRÍTICO:** Si el código original es `path = \"C:\\new\\file.txt\"\\nprint(\"OK\")` (donde \\n es un salto de línea real),",
+        "              en el JSON, la cadena de contenido (el valor asociado a la ruta del archivo) sería: `\"path = \\\"C:\\\\\\\\new\\\\\\\\file.txt\\\"\\\\nprint(\\\"OK\\\")\"`.",
+        "   **ERROR COMÚN A EVITAR:** El error `Invalid \\escape` ocurre si una barra invertida (`\\`) no está escapada como `\\\\` o si va seguida de un carácter que no forma una secuencia de escape JSON válida (ej. `\\ `). Asegúrate de que TODAS las barras invertidas literales sean `\\\\` y que los caracteres especiales como saltos de línea sean `\\n`, tabulaciones `\\t`, etc. ¡Presta MÁXIMA atención a esto!",
+        "4. Mantén intacto el código no afectado en los archivos modificados. Asegúrate de que el código siga siendo funcional y completo.",
+        "5. Si la tarea es ambigua o no se puede realizar de forma segura con el contexto proporcionado, puedes devolver un objeto `archivos_modificados` vacío `{}` Y añadir un campo `\"advertencia_ejecucion\": \"Tu explicación aquí\"` al JSON principal (al mismo nivel que `archivos_modificados`).",
         "No añadas explicaciones fuera del JSON a menos que sea en el campo `advertencia_ejecucion`."
     ]
     promptCompleto = "\n".join(promptPartes)
@@ -823,17 +828,51 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
     textoRespuesta = None
     respuestaJson = None
 
+    # Definición del esquema de respuesta para Gemini
+    response_schema_ejecutar_tarea = genai.types.Schema(
+        type=genai.types.Type.OBJECT,
+        properties={
+            'archivos_modificados': genai.types.Schema(
+                type=genai.types.Type.OBJECT,
+                # No podemos predefinir las claves (rutas de archivo), pero sí el tipo de valor.
+                # Se asume que los valores serán strings (contenido del archivo).
+                # Esta es una limitación de Schema si las claves son dinámicas.
+                # Sin embargo, la IA debería entender que los valores son strings.
+                # Para una validación más estricta con claves dinámicas, Gemini necesitaría soportar `additionalProperties` o `patternProperties`.
+                # Por ahora, nos centramos en que la estructura general sea correcta.
+            ),
+            'advertencia_ejecucion': genai.types.Schema(
+                type=genai.types.Type.STRING,
+                nullable=True # Hacerlo opcional
+            )
+        },
+        required=['archivos_modificados'] # advertencia_ejecucion es opcional
+    )
+
+
     try:
         if api_provider == 'google':
             if not configurarGemini():
                 return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
-            # Para la generación de código, podríamos querer una temperatura un poco más alta si la creatividad es útil, o más baja para precisión.
-            # También, max_output_tokens debe ser generoso.
+            
+            generation_config_dict = {
+                "temperature": 0.3, # Reducir un poco para mayor adherencia al formato
+                "response_mime_type": "application/json",
+                "max_output_tokens": settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 60000
+            }
+            
+            # Añadir response_schema si el modelo y la configuración lo permiten
+            if hasattr(genai.types, 'GenerationConfig') and hasattr(genai.types, 'Schema'):
+                 generation_config_dict["response_schema"] = response_schema_ejecutar_tarea
+                 log.debug(f"{logPrefix} Incluyendo response_schema en GenerationConfig.")
+            else:
+                 log.warning(f"{logPrefix} genai.types.GenerationConfig o genai.types.Schema no encontrado como se esperaba. No se pudo añadir response_schema. Procediendo sin él.")
+
+
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(temperature=0.4, response_mime_type="application/json",
-                                                               max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 60000),
+                generation_config=genai.types.GenerationConfig(**generation_config_dict),
                 safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH',
                                  'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
             )
@@ -845,11 +884,15 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
             client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
                             api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
+            # OpenRouter no soporta response_schema en la misma forma que Gemini.
+            # La instrucción de formato JSON en el prompt es la principal guía.
             completion = client.chat.completions.create(
                 extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
                                "X-Title": settings.OPENROUTER_TITLE},
-                # Generoso para código
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=60000, timeout=API_TIMEOUT_SECONDS
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.3, 
+                max_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS, 
+                timeout=API_TIMEOUT_SECONDS,
+                response_format={"type": "json_object"} 
             )
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
@@ -870,16 +913,22 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         if "archivos_modificados" not in respuestaJson or not isinstance(respuestaJson["archivos_modificados"], dict):
             log.error(
                 f"{logPrefix} Respuesta JSON no tiene 'archivos_modificados' como diccionario. Recibido: {respuestaJson}")
-            # Si hay una advertencia, la respetamos
-            if "advertencia_ejecucion" in respuestaJson:
+            if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
                 log.warning(
                     f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
-                # Devolver estructura esperada
                 return {"archivos_modificados": {}, "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
-            return None
+            return None 
+
+        for ruta, contenido in respuestaJson["archivos_modificados"].items():
+            if not isinstance(contenido, str):
+                log.error(f"{logPrefix} Contenido para archivo '{ruta}' no es un string. Tipo: {type(contenido)}. Contenido: {str(contenido)[:200]}...")
+                if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
+                     return {"archivos_modificados": {}, "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: contenido de '{ruta}' no fue string.)"}
+                return None
+
 
         log.info(
-            f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {list(respuestaJson['archivos_modificados'].keys())}")
+            f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {list(respuestaJson['archivos_modificados'].keys()) if 'archivos_modificados' in respuestaJson else 'Ninguno (solo advertencia?)'}")
         return respuestaJson
 
     except Exception as e:
