@@ -598,7 +598,8 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
 
     contenido_mision_generado_dict = analizadorCodigo.generar_contenido_mision_orion(
         archivo_a_refactorizar_rel, contexto_completo_para_mision,
-        decision_paso1_1.get("razonamiento"), api_provider
+        decision_paso1_1.get("razonamiento"), api_provider,
+        archivos_contexto_generacion_rel_list=archivos_contexto_para_crear_mision_rel
     )
     # # Simulación:
     # logging.warning(f"{logPrefix} USANDO PLACEHOLDER para generación de misión Paso 1.2")
@@ -938,24 +939,49 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
             res_paso1_2, mision_gen_contenido_md, nombre_clave = paso1_2_generar_mision(
                 settings.RUTACLON, archivo_para_mision_actual,
                 archivos_contexto_para_crear_mision, decision_paso1_1_actual, api_provider)
+            
             if res_paso1_2 == "mision_generada_ok":
-                # Parsear la misión recién generada para obtener metadatos y tareas estructuradas
-                meta, tareas, _ = parsear_mision_orion(mision_gen_contenido_md)
+                meta, tareas, hay_pendientes_iniciales = parsear_mision_orion(mision_gen_contenido_md)
                 if not meta or not meta.get("nombre_clave"):
-                    logging.error(f"{logPrefix} Misión generada pero no se pudo parsear correctamente. Abortando misión.")
-                    manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO) # Volver a base
-                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave, local=True) # Eliminar rama creada
+                    logging.error(f"{logPrefix} Misión generada ('{nombre_clave or 'N/A'}') pero no se pudo parsear metadatos/nombre clave. Abortando misión.")
+                    if nombre_clave: # Si tenemos un nombre_clave de la generación, intentar limpiar la rama
+                        manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO) 
+                        manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave, local=True)
                     estado_agente = "revisar_mision_local"; continue
                 
+                # --- VALIDACIÓN: Tareas generadas si se esperaba refactorización ---
+                se_esperaba_refactor = decision_paso1_1_actual.get("necesita_refactor", False) if decision_paso1_1_actual else False
+                if se_esperaba_refactor and (not tareas or not hay_pendientes_iniciales):
+                    logging.error(f"{logPrefix} ERROR DE GENERACIÓN DE MISIÓN: Se esperaba refactor para '{archivo_para_mision_actual}' (Paso 1.1) pero la misión generada ('{nombre_clave}') NO TIENE TAREAS PENDIENTES.")
+                    logging.error(f"{logPrefix} Razonamiento Paso 1.1: {decision_paso1_1_actual.get('razonamiento') if decision_paso1_1_actual else 'N/A'}")
+                    logging.debug(f"{logPrefix} Contenido Misión MD (sin tareas):\n{mision_gen_contenido_md}")
+                    manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+                        manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO1.2_ERROR_MISION_SIN_TAREAS", 
+                                                                     decision=decision_paso1_1_actual, 
+                                                                     error_message=f"Misión '{nombre_clave}' generada sin tareas a pesar de que Paso 1.1 indicó refactor.")
+                    ])
+                    # Limpiar rama de misión y volver
+                    manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
+                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave, local=True)
+                    logging.info(f"{logPrefix} Rama de misión '{nombre_clave}' eliminada debido a falta de tareas.")
+                    estado_agente = "revisar_mision_local"; continue # Intentar de nuevo desde el principio
+                # --- FIN VALIDACIÓN ---
+
                 metadatos_mision_activa, lista_tareas_mision_activa, nombre_clave_mision_activa = meta, tareas, nombre_clave
-                logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' generada. Ejecutando tarea.")
+                logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' generada con {len(lista_tareas_mision_activa)} tarea(s). Pasando a ejecutar.")
                 estado_agente = "ejecutar_tarea_mision"
+            
             elif res_paso1_2 == "error_generando_mision":
-                logging.error(f"{logPrefix} Error generando misión. Volviendo a revisar.")
+                logging.error(f"{logPrefix} Error generando misión (IA no devolvió contenido válido o fallo en Git). Volviendo a revisar.")
+                # La función paso1_2_generar_mision ya debería haber intentado limpiar la rama si la creó y falló
+                # Aquí nos aseguramos de volver a la rama base si es necesario y limpiar variables de estado.
                 manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
-                nombre_clave_mision_activa = None # Limpiar estado de misión fallida
+                nombre_clave_mision_activa = None 
+                metadatos_mision_activa = None
+                lista_tareas_mision_activa = None
                 estado_agente = "revisar_mision_local"
-            else: logging.error(f"{logPrefix} Resultado inesperado de paso1.2: {res_paso1_2}. Deteniendo."); break
+            else: 
+                logging.error(f"{logPrefix} Resultado inesperado de paso1.2: {res_paso1_2}. Deteniendo."); break
         
         elif estado_agente == "ejecutar_tarea_mision":
             if not nombre_clave_mision_activa or not metadatos_mision_activa or lista_tareas_mision_activa is None: # lista_tareas_mision_activa puede ser []
@@ -968,18 +994,18 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
             )
             
             if res_paso2 == "tarea_ejecutada_continuar_mision":
-                if mision_actualizada_contenido_md: # Asegurarse que no sea None
+                if mision_actualizada_contenido_md: 
                     meta, tareas, _ = parsear_mision_orion(mision_actualizada_contenido_md)
-                    if not meta: # Si falla el parseo, algo está mal
+                    if not meta: 
                         logging.error(f"{logPrefix} Misión actualizada no pudo ser parseada. Error de estado. Volviendo a revisar.")
                         estado_agente = "revisar_mision_local"; continue
                     metadatos_mision_activa, lista_tareas_mision_activa = meta, tareas
-                else: # mision_actualizada_contenido_md fue None, error de estado
+                else: 
                     logging.error(f"{logPrefix} Contenido de misión fue None después de tarea. Error de estado. Volviendo a revisar.")
                     estado_agente = "revisar_mision_local"; continue
 
                 logging.info(f"{logPrefix} Tarea ejecutada en '{nombre_clave_mision_activa}'. Quedan más.")
-                estado_agente = "ejecutar_tarea_mision" # Continuar en la misma misión
+                estado_agente = "ejecutar_tarea_mision" 
             
             elif res_paso2 == "mision_completada_para_merge":
                 logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada, lista para merge.")
@@ -988,19 +1014,9 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
                 elif manejadorGit.hacerMergeRama(settings.RUTACLON, nombre_clave_mision_activa, settings.RAMATRABAJO):
                     logging.info(f"{logPrefix} Merge de '{nombre_clave_mision_activa}' a '{settings.RAMATRABAJO}' exitoso.")
                     if modo_test:
-                        # Antes de pushear, asegurar que la rama de trabajo esté actualizada con origin
                         logging.info(f"{logPrefix} Modo Test: Actualizando '{settings.RAMATRABAJO}' con su contraparte remota antes de push.")
-                        # Comentado: Esta lógica podría ser compleja si RAMATRABAJO divergió. Un simple pull puede fallar.
-                        # Por ahora, asumimos que el merge local es suficiente para el test y hacemos push directo.
-                        # if not ejecutarComando(['git', 'pull', 'origin', settings.RAMATRABAJO], cwd=settings.RUTACLON, check=False):
-                        #    logging.warning(f"{logPrefix} Falló pull de 'origin/{settings.RAMATRABAJO}'. Push podría fallar si hay divergencia.")
-
                         if manejadorGit.hacerPush(settings.RUTACLON, settings.RAMATRABAJO):
                             logging.info(f"{logPrefix} Push de '{settings.RAMATRABAJO}' exitoso (modo test).")
-                            # Opcional: eliminar rama de misión remota si el push de la rama base fue exitoso
-                            # if manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=False, remota=True):
-                            #     logging.info(f"{logPrefix} Rama de misión '{nombre_clave_mision_activa}' eliminada remotamente.")
-                    # Eliminar rama de misión local después de merge exitoso (o intento de push en modo test)
                     if manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True, remota=False):
                          logging.info(f"{logPrefix} Rama de misión local '{nombre_clave_mision_activa}' eliminada.")
                 else:
@@ -1011,9 +1027,7 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
 
             elif res_paso2 == "mision_completada_sin_merge":
                 logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada (sin tareas o todas saltadas, no requiere merge).")
-                # Asegurar volver a la rama de trabajo principal
                 manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
-                # Opcional: Limpiar rama de misión si no se va a mergear.
                 if manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True, remota=False):
                     logging.info(f"{logPrefix} Rama de misión '{nombre_clave_mision_activa}' eliminada localmente (sin merge).")
                 
