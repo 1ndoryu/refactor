@@ -858,6 +858,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     except Exception as e: # Otros errores inesperados durante el parseo
         log.error(f"{logPrefix} Error inesperado durante json.loads: {e}", exc_info=True)
         log.debug(f"{logPrefix} JSON Candidato que falló:\n{json_candidate}")
+        log.debug(f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}") # <-- MODIFICACIÓN: Añadido log de textoRespuesta aquí
         return None
 
 def _manejar_excepcion_api(e, api_provider, logPrefix, respuesta_api=None):
