@@ -441,26 +441,43 @@ def parsear_mision_orion(contenido_mision: str):
                 if m_ap: metadatos["archivo_principal"] = m_ap.group(1).strip(); continue
                 if m_r11: metadatos["razon_paso1_1"] = m_r11.group(1).strip(); continue
                 if m_eg: metadatos["estado_general"] = m_eg.group(1).upper().strip(); continue
+                
                 for m, key in [(m_acg, "archivos_contexto_generacion"), (m_ace, "archivos_contexto_ejecucion")]:
-                    if m: 
+                    if m:
                         s = m.group(1).strip()
-                        # Eliminar corchetes si están al principio y al final de la cadena DE LA LISTA COMPLETA
+                        # Eliminar corchetes si están al principio y al final de la LISTA COMPLETA de archivos
                         if s.startswith('[') and s.endswith(']'):
                             s = s[1:-1].strip()
                         
-                        # Procesar cada ruta individualmente
-                        rutas_procesadas_individualmente = []
-                        if s: # Asegurarse que s no esté vacío después de quitar corchetes
-                            for ruta_individual_str in s.split(','):
-                                ruta_limpia = ruta_individual_str.strip()
-                                if ruta_limpia and ruta_limpia.lower() not in ["ninguno", "ninguno."]:
-                                    # Eliminar corchetes de CADA RUTA INDIVIDUAL si los tiene
-                                    if ruta_limpia.startswith('[') and ruta_limpia.endswith(']'):
-                                        ruta_limpia = ruta_limpia[1:-1].strip()
-                                    # Solo añadir si después de limpiar corchetes individuales aún es una ruta válida y no vacía
-                                    if ruta_limpia: 
-                                        rutas_procesadas_individualmente.append(ruta_limpia)
-                        metadatos[key] = rutas_procesadas_individualmente
+                        rutas_finales = []
+                        # Solo procesar si hay algo después de quitar corchetes de la lista y no es "ninguno"
+                        if s and s.lower() not in ["ninguno", "ninguno."]:
+                            rutas_individuales_str = s.split(',')
+                            for ruta_str_orig in rutas_individuales_str:
+                                ruta_procesada = ruta_str_orig.strip()
+
+                                # 1. Eliminar completamente los caracteres '[' y ']' de la ruta.
+                                #    Esto es más agresivo que solo al principio/final.
+                                ruta_procesada = ruta_procesada.replace('[', '').replace(']', '')
+                                
+                                # 2. Eliminar barra inclinada inicial (federal o invertida) si existe 
+                                #    DESPUÉS de quitar corchetes.
+                                #    Esto previene rutas como '/app/file.py' o '\app\file.py' 
+                                #    volviéndose absolutas erróneamente si se unen con os.path.join más tarde.
+                                if ruta_procesada.startswith('/') or ruta_procesada.startswith('\\'):
+                                    ruta_procesada = ruta_procesada[1:]
+                                
+                                # Strip final para quitar espacios que pudieron quedar después de reemplazos
+                                ruta_procesada = ruta_procesada.strip() 
+
+                                # Solo añadir si después de toda la limpieza, la ruta es válida (no vacía)
+                                # y no es explícitamente "ninguno".
+                                if ruta_procesada and ruta_procesada.lower() not in ["ninguno", "ninguno."]:
+                                    rutas_finales.append(ruta_procesada)
+                                elif ruta_procesada: # Log si se descarta algo que no era "ninguno" pero quedó vacío
+                                    logging.debug(f"{logPrefix} Ruta individual '{ruta_str_orig}' descartada después de limpieza (quedó vacía pero no era 'ninguno').")
+
+                        metadatos[key] = rutas_finales
                         continue
             elif seccion_actual == "tareas" and tarea_actual_buffer is not None: tarea_actual_buffer["raw_lines"].append(linea_orig)
         

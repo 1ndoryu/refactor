@@ -632,7 +632,18 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
     log.info(
         f"{logPrefix} Generando misión para archivo: {archivo_a_refactorizar_rel}")
 
-    archivos_contexto_generacion_str = ", ".join(archivos_contexto_generacion_rel_list) if archivos_contexto_generacion_rel_list else "Ninguno"
+    # Preparar la lista de archivos de contexto para el prompt, asegurando que no tengan corchetes
+    archivos_contexto_generacion_str_parts = []
+    if archivos_contexto_generacion_rel_list:
+        for ruta_ctx_gen in archivos_contexto_generacion_rel_list:
+            # Limpieza básica por si acaso, aunque parsear_mision_orion ya lo hace al leer.
+            # El objetivo principal es que la IA no los genere con corchetes en primer lugar.
+            ruta_limpia_prompt = str(ruta_ctx_gen).replace('[', '').replace(']', '').strip()
+            if ruta_limpia_prompt:
+                archivos_contexto_generacion_str_parts.append(ruta_limpia_prompt)
+    
+    archivos_contexto_generacion_str = ", ".join(archivos_contexto_generacion_str_parts) if archivos_contexto_generacion_str_parts else "Ninguno"
+
 
     promptPartes = [
         "Eres un asistente de IA que planifica misiones de refactorización de código. Basado en el archivo principal, su contexto y un razonamiento previo, debes generar una misión.",
@@ -660,7 +671,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         "   - **Nombre Clave:** [nombre_clave_mision] (Debe coincidir con el JSON y el título)",
         f"   - **Archivo Principal:** {archivo_a_refactorizar_rel}",
         f"   - **Archivos de Contexto (Generación):** {archivos_contexto_generacion_str}",
-        f"   - **Archivos de Contexto (Ejecución):** [{archivos_contexto_generacion_str}] (Inicialmente, usa la misma lista que 'Generación'. Puedes ajustarla si prevés que solo un subconjunto es necesario para ejecutar las tareas, o si se necesitan archivos adicionales no leídos aún. Mantenlo conciso.)",
+        f"   - **Archivos de Contexto (Ejecución):** [lista_de_rutas_sin_corchetes_individuales] (Inicialmente, usa la misma lista que 'Generación'. IMPORTANTE: cada ruta en esta lista NO DEBE contener corchetes `[` o `]` ni caracteres especiales que no sean válidos en rutas de archivo. Deben ser rutas relativas limpias separadas por coma. Ejemplo: `app/utils.py, core/helper.php`. Si no hay, escribe: `Ninguno`.)",
         f"   - **Razón (Paso 1.1):** {razonamiento_paso1_1 if razonamiento_paso1_1 else 'N/A'}",
         "   - **Estado:** PENDIENTE",
         "",
@@ -670,7 +681,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         "   - **ID:** [ID_TAREA_EJEMPLO_1] (Debe ser único en la misión, ej: TSK-001, RF-FuncX. DEBE COINCIDIR con el ID en el encabezado '### Tarea ...'.)",
         "   - **Estado:** PENDIENTE",
         "   - **Descripción:** [Descripción detallada, clara y accionable de la primera tarea. ¿Qué se debe hacer? ¿En qué archivo(s) específicamente? ¿Cuál es el objetivo? Sé explícito. Por ejemplo: \"Refactorizar la función `getUserDetails` en `user_module.py` para usar el nuevo servicio `AuthService` en lugar de acceso directo a DB. Actualizar llamadas en `profile_view.py`.\"]",
-        "   - **Archivos Implicados Específicos (Opcional):** [ruta/al/archivo1.py, otra/ruta/archivo2.php] (Si la tarea se enfoca en archivos específicos ADICIONALES al principal o al contexto general. Lista separada por comas. Si no, escribe textualmente: \"Ninguno\".)",
+        "   - **Archivos Implicados Específicos (Opcional):** [ruta/al/archivo1.py, otra/ruta/archivo2.php] (Si la tarea se enfoca en archivos específicos ADICIONALES al principal o al contexto general. Lista separada por comas. IMPORTANTE: cada ruta aquí NO DEBE contener corchetes `[` o `]` ni otros caracteres inválidos para rutas. Si no, escribe textualmente: `Ninguno`.)",
         "   - **Intentos:** 0",
         "   ---",
         "   (Si se necesitan más tareas, usa el mismo formato exacto, separadas por ---. Recuerda: genera entre 1 y 5 tareas. Si el razonamiento del Paso 1.1 indicó refactorizar, ES OBLIGATORIO generar al menos UNA tarea.)",
@@ -679,6 +690,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         "   - **OBLIGATORIO:** Si el `razonamiento_paso1_1` sugiere una refactorización, DEBES generar al menos una tarea. Si no hay nada que hacer, el flujo no debería haber llegado aquí, pero si lo hace, genera una tarea del tipo 'Revisar archivo X en busca de mejoras menores.'",
         "   - Las tareas deben ser PEQUEÑAS, ESPECÍFICAS y REALIZABLES por otra IA en un solo paso (Paso 2 del refactorizador).",
         "   - Los IDs de las tareas deben ser únicos dentro de la misión.",
+        "   - **RUTAS DE ARCHIVO:** Para CUALQUIER ruta de archivo que generes (en 'Archivos de Contexto (Ejecución)' o en 'Archivos Implicados Específicos' de una tarea), ASEGÚRATE de que sean rutas relativas válidas. NO uses corchetes `[` o `]` DENTRO de las rutas individuales. Usa `/` como separador de directorios. Ejemplos válidos: `src/components/Boton.js`, `app/models/Usuario.php`. Ejemplo inválido: `[app/models/Usuario.php]`. Si la lista de archivos de contexto para ejecución es la misma que la de generación, simplemente repite las rutas limpias.",
         "   - El archivo principal y los de contexto para la generación ya están definidos en los metadatos. Las tareas deben operar sobre estos archivos o los especificados en 'Archivos Implicados Específicos'.",
         "No añadas explicaciones fuera del JSON. El `nombre_clave_mision` en el JSON y en el Markdown (título y metadato) DEBEN COINCIDIR."
     ]
