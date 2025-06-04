@@ -5,6 +5,7 @@ import shutil
 import json
 import codecs
 import re
+from difflib import unified_diff
 
 # Obtener logger
 log = logging.getLogger(__name__)
