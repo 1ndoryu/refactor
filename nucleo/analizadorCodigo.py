@@ -624,8 +624,7 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
                                locals().get('respuesta'))
         return None
 
-
-def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_archivos_leidos: str, razonamiento_paso1_1: str, api_provider: str):
+def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_archivos_leidos: str, razonamiento_paso1_1: str, api_provider: str, archivos_contexto_generacion_rel_list: list):
     """
     Paso 1.2: IA genera el contenido para misionOrion.md (nombre clave y tareas).
     """
@@ -633,11 +632,14 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
     log.info(
         f"{logPrefix} Generando misión para archivo: {archivo_a_refactorizar_rel}")
 
+    archivos_contexto_generacion_str = ", ".join(archivos_contexto_generacion_rel_list) if archivos_contexto_generacion_rel_list else "Ninguno"
+
     promptPartes = [
         "Eres un asistente de IA que planifica misiones de refactorización de código. Basado en el archivo principal, su contexto y un razonamiento previo, debes generar una misión.",
         f"El archivo principal a refactorizar es: '{archivo_a_refactorizar_rel}'.",
-        f"El razonamiento del paso anterior (Paso 1.1) para refactorizar fue: '{razonamiento_paso1_1 if razonamiento_paso1_1 else 'No se proporcionó razonamiento previo específico.'}'",
-        "\n--- CONTEXTO DE ARCHIVOS RELEVANTES (Incluye el archivo principal y los de contexto adicional si se leyeron) ---",
+        f"El razonamiento del paso anterior (Paso 1.1) para refactorizar fue: '{razonamiento_paso1_1 if razonamiento_paso1_1 else 'No se proporcionó razonamiento previo específico. Si este razonamiento indica que se necesita refactorizar, DEBES generar al menos una tarea.'}'",
+        f"Los archivos que se leyeron para proporcionar contexto para esta generación de misión son: {archivos_contexto_generacion_str}.",
+        "\n--- CONTENIDO DE LOS ARCHIVOS RELEVANTES (Incluye el archivo principal y los de contexto adicional si se leyeron) ---",
         contexto_archivos_leidos,
         "\n--- TU TAREA: GENERAR LA MISIÓN ---",
         "Debes generar ÚNICAMENTE un objeto JSON con la siguiente estructura:",
@@ -649,27 +651,36 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
 }
 ```""",
         "REGLAS PARA EL JSON:",
-        "1. `nombre_clave_mision`: String. Debe ser corto, descriptivo, usar CamelCase o snake_case, y ser adecuado para un nombre de rama Git (ej: `RefactorLoginHandler`, `OptimizarQueriesDB_123`). Intenta que sea único añadiendo un identificador si es necesario.",
-        "2. `contenido_markdown_mision`: String. Este es el contenido completo del archivo `misionOrion.md`. Debe seguir este formato:",
+        "1. `nombre_clave_mision`: String. Debe ser corto (máx 30-40 chars), descriptivo, usar CamelCase o snake_case (preferiblemente con guiones bajos si es snake_case, ej. `Refactor_Login_Handler`), y ser adecuado para un nombre de rama Git (ej: `RefactorLoginHandler`, `OptimizarQueriesDB_123`). Intenta que sea único añadiendo un identificador numérico corto si es una tarea común.",
+        "2. `contenido_markdown_mision`: String. Este es el contenido completo del archivo `misionOrion.md`. Debe seguir ESTRICTAMENTE el siguiente formato:",
         "   ```markdown",
-        "   # Misión: [nombre_clave_mision] (Debe coincidir con el JSON)",
+        "   # Misión: [nombre_clave_mision] (Debe coincidir con el JSON y la clave 'Nombre Clave' abajo)",
         "",
-        "   **Archivo Principal a Refactorizar:** [ruta_del_archivo_principal_a_refactorizar_rel]",
+        "   **Metadatos de la Misión:**",
+        "   - **Nombre Clave:** [nombre_clave_mision] (Debe coincidir con el JSON y el título)",
+        f"   - **Archivo Principal:** {archivo_a_refactorizar_rel}",
+        f"   - **Archivos de Contexto (Generación):** {archivos_contexto_generacion_str}",
+        f"   - **Archivos de Contexto (Ejecución):** [{archivos_contexto_generacion_str}] (Inicialmente, usa la misma lista que 'Generación'. Puedes ajustarla si prevés que solo un subconjunto es necesario para ejecutar las tareas, o si se necesitan archivos adicionales no leídos aún. Mantenlo conciso.)",
+        f"   - **Razón (Paso 1.1):** {razonamiento_paso1_1 if razonamiento_paso1_1 else 'N/A'}",
+        "   - **Estado:** PENDIENTE",
         "",
-        "   **Archivos de Contexto (leídos para esta misión):** [lista separada por comas de archivos de contexto, si los hubo, ej: archivo_ctx1.py, archivo_ctx2.php]",
-        "",
-        "   **Razón General (de Paso 1.1):** [razonamiento_paso1_1]",
-        "",
-        "   ## Tareas de Refactorización (Pequeñas y Atómicas):",
-        "   - [ ] Tarea 1: Descripción clara y accionable de la primera tarea.",
-        "   - [ ] Tarea 2: Descripción clara y accionable de la segunda tarea.",
-        "   - [ ] ... (pueden ser de 1 a 5 tareas pequeñas)",
+        "   ## Tareas de Refactorización (Genera entre 1 y 5 tareas pequeñas y atómicas. Si el razonamiento del Paso 1.1 fue refactorizar, DEBES generar al menos UNA tarea.):",
+        "   ---",
+        "   ### Tarea [ID_TAREA_EJEMPLO_1]: [Título Corto y Descriptivo de la Tarea 1]",
+        "   - **ID:** [ID_TAREA_EJEMPLO_1] (Debe ser único en la misión, ej: TSK-001, RF-FuncX. DEBE COINCIDIR con el ID en el encabezado '### Tarea ...'.)",
+        "   - **Estado:** PENDIENTE",
+        "   - **Descripción:** [Descripción detallada, clara y accionable de la primera tarea. ¿Qué se debe hacer? ¿En qué archivo(s) específicamente? ¿Cuál es el objetivo? Sé explícito. Por ejemplo: \"Refactorizar la función `getUserDetails` en `user_module.py` para usar el nuevo servicio `AuthService` en lugar de acceso directo a DB. Actualizar llamadas en `profile_view.py`.\"]",
+        "   - **Archivos Implicados Específicos (Opcional):** [ruta/al/archivo1.py, otra/ruta/archivo2.php] (Si la tarea se enfoca en archivos específicos ADICIONALES al principal o al contexto general. Lista separada por comas. Si no, escribe textualmente: \"Ninguno\".)",
+        "   - **Intentos:** 0",
+        "   ---",
+        "   (Si se necesitan más tareas, usa el mismo formato exacto, separadas por ---. Recuerda: genera entre 1 y 5 tareas. Si el razonamiento del Paso 1.1 indicó refactorizar, ES OBLIGATORIO generar al menos UNA tarea.)",
         "   ```",
-        "   Consideraciones para `contenido_markdown_mision`:",
-        "   - Las tareas deben ser pequeñas, específicas y realizables por otra IA en un solo paso (Paso 2 del refactorizador).",
-        "   - Ejemplos de tareas: 'Mover la función `getUserData()` de `fileA.py` a `utils/user_helpers.py` y actualizar sus llamadas en `fileA.py`.' , 'Simplificar el bucle `for` en la línea 53 de `data_processor.py` usando `array_map`.' , 'Añadir validación de entrada para el parámetro `$userId` en la función `processUser()` en `user_handler.php`.'",
-        "   - El archivo principal y los de contexto ya están definidos arriba en el Markdown. Las tareas deben operar sobre estos archivos.",
-        "No añadas explicaciones fuera del JSON. El `nombre_clave_mision` en el JSON y en el Markdown DEBEN COINCIDIR."
+        "   Consideraciones ADICIONALES para `contenido_markdown_mision`:",
+        "   - **OBLIGATORIO:** Si el `razonamiento_paso1_1` sugiere una refactorización, DEBES generar al menos una tarea. Si no hay nada que hacer, el flujo no debería haber llegado aquí, pero si lo hace, genera una tarea del tipo 'Revisar archivo X en busca de mejoras menores.'",
+        "   - Las tareas deben ser PEQUEÑAS, ESPECÍFICAS y REALIZABLES por otra IA en un solo paso (Paso 2 del refactorizador).",
+        "   - Los IDs de las tareas deben ser únicos dentro de la misión.",
+        "   - El archivo principal y los de contexto para la generación ya están definidos en los metadatos. Las tareas deben operar sobre estos archivos o los especificados en 'Archivos Implicados Específicos'.",
+        "No añadas explicaciones fuera del JSON. El `nombre_clave_mision` en el JSON y en el Markdown (título y metadato) DEBEN COINCIDIR."
     ]
     promptCompleto = "\n".join(promptPartes)
 
@@ -684,8 +695,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
             respuesta = modelo.generate_content(
                 promptCompleto,
                 generation_config=genai.types.GenerationConfig(
-                    # Max tokens para misión
-                    temperature=0.6, response_mime_type="application/json", max_output_tokens=60000),
+                    temperature=0.6, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS), # Ajustado para usar variable de settings
                 safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
                                  'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
             )
@@ -700,7 +710,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
             completion = client.chat.completions.create(
                 extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
                                "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=60000, timeout=API_TIMEOUT_SECONDS
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS, timeout=API_TIMEOUT_SECONDS # Ajustado para usar variable de settings
             )
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
@@ -722,12 +732,17 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
                 f"{logPrefix} Respuesta JSON no tiene la estructura esperada. Recibido: {respuestaJson}")
             return None
 
-        # Validar que el nombre clave en el JSON esté en el markdown
         nombre_clave_json = respuestaJson["nombre_clave_mision"]
         contenido_md = respuestaJson["contenido_markdown_mision"]
+        
+        # Validaciones básicas del contenido generado
         if f"# Misión: {nombre_clave_json}" not in contenido_md:
-            log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide exactamente con el título '# Misión: ...' en el contenido_markdown_mision. Esto podría ser un problema.")
-            # Podríamos intentar corregirlo o simplemente advertir. Por ahora, advertimos.
+            log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide exactamente con el título '# Misión: ...' en el contenido_markdown_mision.")
+        if f"- **Nombre Clave:** {nombre_clave_json}" not in contenido_md:
+            log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide con el metadato '- **Nombre Clave:** ...' en el contenido_markdown_mision.")
+        if "### Tarea" not in contenido_md and "Revisar archivo" not in contenido_md : # Chequeo muy básico de si hay tareas
+             log.warning(f"{logPrefix} El contenido_markdown_mision generado parece NO TENER TAREAS DEFINIDAS (no se encontró '### Tarea'). Esto podría ser un problema para el parser. Razonamiento original: {razonamiento_paso1_1}")
+
 
         log.info(
             f"{logPrefix} Contenido de misión generado. Nombre clave: {nombre_clave_json}")
@@ -739,7 +754,6 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         _manejar_excepcion_api(e, api_provider, logPrefix,
                                locals().get('respuesta'))
         return None
-
 
 def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa: str, contexto_archivos_tarea: str, api_provider: str):
     """
