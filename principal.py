@@ -444,10 +444,23 @@ def parsear_mision_orion(contenido_mision: str):
                 for m, key in [(m_acg, "archivos_contexto_generacion"), (m_ace, "archivos_contexto_ejecucion")]:
                     if m: 
                         s = m.group(1).strip()
-                        # Eliminar corchetes si están al principio y al final de la cadena
+                        # Eliminar corchetes si están al principio y al final de la cadena DE LA LISTA COMPLETA
                         if s.startswith('[') and s.endswith(']'):
                             s = s[1:-1].strip()
-                        metadatos[key] = [a.strip() for a in s.split(',') if a.strip() and a.lower() not in ["ninguno", "ninguno."]]; 
+                        
+                        # Procesar cada ruta individualmente
+                        rutas_procesadas_individualmente = []
+                        if s: # Asegurarse que s no esté vacío después de quitar corchetes
+                            for ruta_individual_str in s.split(','):
+                                ruta_limpia = ruta_individual_str.strip()
+                                if ruta_limpia and ruta_limpia.lower() not in ["ninguno", "ninguno."]:
+                                    # Eliminar corchetes de CADA RUTA INDIVIDUAL si los tiene
+                                    if ruta_limpia.startswith('[') and ruta_limpia.endswith(']'):
+                                        ruta_limpia = ruta_limpia[1:-1].strip()
+                                    # Solo añadir si después de limpiar corchetes individuales aún es una ruta válida y no vacía
+                                    if ruta_limpia: 
+                                        rutas_procesadas_individualmente.append(ruta_limpia)
+                        metadatos[key] = rutas_procesadas_individualmente
                         continue
             elif seccion_actual == "tareas" and tarea_actual_buffer is not None: tarea_actual_buffer["raw_lines"].append(linea_orig)
         
