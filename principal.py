@@ -1143,3 +1143,18 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
     else: # Error inesperado de paso1.1
         logging.error(f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Saliendo.")
         return False # Fase falló
+    
+if __name__ == "__main__":
+    configurarLogging()
+    parser = argparse.ArgumentParser(
+        description="Agente Adaptativo de Refactorización de Código con IA.",
+        epilog="Ejecuta una fase del ciclo adaptativo (crear misión o ejecutar tarea) y luego se detiene."
+    )
+    parser.add_argument("--modo-test", action="store_true", help="Activa modo prueba (hace push a Git).")
+    parser.add_argument("--openrouter", action="store_true", help="Utilizar OpenRouter como proveedor de IA.")
+    args = parser.parse_args()
+    
+    codigo_salida = orchestrarEjecucionScript(args)
+    
+    logging.info(f"Script principal (adaptativo) finalizado con código: {codigo_salida}")
+    sys.exit(codigo_salida)
