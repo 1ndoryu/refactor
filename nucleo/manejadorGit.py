@@ -203,9 +203,27 @@ def clonarOActualizarRepo(repoUrl, rutaLocal, ramaTrabajo):
             else:
                 ramaPrincipal = "master"  # Actualizar si se usó master
 
-        if not ejecutarComando(['git', 'fetch', 'origin'], cwd=rutaLocal):
-            # Continuar con precaución
-            log.warning("Falló 'git fetch origin'.")
+        fetch_exitoso = ejecutarComando(['git', 'fetch', 'origin'], cwd=rutaLocal, check=False)
+        if not fetch_exitoso:
+            log.warning(f"{logPrefix} Falló 'git fetch origin'. Intentando 'git remote prune origin' y reintentando fetch...")
+            # Intentar prune
+            prune_exitoso = ejecutarComando(['git', 'remote', 'prune', 'origin'], cwd=rutaLocal, check=False)
+            if prune_exitoso:
+                log.info(f"{logPrefix} 'git remote prune origin' ejecutado con éxito. Reintentando 'git fetch origin'...")
+                fetch_exitoso = ejecutarComando(['git', 'fetch', 'origin'], cwd=rutaLocal, check=False) # Reintentar fetch
+                if not fetch_exitoso:
+                    log.error(f"{logPrefix} Falló 'git fetch origin' incluso después de 'prune'. El repositorio podría estar en un estado inconsistente.")
+                    # Considerar si devolver False aquí o continuar con precaución
+                    # Por ahora, se continúa con advertencia, como antes, pero el error es más grave.
+            else:
+                log.error(f"{logPrefix} Falló 'git remote prune origin'. No se pudo limpiar las referencias remotas.")
+                # Continuar con precaución, el fetch original ya falló.
+
+        # Si después de todo, el fetch no fue exitoso (ya sea el primero o el reintento)
+        if not fetch_exitoso:
+            log.warning(f"{logPrefix} 'git fetch origin' no tuvo éxito final. Procediendo con cautela.")
+            # La lógica original continuaba con precaución, mantenemos eso por ahora.
+            # Si se quisiera ser más estricto, se podría retornar False aquí.
         if not ejecutarComando(['git', 'reset', '--hard', f'origin/{ramaPrincipal}'], cwd=rutaLocal):
             log.error("Falló 'git reset --hard'.")
             return False
