@@ -145,6 +145,12 @@ def leerArchivos(listaArchivos, rutaBase, api_provider='google'):  # Añadido ap
             log.info(f"{log_msg_base} Tokens estimados: {tokensTotales}.")
         else:
             log.info(log_msg_base + " Contenido vacío, 0 tokens.")
+    
+        return {'contenido': contenidoConcatenado, 'bytes': bytesTotales, 'tokens': tokensTotales, 'archivos_leidos': archivosLeidos}
+    else:
+        log.warning(f"{logPrefix} No se leyó ningún archivo. Total de rutas intentadas: {len(listaArchivos)}.")
+        return {'contenido': "", 'bytes': 0, 'tokens': 0, 'archivos_leidos': 0}
+
 
 def contarTokensTexto(texto, api_provider='google'):
     logPrefix = "contarTokensTexto:"
@@ -170,13 +176,6 @@ def contarTokensTexto(texto, api_provider='google'):
     else:  # OpenRouter u otros
         tokens = len(texto) // 4  # Aproximación general
     return tokens
-
-
-    if archivosLeidos > 0:
-        return {'contenido': contenidoConcatenado, 'bytes': bytesTotales, 'tokens': tokensTotales, 'archivos_leidos': archivosLeidos}
-    else:
-        log.warning(f"{logPrefix} No se leyó ningún archivo. Total de rutas intentadas: {len(listaArchivos)}.")
-        return {'contenido': "", 'bytes': 0, 'tokens': 0, 'archivos_leidos': 0}
 
 
 def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth=8, incluir_archivos=True, indent_char="    "):
