@@ -1017,111 +1017,71 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
 
 def _limpiarYParsearJson(textoRespuesta, logPrefix):
     textoLimpio = textoRespuesta.strip()
-    json_candidate_original_para_log = textoLimpio # Guardar para log si todo falla
 
     # Quitar ```json ... ``` o ``` ... ``` si existen
     if textoLimpio.startswith("```"):
         first_newline = textoLimpio.find('\n')
+        # Asegurarse de que la primera línea sea solo el marcador de bloque de código
         if first_newline != -1:
             first_line_marker = textoLimpio[:first_newline].strip()
             if first_line_marker == "```json" or first_line_marker == "```":
                 textoLimpio = textoLimpio[first_newline + 1:]
-        if textoLimpio.endswith("```"): # Quitar el ``` final independientemente de si había ```json
+        # Quitar el ``` final
+        if textoLimpio.endswith("```"):
             textoLimpio = textoLimpio[:-3].strip()
 
-    # A veces la IA puede añadir texto antes/después del JSON. Intentar encontrar el primer '{' o '[' y el último '}' o ']'
-    # Esto permite que la IA devuelva un array JSON en la raíz también.
-    start_char_json = -1
-    end_char_json = -1
+    # A veces la IA puede añadir texto antes del JSON. Intentar encontrar el primer '{'
+    start_brace = textoLimpio.find('{')
+    # Y el último '}' para asegurar que tomamos el objeto JSON completo
+    end_brace = textoLimpio.rfind('}')
 
-    first_brace = textoLimpio.find('{')
-    first_bracket = textoLimpio.find('[')
-
-    if first_brace != -1 and first_bracket != -1:
-        start_char_json = min(first_brace, first_bracket)
-    elif first_brace != -1:
-        start_char_json = first_brace
-    elif first_bracket != -1:
-        start_char_json = first_bracket
-    else: 
+    if start_brace == -1 or end_brace == -1 or start_brace >= end_brace:
         log.error(
-            f"{logPrefix} Respuesta de IA no parece contener un bloque JSON (no se encontró '{{' o '['). Respuesta (limpia inicial): {textoLimpio[:500]}...")
-        log.debug(f"{logPrefix} Respuesta Original Completa Pre-Limpieza:\n{json_candidate_original_para_log}")
+            f"{logPrefix} Respuesta de IA no parece contener un bloque JSON válido {{...}}. Respuesta (limpia inicial): {textoLimpio[:500]}...")
+        log.debug(f"{logPrefix} Respuesta Original Completa Pre-Limpieza:\n{textoRespuesta}") # Log completo antes de JSON
         return None
 
-    json_candidate_preview = textoLimpio[start_char_json:]
-    # Determinar el carácter de cierre esperado basado en el carácter de inicio
-    expected_closing_char = '}' if textoLimpio[start_char_json] == '{' else ']'
-    end_char_json_relative = json_candidate_preview.rfind(expected_closing_char)
-    
-    if end_char_json_relative == -1 :
-        log.error(
-            f"{logPrefix} Respuesta de IA parece JSON malformado (inicio '{textoLimpio[start_char_json]}' sin fin '{expected_closing_char}' correspondiente). Respuesta (limpia inicial): {textoLimpio[:500]}...")
-        log.debug(f"{logPrefix} Respuesta Original Completa Pre-Limpieza:\n{json_candidate_original_para_log}")
-        return None
-        
-    end_char_json = start_char_json + end_char_json_relative
-
-    if start_char_json >= end_char_json : 
-        log.error(
-            f"{logPrefix} JSON delimitadores inconsistentes (start: {start_char_json}, end: {end_char_json}). Respuesta (limpia inicial): {textoLimpio[:500]}...")
-        log.debug(f"{logPrefix} Respuesta Original Completa Pre-Limpieza:\n{json_candidate_original_para_log}")
-        return None
-
-    json_candidate = textoLimpio[start_char_json : end_char_json + 1]
-    json_candidate_pre_comment_removal = json_candidate 
-
-    lines = json_candidate.splitlines()
-    cleaned_lines = []
-    for line in lines:
-        line_sin_comentario = re.sub(r"\s*//.*", "", line) # Quita espacios antes de // y el comentario
-        if line_sin_comentario != line:
-             log.debug(f"{logPrefix} Comentario '//' eliminado de línea: '{line.strip()}' -> '{line_sin_comentario.strip()}'")
-        cleaned_lines.append(line_sin_comentario)
-    json_candidate = "\n".join(cleaned_lines)
-    
-    if json_candidate != json_candidate_pre_comment_removal:
-        log.info(f"{logPrefix} Candidato JSON después de eliminar comentarios '//'.")
+    json_candidate = textoLimpio[start_brace: end_brace + 1]
 
     try:
         log.debug(
-            f"{logPrefix} Intentando parsear JSON candidato (tamaño: {len(json_candidate)} chars) después de limpiezas...")
+            f"{logPrefix} Intentando parsear JSON candidato (tamaño: {len(json_candidate)})...")
         resultadoJson = json.loads(json_candidate)
         log.info(
-            f"{logPrefix} JSON parseado correctamente.")
+            f"{logPrefix} JSON parseado correctamente (previo a validación de contenido).")
         return resultadoJson
     except json.JSONDecodeError as e:
+        # Mejorar log de error de JSON
         contexto_inicio_error = max(0, e.pos - 150)
-        contexto_fin_error = min(len(json_candidate), e.pos + 150) 
+        contexto_fin_error = min(len(json_candidate), e.pos + 150)
         contexto_error_str = json_candidate[contexto_inicio_error:contexto_fin_error]
+        # Usar repr() para ver caracteres problemáticos
         contexto_error_repr = repr(contexto_error_str)
 
         log.error(
-            f"{logPrefix} Error crítico parseando JSON de IA: {e.msg} (char {e.pos} del candidato post-limpieza)")
+            f"{logPrefix} Error crítico parseando JSON de IA: {e.msg} (char {e.pos})")
         log.error(
-            f"{logPrefix} Contexto alrededor del error ({contexto_inicio_error}-{contexto_fin_error}) en candidato post-limpieza:\n{contexto_error_repr}")
+            f"{logPrefix} Contexto alrededor del error ({contexto_inicio_error}-{contexto_fin_error}):\n{contexto_error_repr}")
 
-        if len(json_candidate) > 2000:
+        # Loguear una porción más grande o todo el candidato si es razonable
+        if len(json_candidate) > 2000: # Si es muy largo, loguear inicio y fin
             log.debug(
-                f"{logPrefix} Candidato JSON (post-limpieza) que falló (Inicio - 1000 chars):\n{json_candidate[:1000]}...")
+                f"{logPrefix} JSON Candidato que falló (Inicio - 1000 chars):\n{json_candidate[:1000]}...")
             log.debug(
-                f"{logPrefix} Candidato JSON (post-limpieza) que falló (Fin - 1000 chars):...{json_candidate[-1000:]}")
-        else:
+                f"{logPrefix} JSON Candidato que falló (Fin - 1000 chars):...{json_candidate[-1000:]}")
+        else: # Si es más corto, loguear completo
             log.debug(
-                f"{logPrefix} Candidato JSON Completo (post-limpieza) que falló:\n{json_candidate}")
-        
-        log.debug(f"{logPrefix} Respuesta Original Completa (la que generó el JSON candidato inicial):\n{json_candidate_original_para_log}")
-        if json_candidate_pre_comment_removal != json_candidate: # Loguear el estado intermedio si cambió
-            log.debug(f"{logPrefix} JSON Candidato ANTES de quitar comentarios (si cambió):\n{json_candidate_pre_comment_removal}")
-            
+                f"{logPrefix} JSON Candidato Completo que falló:\n{json_candidate}")
+
+        log.debug(
+            f"{logPrefix} Respuesta Original Completa Pre-Limpieza (la que generó el JSON candidato):\n{textoRespuesta}")
         return None
-    except Exception as e_general_parse:
+    except Exception as e_general_parse:  # Otros errores inesperados durante el parseo
         log.error(
             f"{logPrefix} Error inesperado durante json.loads: {e_general_parse}", exc_info=True)
-        log.debug(f"{logPrefix} JSON Candidato (post-limpieza) que falló (por error general):\n{json_candidate}")
-        log.debug(f"{logPrefix} Respuesta Original Completa (la que generó el JSON candidato inicial):\n{json_candidate_original_para_log}")
-        if json_candidate_pre_comment_removal != json_candidate: # Loguear el estado intermedio si cambió
-            log.debug(f"{logPrefix} JSON Candidato ANTES de quitar comentarios (si cambió):\n{json_candidate_pre_comment_removal}")
+        log.debug(f"{logPrefix} JSON Candidato que falló (por error general):\n{json_candidate}")
+        log.debug(
+            f"{logPrefix} Respuesta Original Completa Pre-Limpieza (la que generó el JSON candidato):\n{textoRespuesta}")
         return None
 
 def _manejar_excepcion_api(e, api_provider, logPrefix, respuesta_api=None):
