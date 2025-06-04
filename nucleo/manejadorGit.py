@@ -3,13 +3,14 @@ import subprocess
 import os
 import logging
 import shutil
-from typing import Set, Optional # Para type hints
+from typing import Set, Optional, List # Para type hints
+from config import settings # Para RAMATRABAJO en eliminarRama
 
 log = logging.getLogger(__name__)
 
 
 # MODIFICADO ### Añadir check y return_output
-def ejecutarComando(comando, cwd=None, check=True, return_output=False):
+def ejecutarComando(comando: List[str], cwd: Optional[str] = None, check: bool = True, return_output: bool = False):
     """
     Ejecuta un comando de shell.
     Args:
@@ -73,12 +74,9 @@ def ejecutarComando(comando, cwd=None, check=True, return_output=False):
         return (False, f"Error inesperado: {e}") if return_output else False
 
 
-# --- Funciones existentes (clonarOActualizarRepo, obtenerUrlRemota, establecerUrlRemota) sin cambios funcionales grandes ---
-# ... (mantenerlas como estaban, asegurando que usan el nuevo ejecutarComando si es necesario) ...
-def obtenerUrlRemota(nombreRemoto, rutaRepo):
+def obtenerUrlRemota(nombreRemoto: str, rutaRepo: str) -> Optional[str]:
     """Obtiene la URL configurada para un remote específico."""
     comando = ['git', 'remote', 'get-url', nombreRemoto]
-    # Usamos check=False porque esperamos que falle si no existe
     success, output = ejecutarComando(
         comando, cwd=rutaRepo, check=False, return_output=True)
     if success:
@@ -91,7 +89,7 @@ def obtenerUrlRemota(nombreRemoto, rutaRepo):
         return None
 
 
-def establecerUrlRemota(nombreRemoto, nuevaUrl, rutaRepo):
+def establecerUrlRemota(nombreRemoto: str, nuevaUrl: str, rutaRepo: str) -> bool:
     """Establece la URL para un remote específico."""
     logPrefix = "establecerUrlRemota:"
     comando_set = ['git', 'remote', 'set-url', nombreRemoto, nuevaUrl]
@@ -99,7 +97,6 @@ def establecerUrlRemota(nombreRemoto, nuevaUrl, rutaRepo):
 
     log.info(
         f"{logPrefix} Intentando establecer URL para '{nombreRemoto}' a: {nuevaUrl}")
-    # Intentar set-url primero
     success_set, err_set = ejecutarComando(
         comando_set, cwd=rutaRepo, check=False, return_output=True)
     if success_set:
@@ -121,18 +118,17 @@ def establecerUrlRemota(nombreRemoto, nuevaUrl, rutaRepo):
             return False
 
 
-def clonarOActualizarRepo(repoUrl, rutaLocal, ramaTrabajo):
+def clonarOActualizarRepo(repoUrl: str, rutaLocal: str, ramaTrabajo: str) -> bool:
     """Gestiona clonado/actualización, asegura limpieza y rama correcta."""
     logPrefix = "clonarOActualizarRepo:"
     log.info(
         f"{logPrefix} Gestionando repo {repoUrl} en {rutaLocal} (rama: {ramaTrabajo})")
-    ramaPrincipalDefault = "main"
+    ramaPrincipalDefault = "main" # Default, se intentará detectar la real
     ramaPrincipal = ramaPrincipalDefault
 
     gitDir = os.path.join(rutaLocal, '.git')
     repoExiste = os.path.isdir(gitDir)
 
-    # --- Clonar si no existe ---
     if not repoExiste:
         log.info(
             f"{logPrefix} Repositorio no encontrado. Clonando desde {repoUrl}...")
@@ -145,34 +141,27 @@ def clonarOActualizarRepo(repoUrl, rutaLocal, ramaTrabajo):
                 log.error(f"No se pudo eliminar {rutaLocal}: {e}")
                 return False
         directorioPadre = os.path.dirname(rutaLocal)
-        if directorioPadre:
+        if directorioPadre: # Asegurar que el directorio padre exista para clonar
             os.makedirs(directorioPadre, exist_ok=True)
 
-        # Check=True aquí
-        if not ejecutarComando(['git', 'clone', repoUrl, rutaLocal], check=True):
+        if not ejecutarComando(['git', 'clone', repoUrl, rutaLocal], check=True): # check=True, fallo es crítico
             log.error(f"{logPrefix} Falló la clonación.")
             return False
         log.info(f"{logPrefix} Repositorio clonado.")
-        repoExiste = True
+        repoExiste = True # Actualizar estado
 
-    # --- Asegurar URL de 'origin' ---
     if repoExiste:
         log.info(f"{logPrefix} Verificando URL del remote 'origin'...")
         urlActual = obtenerUrlRemota("origin", rutaLocal)
         if not urlActual:
             log.warning(
                 f"{logPrefix} Remote 'origin' no encontrado o sin URL. Estableciendo a {repoUrl}")
-            if not establecerUrlRemota("origin", repoUrl, rutaLocal):
-                return False  # Fallo crítico si no se puede poner URL
+            if not establecerUrlRemota("origin", repoUrl, rutaLocal): return False
         elif urlActual != repoUrl:
             log.warning(
                 f"{logPrefix} URL de 'origin' difiere ({urlActual}). Corrigiendo a {repoUrl}")
-            if not establecerUrlRemota("origin", repoUrl, rutaLocal):
-                return False  # Fallo crítico
+            if not establecerUrlRemota("origin", repoUrl, rutaLocal): return False
 
-    # --- Limpieza, Actualización y Cambio de Rama ---
-    if repoExiste:
-        # Detectar rama principal remota (best-effort)
         success_remote, output_remote = ejecutarComando(
             ['git', 'remote', 'show', 'origin'], cwd=rutaLocal, check=False, return_output=True)
         if success_remote:
@@ -184,97 +173,43 @@ def clonarOActualizarRepo(repoUrl, rutaLocal, ramaTrabajo):
                         log.info(
                             f"{logPrefix} Rama principal remota detectada: '{ramaPrincipal}'")
                         break
-            else:
-                log.warning(
-                    f"{logPrefix} No se pudo determinar rama HEAD remota. Usando default '{ramaPrincipal}'.")
-        else:
-            log.warning(
-                f"{logPrefix} Falló 'git remote show origin'. Usando default '{ramaPrincipal}'.")
+            else: log.warning(f"{logPrefix} No se pudo determinar rama HEAD remota. Usando default '{ramaPrincipalDefault}'.")
+        else: log.warning(f"{logPrefix} Falló 'git remote show origin'. Usando default '{ramaPrincipalDefault}'.")
 
-        # Limpiar estado: checkout a principal, fetch, reset hard, clean
         log.info(f"{logPrefix} Limpiando estado local...")
-        # Intentar checkout a principal, luego master como fallback
         if not ejecutarComando(['git', 'checkout', ramaPrincipal], cwd=rutaLocal, check=False):
-            log.warning(
-                f"Checkout a '{ramaPrincipal}' falló. Intentando 'master'...")
+            log.warning(f"Checkout a '{ramaPrincipal}' falló. Intentando 'master'...")
             if not ejecutarComando(['git', 'checkout', 'master'], cwd=rutaLocal, check=False):
-                log.error("Falló checkout a rama principal/master. Abortando.")
-                return False
-            else:
-                ramaPrincipal = "master"  # Actualizar si se usó master
+                log.error("Falló checkout a rama principal/master. Abortando limpieza crítica."); return False
+            else: ramaPrincipal = "master"
 
-        fetch_exitoso = ejecutarComando(['git', 'fetch', 'origin'], cwd=rutaLocal, check=False)
-        if not fetch_exitoso:
-            log.warning(f"{logPrefix} Falló 'git fetch origin'. Intentando 'git remote prune origin' y reintentando fetch...")
-            # Intentar prune
-            prune_exitoso = ejecutarComando(['git', 'remote', 'prune', 'origin'], cwd=rutaLocal, check=False)
-            if prune_exitoso:
-                log.info(f"{logPrefix} 'git remote prune origin' ejecutado con éxito. Reintentando 'git fetch origin'...")
-                fetch_exitoso = ejecutarComando(['git', 'fetch', 'origin'], cwd=rutaLocal, check=False) # Reintentar fetch
-                if not fetch_exitoso:
-                    log.error(f"{logPrefix} Falló 'git fetch origin' incluso después de 'prune'. El repositorio podría estar en un estado inconsistente.")
-                    # Considerar si devolver False aquí o continuar con precaución
-                    # Por ahora, se continúa con advertencia, como antes, pero el error es más grave.
-            else:
-                log.error(f"{logPrefix} Falló 'git remote prune origin'. No se pudo limpiar las referencias remotas.")
-                # Continuar con precaución, el fetch original ya falló.
+        if not ejecutarComando(['git', 'fetch', 'origin'], cwd=rutaLocal, check=False):
+             log.warning(f"{logPrefix} 'git fetch origin' falló. Puede que el repo remoto no exista o no haya conexión.")
+        if not ejecutarComando(['git', 'reset', '--hard', f'origin/{ramaPrincipal}'], cwd=rutaLocal, check=False):
+            log.error(f"Falló 'git reset --hard origin/{ramaPrincipal}'. Repo podría estar inconsistente."); return False
+        if not ejecutarComando(['git', 'clean', '-fdx'], cwd=rutaLocal, check=False):
+            log.warning("Falló 'git clean -fdx', no es crítico pero podría haber archivos extra.")
 
-        # Si después de todo, el fetch no fue exitoso (ya sea el primero o el reintento)
-        if not fetch_exitoso:
-            log.warning(f"{logPrefix} 'git fetch origin' no tuvo éxito final. Procediendo con cautela.")
-            # La lógica original continuaba con precaución, mantenemos eso por ahora.
-            # Si se quisiera ser más estricto, se podría retornar False aquí.
-        if not ejecutarComando(['git', 'reset', '--hard', f'origin/{ramaPrincipal}'], cwd=rutaLocal):
-            log.error("Falló 'git reset --hard'.")
-            return False
-        if not ejecutarComando(['git', 'clean', '-fdx'], cwd=rutaLocal):
-            log.warning("Falló 'git clean -fdx'.")  # No crítico
-
-        # Asegurar rama de trabajo
         log.info(f"{logPrefix} Asegurando rama de trabajo '{ramaTrabajo}'...")
-        # Verificar existencia local y remota
-        _, ramas_locales_raw = ejecutarComando(
-            ['git', 'branch', '--list', ramaTrabajo], cwd=rutaLocal, check=False, return_output=True)
-        existeLocal = bool(ramas_locales_raw.strip())
-        _, ramas_remotas_raw = ejecutarComando(
-            ['git', 'ls-remote', '--heads', 'origin', ramaTrabajo], cwd=rutaLocal, check=False, return_output=True)
-        existeRemota = bool(ramas_remotas_raw.strip())
-
-        if existeLocal:
-            log.info(f"Cambiando a rama local '{ramaTrabajo}'.")
-            if not ejecutarComando(['git', 'checkout', ramaTrabajo], cwd=rutaLocal):
-                return False
-            if existeRemota:
-                log.info(
-                    f"Reseteando '{ramaTrabajo}' a 'origin/{ramaTrabajo}'.")
-                # Permitir fallo en reset, podría no ser crítico pero advertir
-                if not ejecutarComando(['git', 'reset', '--hard', f'origin/{ramaTrabajo}'], cwd=rutaLocal, check=False):
-                    log.warning(
-                        f"Fallo al resetear '{ramaTrabajo}' a su versión remota.")
-            else:
-                log.info(
-                    f"Rama '{ramaTrabajo}' existe localmente pero no en origin.")
-        elif existeRemota:
-            log.info(
-                f"Creando rama local '{ramaTrabajo}' desde 'origin/{ramaTrabajo}'.")
-            # Checkout directo para rastrear automáticamente
-            if not ejecutarComando(['git', 'checkout', ramaTrabajo], cwd=rutaLocal, check=False):
-                # Fallback explícito si el anterior falla
-                if not ejecutarComando(['git', 'checkout', '-b', ramaTrabajo, f'origin/{ramaTrabajo}'], cwd=rutaLocal):
-                    return False
+        if obtener_rama_actual(rutaLocal) == ramaTrabajo:
+            log.info(f"{logPrefix} Ya en la rama de trabajo '{ramaTrabajo}'.")
+        elif existe_rama(rutaLocal, ramaTrabajo, local_only=True):
+            log.info(f"Cambiando a rama local existente '{ramaTrabajo}'.")
+            if not cambiar_a_rama_existente(rutaLocal, ramaTrabajo): return False
+        elif existe_rama(rutaLocal, ramaTrabajo, remote_only=True):
+            log.info(f"Creando rama local '{ramaTrabajo}' desde 'origin/{ramaTrabajo}'.")
+            if not ejecutarComando(['git', 'checkout', '-b', ramaTrabajo, f'origin/{ramaTrabajo}'], cwd=rutaLocal, check=True): return False
         else:
-            log.info(
-                f"Creando nueva rama local '{ramaTrabajo}' desde '{ramaPrincipal}'.")
-            if not ejecutarComando(['git', 'checkout', '-b', ramaTrabajo, ramaPrincipal], cwd=rutaLocal):
-                return False
-
+            log.info(f"Creando nueva rama local '{ramaTrabajo}' desde '{ramaPrincipal}'.")
+            if not crear_y_cambiar_a_rama(rutaLocal, ramaTrabajo, ramaPrincipal): return False
+        
         log.info(f"{logPrefix} Repositorio listo en la rama '{ramaTrabajo}'.")
         return True
     else:
-        log.error(f"{logPrefix} Error inesperado: El repositorio no existe.")
+        log.error(f"{logPrefix} Error inesperado: El repositorio no existe después del intento de clonación.")
         return False
 
-def hacerCommit(rutaRepo, mensaje):
+def hacerCommit(rutaRepo: str, mensaje: str) -> bool:
     """
     Añade todos los cambios y hace commit.
     Returns:
@@ -284,56 +219,39 @@ def hacerCommit(rutaRepo, mensaje):
     logPrefix = "hacerCommit:"
     log.info(f"{logPrefix} Intentando commit en {rutaRepo}")
 
-    # 1. Add All Changes
-    if not ejecutarComando(['git', 'add', '-A'], cwd=rutaRepo, check=False): # Usar check=False para manejar error
+    if not ejecutarComando(['git', 'add', '-A'], cwd=rutaRepo, check=False):
         log.error(f"{logPrefix} Falló 'git add -A'. No se intentará commit.")
-        return False # Fallo crítico antes de commit
+        return False
 
-    # 2. Check if there are staged changes
-    hay_cambios_staged = False
     try:
-        # 'git diff --staged --quiet' devuelve 0 si NADA staged, 1 si HAY algo staged
         resultado_diff = subprocess.run(
-            ['git', 'diff', '--staged', '--quiet'], cwd=rutaRepo, capture_output=True, check=False) # check=False es importante
-        if resultado_diff.returncode == 1:
-            hay_cambios_staged = True
+            ['git', 'diff', '--staged', '--quiet'], cwd=rutaRepo, capture_output=True, check=False)
+        if resultado_diff.returncode == 1: # Hay cambios staged
             log.info(f"{logPrefix} Detectados cambios en staging area.")
-        elif resultado_diff.returncode == 0:
+            log.info(f"{logPrefix} Realizando commit con mensaje: '{mensaje[:80]}...'")
+            if ejecutarComando(['git', 'commit', '-m', mensaje], cwd=rutaRepo, check=False):
+                log.info(f"{logPrefix} Comando 'git commit' ejecutado con éxito.")
+                return True
+            else:
+                log.error(f"{logPrefix} Falló 'git commit'.")
+                return False
+        elif resultado_diff.returncode == 0: # Nada staged
             log.warning(f"{logPrefix} No hay cambios en el staging area para hacer commit.")
-            return False # <-- CAMBIO: Retornar False si no hay nada que commitear
-        else:
+            return False
+        else: # Error en diff
             stderr_diff = resultado_diff.stderr.decode('utf-8', errors='ignore').strip()
             log.error(f"{logPrefix} Comando 'git diff --staged --quiet' devolvió código inesperado {resultado_diff.returncode}. Stderr: {stderr_diff}. Asumiendo que no hay cambios.")
-            return False # <-- CAMBIO: Retornar False si hay error en diff
+            return False
     except Exception as e_diff:
         log.error(f"{logPrefix} Error verificando cambios staged: {e_diff}. No se intentará commit.")
-        return False # <-- CAMBIO: Retornar False si hay excepción
-
-    # 3. Attempt Commit (only if changes were staged)
-    if hay_cambios_staged:
-        log.info(f"{logPrefix} Realizando commit con mensaje: '{mensaje[:80]}...'")
-        # Usar check=False para capturar el resultado directamente
-        commit_success = ejecutarComando(['git', 'commit', '-m', mensaje], cwd=rutaRepo, check=False)
-
-        if commit_success:
-            log.info(f"{logPrefix} Comando 'git commit' ejecutado con éxito.")
-            return True # <-- CAMBIO: Commit realizado exitosamente
-        else:
-            log.error(f"{logPrefix} Falló 'git commit'.")
-            # El error específico ya fue logueado por ejecutarComando
-            return False # Commit falló
-    else:
-        # Este caso ya no debería alcanzarse debido a los returns anteriores,
-        # pero lo mantenemos por si acaso.
-        log.warning(f"{logPrefix} Lógica inesperada: No había cambios staged pero se intentó commitear.")
         return False
 
 
-def hacerPush(rutaRepo, rama):
+def hacerPush(rutaRepo: str, rama: str) -> bool:
     """Hace push de la rama a origin."""
     logPrefix = "hacerPush:"
     log.info(f"{logPrefix} Intentando push de rama '{rama}' a 'origin'...")
-    if not ejecutarComando(['git', 'push', 'origin', rama], cwd=rutaRepo):
+    if not ejecutarComando(['git', 'push', 'origin', rama], cwd=rutaRepo, check=False): # check=False, el log ya informa del error
         log.error(
             f"{logPrefix} Falló 'git push origin {rama}'. Ver logs, credenciales, permisos.")
         return False
@@ -341,12 +259,11 @@ def hacerPush(rutaRepo, rama):
     return True
 
 
-def descartarCambiosLocales(rutaRepo):
+def descartarCambiosLocales(rutaRepo: str) -> bool:
     """Resetea HEAD y limpia archivos no rastreados."""
     logPrefix = "descartarCambiosLocales:"
     log.warning(
         f"{logPrefix} ¡ATENCIÓN! Descartando cambios locales en {rutaRepo}...")
-    # Usamos check=False para loguear fallos específicos sin detener todo
     resetOk = ejecutarComando(
         ['git', 'reset', '--hard', 'HEAD'], cwd=rutaRepo, check=False)
     cleanOk = ejecutarComando(
@@ -358,53 +275,43 @@ def descartarCambiosLocales(rutaRepo):
         return True
     else:
         msg = f"{logPrefix} Falló al descartar cambios. "
-        if not resetOk:
-            msg += "'git reset --hard' falló. "
-        if not cleanOk:
-            msg += "'git clean -fdx' falló. "
+        if not resetOk: msg += "'git reset --hard' falló. "
+        if not cleanOk: msg += "'git clean -fdx' falló. "
         log.error(msg + "Repo puede estar inconsistente.")
         return False
 
-# ### NUEVO ### Helper para verificar si el último commit tuvo cambios
 
-
-def commitTuvoCambiosReales(rutaRepo):
+def commitTuvoCambiosReales(rutaRepo: str) -> Optional[bool]:
     """Verifica si el commit más reciente (HEAD) introdujo cambios respecto a su padre (HEAD~1)."""
     logPrefix = "commitTuvoCambiosReales:"
     comando = ['git', 'diff', 'HEAD~1', 'HEAD', '--quiet']
     try:
-        # check=False, miramos el return code
-        resultado = subprocess.run(comando, cwd=rutaRepo, capture_output=True)
+        resultado = subprocess.run(comando, cwd=rutaRepo, capture_output=True, check=False) # No usar check=True aquí
         if resultado.returncode == 1:
             log.info(f"{logPrefix} Sí, el último commit introdujo cambios.")
-            return True  # Código 1 = Hubo diferencias
+            return True
         elif resultado.returncode == 0:
             log.warning(
                 f"{logPrefix} No, el último commit parece no tener cambios efectivos respecto a su padre.")
-            return False  # Código 0 = No hubo diferencias
+            return False
         else:
-            # Código inesperado
             stderr = resultado.stderr.decode('utf-8', errors='ignore').strip()
             log.error(
                 f"{logPrefix} Error inesperado verificando diff del commit (código {resultado.returncode}). Stderr: {stderr}")
-            return None  # Indicar fallo en la verificación
+            return None
     except Exception as e:
         log.error(
             f"{logPrefix} Excepción verificando diff del commit: {e}", exc_info=True)
-        return None  # Indicar fallo en la verificación
-
-# ### NUEVO ### Helper para revertir commit vacío
+        return None
 
 
-def revertirCommitVacio(rutaRepo):
+def revertirCommitVacio(rutaRepo: str) -> bool:
     """Intenta hacer reset soft al commit anterior y luego descartar cambios."""
     logPrefix = "revertirCommitVacio:"
     log.info(f"{logPrefix} Intentando revertir commit sin cambios efectivos...")
-    # Reset suave para quitar el commit pero mantener los archivos (si los hubiera)
     if ejecutarComando(['git', 'reset', '--soft', 'HEAD~1'], cwd=rutaRepo, check=False):
         log.info(
             f"{logPrefix} Reset soft a HEAD~1 OK. Descartando cambios restantes...")
-        # Ahora descartar cualquier cambio que hubiera quedado en staging/working dir
         if descartarCambiosLocales(rutaRepo):
             log.info(
                 f"{logPrefix} Commit vacío revertido y área de trabajo limpia.")
@@ -418,128 +325,308 @@ def revertirCommitVacio(rutaRepo):
             f"{logPrefix} Falló 'git reset --soft HEAD~1'. No se pudo revertir el commit.")
         return False
 
-# ### NUEVO ### Helper para obtener lista de archivos modificados según 'git status'
+
 def obtenerArchivosModificadosStatus(rutaRepo: str) -> Optional[Set[str]]:
     """
     Obtiene una lista de archivos modificados, nuevos, eliminados, etc.,
     según 'git status --porcelain'. Devuelve un set de rutas relativas.
     Ignora entradas que terminen en '/' (directorios).
-    Maneja correctamente nombres de archivo con espacios o caracteres especiales
-    (escapados o entre comillas en la salida de git).
+    Maneja correctamente nombres de archivo con espacios o caracteres especiales.
     Retorna un set vacío si no hay cambios.
     Retorna None en caso de error del comando git.
     """
     logPrefix = "obtenerArchivosModificadosStatus:"
     comando = ['git', 'status', '--porcelain']
-    # Usamos check=False y return_output=True para manejar errores y obtener salida
     success, output = ejecutarComando(
         comando, cwd=rutaRepo, check=False, return_output=True)
 
     if not success:
         log.error(
             f"{logPrefix} Falló 'git status --porcelain'. Error: {output}")
-        return None # Fallo al ejecutar git status
+        return None
 
     archivos_modificados: Set[str] = set()
     if not output:
         log.info(
             f"{logPrefix} No hay cambios detectados por 'git status --porcelain'.")
-        return archivos_modificados  # Vacío pero correcto
+        return archivos_modificados
 
-    # <-- DEBUGGING RAW OUTPUT -->
     log.debug(f"{logPrefix} Salida cruda de 'git status --porcelain':\n{output}")
 
     for line in output.strip().splitlines():
         line_strip = line.strip()
-        # Ignorar líneas vacías
-        if not line_strip:
-            continue
+        if not line_strip: continue
 
-        # <-- DEBUGGING LINE -->
         log.debug(f"{logPrefix} Procesando línea cruda: '{line_strip}'")
-
-        # --- Inicio de la corrección: Usar split en lugar de índices fijos ---
         parts = line_strip.split(maxsplit=1)
         if len(parts) < 2:
             log.warning(f"{logPrefix} Línea de status inesperada (formato no reconocido): '{line_strip}'. Saltando.")
             continue
 
-        status_codes = parts[0]  # Código(s) de estado (ej: 'M', 'MM', 'R ')
-        path_part_raw = parts[1]  # El resto de la línea, que es la ruta (o 'origen -> destino')
-        # --- Fin de la corrección ---
-
+        status_codes = parts[0]
+        path_part_raw = parts[1]
         log.debug(f"{logPrefix}   - Status codes: '{status_codes}', Initial path part: '{path_part_raw}'")
+        ruta_procesada = path_part_raw
 
-        ruta_procesada = path_part_raw # Iniciar con la parte extraída
-
-        # Manejar renombrados/copiados (R o C) : "origen" -> "destino"
-        # Usamos status_codes para la comprobación
         if status_codes.startswith('R') or status_codes.startswith('C'):
+            arrow_index = path_part_raw.find(' -> ')
+            if arrow_index != -1:
+                ruta_destino = path_part_raw[arrow_index + 4:]
+                log.debug(f"{logPrefix}   - Rename/Copy detected. Using destination: '{ruta_destino}'")
+                ruta_procesada = ruta_destino
+            else: log.warning(f"{logPrefix}   - Formato rename/copy inesperado (sin ' -> '): '{path_part_raw}'. Usando como está.")
+
+        ruta_final_unescaped = ruta_procesada
+        if ruta_procesada.startswith('"') and ruta_procesada.endswith('"'):
+            path_in_quotes = ruta_procesada[1:-1]
+            log.debug(f"{logPrefix}   - Path estaba entre comillas: '{path_in_quotes}'")
             try:
-                # Buscar el separador " -> " que usa git status
-                arrow_index = path_part_raw.find(' -> ')
-                if arrow_index != -1:
-                    # El path relevante es el *destino* (después de " -> ")
-                    ruta_destino = path_part_raw[arrow_index + 4:]
-                    log.debug(f"{logPrefix}   - Rename/Copy detected. Using destination: '{ruta_destino}'")
-                    ruta_procesada = ruta_destino # Actualizar con la ruta destino
-                else:
-                    # Formato inesperado si no encontramos " -> "
-                    log.warning(f"{logPrefix}   - Formato rename/copy inesperado (sin ' -> '): '{path_part_raw}'. Usando como está.")
-                    # Continuar con ruta_procesada tal como estaba (path_part_raw)
-            except Exception as e_rn:
-                log.warning(f"{logPrefix}   - Error procesando rename/copy: {e_rn}. Usando path part original.")
-                # Continuar con ruta_procesada tal como estaba
+                # Importar codecs solo si es necesario aquí
+                import codecs
+                path_to_unescape = path_in_quotes.replace('\\\\', '\\')
+                ruta_unescaped_val = codecs.decode(path_to_unescape, 'unicode_escape')
+                log.debug(f"{logPrefix}   - Path después de quitar comillas y procesar escapes: '{ruta_unescaped_val}'")
+                ruta_final_unescaped = ruta_unescaped_val
+            except Exception as e_esc:
+                log.warning(f"{logPrefix}   - Falló procesamiento de escapes/comillas para '{ruta_procesada}': {e_esc}. Usando la ruta como estaba.")
 
-        # Quitar comillas y procesar escapes si existen
-        ruta_final_unescaped = ruta_procesada # Variable para el resultado de este paso
-        try:
-            # Git usa comillas si el nombre tiene espacios o caracteres no habituales
-            if ruta_procesada.startswith('"') and ruta_procesada.endswith('"'):
-                path_in_quotes = ruta_procesada[1:-1]
-                log.debug(f"{logPrefix}   - Path estaba entre comillas: '{path_in_quotes}'")
-                # Intentar decodificar escapes C-style (ej. \t, \n, \ooo, \") que Git podría usar dentro de las comillas
-                # 'unicode_escape' es bueno para esto, pero puede ser agresivo.
-                # 'raw_unicode_escape' podría ser otra opción si falla.
-                # Usaremos una protección simple contra barras invertidas literales al final
-                path_to_unescape = path_in_quotes.replace('\\\\', '\\') # Reemplazar \\ escapado por \ literal primero
-                ruta_unescaped = codecs.decode(path_to_unescape, 'unicode_escape')
-                # Alternativa más segura si unicode_escape da problemas:
-                # ruta_unescaped = path_in_quotes.encode('latin-1', 'backslashreplace').decode('unicode-escape')
-
-                log.debug(f"{logPrefix}   - Path después de quitar comillas y procesar escapes: '{ruta_unescaped}'")
-                ruta_final_unescaped = ruta_unescaped
-            else:
-                 log.debug(f"{logPrefix}   - Path no estaba entre comillas.")
-                 # ruta_final_unescaped ya es ruta_procesada
-
-        except Exception as e_esc:
-            log.warning(f"{logPrefix}   - Falló procesamiento de escapes/comillas para '{ruta_procesada}': {e_esc}. Usando la ruta como estaba antes de este paso.")
-            # En caso de error aquí, ruta_final_unescaped mantiene el valor de ruta_procesada
-
-
-        # --- Comprobación de Directorio y Normalización Final ---
-        # Ignorar si parece un directorio (termina en /)
         if ruta_final_unescaped.endswith('/'):
             log.debug(f"{logPrefix}   - Ignorando entrada de directorio: '{ruta_final_unescaped}'")
-            continue # Saltar al siguiente 'line'
+            continue
 
         if ruta_final_unescaped:
-            # Normalizar separadores de ruta a '/' para consistencia interna
             ruta_normalizada = ruta_final_unescaped.replace(os.sep, '/')
             log.debug(f"{logPrefix}   - Ruta final normalizada a añadir: '{ruta_normalizada}'")
-
-            # <<< Mantener la ALERTA ESPECIAL por si acaso, aunque ahora no debería ocurrir >>>
-            if "emplateInicio.php" in ruta_normalizada or "unctions.php" in ruta_normalizada :
-                 # Cambiado a WARNING porque ahora se espera que esto no ocurra
-                 log.warning(f"{logPrefix} Posible typo detectado (o problema residual): '{ruta_normalizada}'. Línea original: '{line_strip}'")
-
-            # Añadir la ruta relativa normalizada al set
             archivos_modificados.add(ruta_normalizada)
-        else:
-            log.warning(f"{logPrefix}   - No se pudo extraer ruta válida de la línea al final: '{line_strip}'")
+        else: log.warning(f"{logPrefix}   - No se pudo extraer ruta válida de la línea al final: '{line_strip}'")
 
-
-    log.info(f"{logPrefix} Archivos con cambios válidos (ignorando directorios) según git status: {len(archivos_modificados)}")
-    log.debug(f"{logPrefix} Lista final de archivos modificados (set): {archivos_modificados}") # Log del set final
+    log.info(f"{logPrefix} Archivos con cambios válidos según git status: {len(archivos_modificados)}")
+    log.debug(f"{logPrefix} Lista final de archivos modificados (set): {archivos_modificados}")
     return archivos_modificados
+
+# --- NUEVAS FUNCIONES ---
+
+def obtener_rama_actual(ruta_repo: str) -> Optional[str]:
+    """Obtiene el nombre de la rama actual."""
+    logPrefix = "obtener_rama_actual:"
+    # git branch --show-current es más moderno y directo
+    # git rev-parse --abbrev-ref HEAD también funciona, pero puede dar "HEAD" si está detached.
+    success, output = ejecutarComando(['git', 'branch', '--show-current'], cwd=ruta_repo, check=False, return_output=True)
+    if success and output:
+        rama = output.strip()
+        log.info(f"{logPrefix} Rama actual: '{rama}'")
+        return rama
+    else:
+        # Fallback por si --show-current no está disponible o hay error
+        success_fallback, output_fallback = ejecutarComando(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=ruta_repo, check=False, return_output=True)
+        if success_fallback and output_fallback:
+            rama_fallback = output_fallback.strip()
+            if rama_fallback == "HEAD":
+                log.warning(f"{logPrefix} Repositorio en estado 'detached HEAD'. No hay una rama actual específica.")
+                return None
+            log.info(f"{logPrefix} Rama actual (fallback): '{rama_fallback}'")
+            return rama_fallback
+        log.error(f"{logPrefix} No se pudo obtener la rama actual. Error: {output_fallback if not success_fallback else output}")
+        return None
+
+
+def existe_rama(ruta_repo: str, nombre_rama: str, local_only: bool = False, remote_only: bool = False) -> bool:
+    """Verifica si una rama existe localmente y/o remotamente."""
+    logPrefix = "existe_rama:"
+    existe_local = False
+    existe_remota = False
+
+    if not remote_only: # Chequear local si no es remote_only o si es chequeo general
+        # git branch --list <nombre_rama> devuelve el nombre si existe, vacío si no.
+        success_local, output_local = ejecutarComando(['git', 'branch', '--list', nombre_rama], cwd=ruta_repo, check=False, return_output=True)
+        if success_local and output_local.strip():
+            existe_local = True
+            log.debug(f"{logPrefix} Rama '{nombre_rama}' encontrada localmente.")
+    
+    if not local_only: # Chequear remota si no es local_only o si es chequeo general
+        # git ls-remote --exit-code --heads origin <nombre_rama> devuelve 0 si existe, 2 si no.
+        # Usamos ejecutarComando con check=False, así que miramos el booleano de éxito
+        comando_remoto = ['git', 'ls-remote', '--exit-code', '--heads', 'origin', nombre_rama]
+        remoto_check_success = ejecutarComando(comando_remoto, cwd=ruta_repo, check=False) # No necesitamos output, solo si comando tuvo éxito (exit code 0)
+        if remoto_check_success: # Esto implica que el comando tuvo exit code 0
+            existe_remota = True
+            log.debug(f"{logPrefix} Rama '{nombre_rama}' encontrada remotamente en 'origin'.")
+
+    if local_only: return existe_local
+    if remote_only: return existe_remota
+    return existe_local or existe_remota
+
+
+def crear_y_cambiar_a_rama(ruta_repo: str, nombre_rama_nueva: str, rama_base: str) -> bool:
+    """Crea una nueva rama a partir de rama_base y cambia a ella. Si ya existe, solo cambia."""
+    logPrefix = "crear_y_cambiar_a_rama:"
+    
+    rama_actual = obtener_rama_actual(ruta_repo)
+    if rama_actual == nombre_rama_nueva:
+        log.info(f"{logPrefix} Ya se encuentra en la rama '{nombre_rama_nueva}'. No se requiere acción.")
+        return True
+
+    if existe_rama(ruta_repo, nombre_rama_nueva, local_only=True):
+        log.info(f"{logPrefix} La rama '{nombre_rama_nueva}' ya existe localmente. Cambiando a ella.")
+        return cambiar_a_rama_existente(ruta_repo, nombre_rama_nueva)
+    else:
+        log.info(f"{logPrefix} Creando nueva rama '{nombre_rama_nueva}' a partir de '{rama_base}'.")
+        # Asegurarse de estar en la rama base correcta primero si no lo estamos.
+        if rama_actual != rama_base:
+            if not cambiar_a_rama_existente(ruta_repo, rama_base):
+                log.error(f"{logPrefix} No se pudo cambiar a la rama base '{rama_base}' para crear '{nombre_rama_nueva}'.")
+                return False
+        
+        # Crear la nueva rama desde la rama_base (que ahora es la actual)
+        if ejecutarComando(['git', 'checkout', '-b', nombre_rama_nueva], cwd=ruta_repo, check=False): # -b crea y cambia
+            log.info(f"{logPrefix} Creada y cambiada a nueva rama '{nombre_rama_nueva}' desde '{rama_base}'.")
+            return True
+        else:
+            # Si el checkout -b falla, podría ser por un nombre inválido u otro problema
+            # Intentar un `git branch nombre_rama_nueva` y luego `git checkout nombre_rama_nueva` como fallback
+            log.warning(f"{logPrefix} 'git checkout -b {nombre_rama_nueva}' falló. Intentando 'git branch' y luego 'git checkout'.")
+            if ejecutarComando(['git', 'branch', nombre_rama_nueva, rama_base], cwd=ruta_repo, check=False):
+                if cambiar_a_rama_existente(ruta_repo, nombre_rama_nueva):
+                    log.info(f"{logPrefix} Creada (con git branch) y cambiada a nueva rama '{nombre_rama_nueva}'.")
+                    return True
+            log.error(f"{logPrefix} No se pudo crear la rama '{nombre_rama_nueva}' desde '{rama_base}'.")
+            return False
+
+
+def cambiar_a_rama_existente(ruta_repo: str, nombre_rama: str) -> bool:
+    """Cambia a una rama local existente."""
+    logPrefix = "cambiar_a_rama_existente:"
+    rama_actual = obtener_rama_actual(ruta_repo)
+    if rama_actual == nombre_rama:
+        log.info(f"{logPrefix} Ya se encuentra en la rama '{nombre_rama}'.")
+        return True
+
+    log.info(f"{logPrefix} Cambiando a rama existente '{nombre_rama}'.")
+    if ejecutarComando(['git', 'checkout', nombre_rama], cwd=ruta_repo, check=False):
+        log.info(f"{logPrefix} Cambiado a rama '{nombre_rama}' con éxito.")
+        return True
+    else:
+        log.error(f"{logPrefix} No se pudo cambiar a la rama '{nombre_rama}'. Asegúrese que existe localmente y no hay conflictos.")
+        return False
+
+
+def hacerCommitEspecifico(ruta_repo: str, mensaje: str, lista_archivos_a_commitear: List[str]) -> bool:
+    """Añade archivos específicos y hace commit."""
+    logPrefix = "hacerCommitEspecifico:"
+    if not lista_archivos_a_commitear:
+        log.warning(f"{logPrefix} Lista de archivos para commitear está vacía. No se hará commit.")
+        return False
+
+    log.info(f"{logPrefix} Intentando commit específico en {ruta_repo} para archivos: {lista_archivos_a_commitear}")
+
+    # Validar que todos los archivos existen antes de intentar 'git add'
+    archivos_validados_relativos = []
+    for ruta_rel_archivo in lista_archivos_a_commitear:
+        ruta_abs_archivo = os.path.join(ruta_repo, ruta_rel_archivo)
+        if not os.path.exists(ruta_abs_archivo):
+            log.error(f"{logPrefix} Archivo '{ruta_rel_archivo}' (Abs: '{ruta_abs_archivo}') no existe. No se puede añadir al commit.")
+            # Se podría decidir fallar aquí o continuar con los que sí existen. Por ahora, continuamos.
+        else:
+            archivos_validados_relativos.append(ruta_rel_archivo)
+    
+    if not archivos_validados_relativos:
+        log.error(f"{logPrefix} Ninguno de los archivos especificados para commit existe. No se hará commit.")
+        return False
+    
+    # Añadir solo los archivos especificados y validados
+    comando_add = ['git', 'add'] + archivos_validados_relativos
+    if not ejecutarComando(comando_add, cwd=ruta_repo, check=False):
+        log.error(f"{logPrefix} Falló 'git add' para archivos específicos: {archivos_validados_relativos}. No se intentará commit.")
+        return False
+
+    # Verificar si hay cambios staged (similar a hacerCommit general)
+    try:
+        resultado_diff = subprocess.run(
+            ['git', 'diff', '--staged', '--quiet'], cwd=ruta_repo, capture_output=True, check=False)
+        if resultado_diff.returncode == 1: # Hay cambios staged
+            log.info(f"{logPrefix} Detectados cambios en staging area para los archivos especificados.")
+            log.info(f"{logPrefix} Realizando commit con mensaje: '{mensaje[:80]}...'")
+            if ejecutarComando(['git', 'commit', '-m', mensaje], cwd=ruta_repo, check=False):
+                log.info(f"{logPrefix} Comando 'git commit' para archivos específicos ejecutado con éxito.")
+                return True
+            else:
+                log.error(f"{logPrefix} Falló 'git commit' para archivos específicos.")
+                return False
+        elif resultado_diff.returncode == 0: # Nada staged
+            log.warning(f"{logPrefix} No hay cambios en el staging area para los archivos especificados. No se hará commit.")
+            return False
+        else: # Error en diff
+            stderr_diff = resultado_diff.stderr.decode('utf-8', errors='ignore').strip()
+            log.error(f"{logPrefix} Comando 'git diff --staged --quiet' devolvió código inesperado {resultado_diff.returncode}. Stderr: {stderr_diff}. Asumiendo que no hay cambios.")
+            return False
+    except Exception as e_diff:
+        log.error(f"{logPrefix} Error verificando cambios staged: {e_diff}. No se intentará commit.")
+        return False
+
+
+def hacerMergeRama(ruta_repo: str, rama_origen: str, rama_destino_actual: str) -> bool:
+    """Hace merge de rama_origen en rama_destino_actual."""
+    logPrefix = "hacerMergeRama:"
+    log.info(f"{logPrefix} Intentando merge de '{rama_origen}' en '{rama_destino_actual}'.")
+
+    rama_actual = obtener_rama_actual(ruta_repo)
+    if rama_actual != rama_destino_actual:
+        log.info(f"{logPrefix} Rama actual es '{rama_actual}', cambiando a '{rama_destino_actual}' para el merge.")
+        if not cambiar_a_rama_existente(ruta_repo, rama_destino_actual):
+            log.error(f"{logPrefix} No se pudo cambiar a la rama destino '{rama_destino_actual}'. Merge abortado.")
+            return False
+    
+    # Ejecutar merge. Usar --no-ff para crear siempre un commit de merge.
+    # Podríamos añadir --no-edit si no queremos que se abra el editor para el mensaje de merge.
+    comando_merge = ['git', 'merge', '--no-ff', '--no-edit', rama_origen]
+    success, output_err = ejecutarComando(comando_merge, cwd=ruta_repo, check=False, return_output=True)
+
+    if success:
+        log.info(f"{logPrefix} Merge de '{rama_origen}' en '{rama_destino_actual}' completado con éxito.")
+        return True
+    else:
+        log.error(f"{logPrefix} Falló el merge de '{rama_origen}' en '{rama_destino_actual}'. Error: {output_err}")
+        # Comprobar si fue por conflicto
+        if "conflict" in output_err.lower() or "conflicto" in output_err.lower():
+            log.warning(f"{logPrefix} Conflicto de merge detectado. Abortando el merge...")
+            if ejecutarComando(['git', 'merge', '--abort'], cwd=ruta_repo, check=False):
+                log.info(f"{logPrefix} Merge abortado correctamente.")
+            else:
+                log.error(f"{logPrefix} No se pudo abortar el merge. El repositorio puede estar en estado de merge conflictivo.")
+        return False
+
+
+def eliminarRama(ruta_repo: str, nombre_rama: str, local: bool = True, remota: bool = False) -> bool:
+    """Elimina una rama localmente y/o remotamente."""
+    logPrefix = "eliminarRama:"
+    exito_general = True
+
+    if local:
+        log.info(f"{logPrefix} Intentando eliminar rama local '{nombre_rama}'.")
+        rama_actual = obtener_rama_actual(ruta_repo)
+        if rama_actual == nombre_rama:
+            rama_fallback = getattr(settings, 'RAMATRABAJO', 'main') # Usar RAMATRABAJO de settings o 'main'
+            log.info(f"{logPrefix} La rama a eliminar es la actual. Cambiando a '{rama_fallback}' primero.")
+            if not cambiar_a_rama_existente(ruta_repo, rama_fallback):
+                log.error(f"{logPrefix} No se pudo cambiar de '{nombre_rama}' a '{rama_fallback}'. No se puede eliminar la rama local.")
+                exito_general = False # Marcar fallo pero continuar si hay que borrar remota
+            else: # Cambiado con éxito, proceder a borrar
+                if not ejecutarComando(['git', 'branch', '-D', nombre_rama], cwd=ruta_repo, check=False):
+                    log.error(f"{logPrefix} Falló la eliminación de la rama local '{nombre_rama}'.")
+                    exito_general = False
+                else: log.info(f"{logPrefix} Rama local '{nombre_rama}' eliminada con éxito.")
+        else: # No es la rama actual, se puede borrar directamente
+            if not ejecutarComando(['git', 'branch', '-D', nombre_rama], cwd=ruta_repo, check=False):
+                log.error(f"{logPrefix} Falló la eliminación de la rama local '{nombre_rama}'.")
+                exito_general = False
+            else: log.info(f"{logPrefix} Rama local '{nombre_rama}' eliminada con éxito.")
+    
+    if remota:
+        log.info(f"{logPrefix} Intentando eliminar rama remota 'origin/{nombre_rama}'.")
+        if not ejecutarComando(['git', 'push', 'origin', '--delete', nombre_rama], cwd=ruta_repo, check=False):
+            log.error(f"{logPrefix} Falló la eliminación de la rama remota 'origin/{nombre_rama}'.")
+            exito_general = False
+        else:
+            log.info(f"{logPrefix} Rama remota 'origin/{nombre_rama}' eliminada con éxito (o ya no existía).")
+            
+    return exito_general
