@@ -723,21 +723,38 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
     tarea_titulo = tarea_actual_info.get("titulo", "N/A_Titulo")
     logging.info(f"{logPrefix} Tarea a ejecutar: ID '{tarea_id}', Título: '{tarea_titulo}'")
 
+    # --- MODIFICACIÓN PARA ASEGURAR ARCHIVO PRINCIPAL EN CONTEXTO ---
     archivos_ctx_ejecucion_mision = metadatos_mision.get("archivos_contexto_ejecucion", [])
     archivos_especificos_tarea = tarea_actual_info.get("archivos_implicados_especificos", [])
+    archivo_principal_mision = metadatos_mision.get("archivo_principal")
+
+    archivos_para_leer_rel = []
+    if archivo_principal_mision:
+        archivos_para_leer_rel.append(archivo_principal_mision)
     
-    archivos_para_leer_rel = list(set(archivos_ctx_ejecucion_mision + archivos_especificos_tarea))
+    archivos_para_leer_rel.extend(archivos_ctx_ejecucion_mision)
+    archivos_para_leer_rel.extend(archivos_especificos_tarea)
+    archivos_para_leer_rel = sorted(list(set(archivos_para_leer_rel))) # Unicos y ordenados
+    # --- FIN MODIFICACIÓN ---
+    
     contexto_para_tarea_str, tokens_contexto_tarea = "", 0
     archivos_leidos_para_tarea_rel = []
 
     if archivos_para_leer_rel:
-        archivos_abs_ctx_tarea = [os.path.join(ruta_repo, f_rel) for f_rel in archivos_para_leer_rel if f_rel]
-        archivos_abs_ctx_tarea_unicos = sorted(list(set(archivos_abs_ctx_tarea)))
-        resultado_lectura_ctx = analizadorCodigo.leerArchivos(archivos_abs_ctx_tarea_unicos, ruta_repo, api_provider=api_provider)
-        contexto_para_tarea_str = resultado_lectura_ctx['contenido']
-        tokens_contexto_tarea = resultado_lectura_ctx['tokens']
-        archivos_leidos_para_tarea_rel = [os.path.relpath(p, ruta_repo).replace(os.sep, '/') for p in archivos_abs_ctx_tarea_unicos]
-        logging.info(f"{logPrefix} Contexto para tarea leído de: {archivos_leidos_para_tarea_rel}")
+        # Filtrar None o cadenas vacías antes de unir
+        archivos_abs_ctx_tarea = [os.path.join(ruta_repo, f_rel) for f_rel in archivos_para_leer_rel if f_rel and isinstance(f_rel, str)]
+        if archivos_abs_ctx_tarea: # Solo leer si hay rutas válidas
+            archivos_abs_ctx_tarea_unicos = sorted(list(set(archivos_abs_ctx_tarea)))
+            resultado_lectura_ctx = analizadorCodigo.leerArchivos(archivos_abs_ctx_tarea_unicos, ruta_repo, api_provider=api_provider)
+            contexto_para_tarea_str = resultado_lectura_ctx['contenido']
+            tokens_contexto_tarea = resultado_lectura_ctx['tokens']
+            archivos_leidos_para_tarea_rel = [os.path.relpath(p, ruta_repo).replace(os.sep, '/') for p in archivos_abs_ctx_tarea_unicos if os.path.exists(p)] # Asegurar que existen
+            logging.info(f"{logPrefix} Contexto para tarea leído de: {archivos_leidos_para_tarea_rel}")
+        else:
+            logging.warning(f"{logPrefix} No hay archivos válidos para leer como contexto para la tarea después del filtrado.")
+    else:
+        logging.info(f"{logPrefix} No se definieron archivos para leer como contexto para la tarea.")
+
 
     tokens_mision_y_tarea_desc = analizadorCodigo.contarTokensTexto(
         contenido_mision_actual_md + tarea_actual_info.get('descripcion', ''), api_provider)
@@ -785,33 +802,31 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
 
     if resultado_ejecucion_tarea.get("advertencia_ejecucion"):
         logging.warning(f"{logPrefix} IA advirtió: {resultado_ejecucion_tarea['advertencia_ejecucion']}")
-        if not resultado_ejecucion_tarea.get("archivos_modificados"): # Si hay advertencia Y NO HAY CAMBIOS
+        # Si hay una advertencia Y NO HAY CAMBIOS EN 'archivos_modificados' (o está vacío)
+        if not resultado_ejecucion_tarea.get("archivos_modificados"): 
             logging.info(f"{logPrefix} Tarea no resultó en cambios debido a advertencia. Marcando como SALTADA.")
             contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "SALTADA")
-            if not contenido_mision_post_tarea: return "error_en_tarea", contenido_mision_actual_md # Error marcando
+            if not contenido_mision_post_tarea: return "error_en_tarea", contenido_mision_actual_md 
 
-            try: # Guardar y commitear el mision.md actualizado
+            try: 
                 with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f: f.write(contenido_mision_post_tarea)
                 logging.info(f"{logPrefix} {MISION_ORION_MD} actualizado (tarea saltada).")
                 if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' SALTADA", [MISION_ORION_MD]):
                     logging.error(f"{logPrefix} No se pudo commitear {MISION_ORION_MD} (tarea saltada).")
-                    # No es fatal para el estado del ciclo, pero la misión en disco puede no reflejar el estado.
-                    # Podríamos decidir retornar error_en_tarea aquí. Por ahora, continuamos y se re-evaluará.
             except Exception as e: logging.error(f"{logPrefix} Error guardando {MISION_ORION_MD} (tarea saltada): {e}"); return "error_en_tarea", contenido_mision_actual_md
             
             manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
                 manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_TAREA_SALTADA:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea.get("advertencia_ejecucion"))
             ])
             
-            # Re-parsear para ver si quedan tareas después de saltar
             _, _, hay_pendientes_despues_salto = parsear_mision_orion(contenido_mision_post_tarea) 
             if not hay_pendientes_despues_salto:
                  logging.info(f"{logPrefix} No quedan más tareas después de saltar. Misión completada (sin merge).")
-                 return "mision_completada_sin_merge", contenido_mision_post_tarea # Devolver contenido por si acaso
+                 return "mision_completada_sin_merge", contenido_mision_post_tarea 
             return "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
 
 
-    if resultado_ejecucion_tarea.get("archivos_modificados"):
+    if resultado_ejecucion_tarea.get("archivos_modificados"): # Puede haber advertencia Y archivos_modificados
         exito_aplicar, msg_err_aplicar = aplicadorCambios.aplicarCambiosSobrescritura(
             resultado_ejecucion_tarea["archivos_modificados"], ruta_repo,
             accionOriginal=f"modificar_segun_tarea_mision:{nombre_rama_mision}", paramsOriginal=tarea_actual_info
@@ -827,13 +842,11 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
         commit_msg = f"Tarea ID {tarea_id} ({tarea_titulo[:50]}) completada (Misión {nombre_rama_mision})"
         if not manejadorGit.hacerCommit(ruta_repo, commit_msg): 
              logging.warning(f"{logPrefix} No se realizó commit para tarea (quizás sin cambios efectivos o fallo en git add/commit).")
-             # Podría ser que los "archivos_modificados" por la IA no resultaran en cambios reales en disco.
-             # O un fallo en `hacerCommit` que no es crítico para el flujo de la tarea.
-    else:
-        # Esto puede pasar si la IA devuelve advertencia Y archivos_modificados vacío.
-        # Ya se manejó arriba si la advertencia implicaba saltar la tarea.
-        # Si llegamos aquí sin "archivos_modificados" y sin advertencia que salte, es un estado anómalo.
-        logging.info(f"{logPrefix} IA no especificó archivos modificados. Asumiendo sin cambios o ya manejado por advertencia.")
+    else: # No hay "archivos_modificados", y no fue manejado por la advertencia de arriba (que requiere !archivos_modificados)
+        logging.info(f"{logPrefix} IA no especificó archivos modificados (y no hubo advertencia que causara salto). Asumiendo tarea sin efecto o error de IA.")
+        # Podríamos marcar como SALTADA aquí si no se hizo nada o como FALLIDA_TEMPORALMENTE
+        # Por ahora, vamos a tratarlo como si la tarea no tuvo efecto y la completamos.
+        # Si la IA debió hacer algo y no lo hizo, el prompt de `ejecutar_tarea_especifica_mision` debe ser más robusto.
 
     contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "COMPLETADA")
     if not contenido_mision_post_tarea: return "error_en_tarea", contenido_mision_actual_md
@@ -845,7 +858,6 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
 
     if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Actualizar Misión '{nombre_rama_mision}', Tarea '{tarea_id}' completada", [MISION_ORION_MD]):
         logging.error(f"{logPrefix} No se pudo commitear actualización de {MISION_ORION_MD}.")
-        # Similar a antes, no necesariamente fatal para el ciclo, pero el estado en disco puede no ser el esperado.
     
     manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
         manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_TAREA_OK:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea.get("archivos_modificados"))
@@ -857,7 +869,6 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
         return "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
     else:
         logging.info(f"{logPrefix} Todas las tareas de misión '{nombre_rama_mision}' completadas.")
-        # Devolvemos el contenido del mision.md por si es útil para el merge o log final
         return "mision_completada_para_merge", contenido_mision_post_tarea
 
 
