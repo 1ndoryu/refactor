@@ -195,7 +195,7 @@ def limpiar_estado_mision_activa():
 def orchestrarEjecucionScript(args):
     api_provider_seleccionado = "openrouter" if args.openrouter else "google"
     logging.info(
-        f"Iniciando lógica de orquestación ADAPTATIVA. Proveedor API: {api_provider_seleccionado.upper()}. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
+        f"Iniciando lógica de orquestación ADAPTATIVA. Proveedor API: {api_provider_seleccionado.upper()}. Modo Automático: {'Activado' if args.modo_automatico else 'Desactivado'}")
 
     if api_provider_seleccionado == 'google' and not settings.GEMINIAPIKEY:
         logging.critical(
@@ -219,7 +219,7 @@ def orchestrarEjecucionScript(args):
     try:
         # En lugar de un ciclo, ahora se ejecuta una "fase"
         fase_exitosa = ejecutarFaseDelAgente(
-            api_provider_seleccionado, args.modo_test)
+            api_provider_seleccionado, args.modo_automatico)
         if fase_exitosa: # fase_exitosa ahora significa que la fase se completó sin error crítico del agente
             logging.info("Fase del agente completada.")
             exit_code = 0 # El script sale con 0 si la fase fue OK, se reiniciará para la siguiente fase
@@ -241,7 +241,6 @@ def orchestrarEjecucionScript(args):
         guardar_registro_archivos(cargar_registro_archivos()) # Guardar registro de archivos siempre
         logging.info("Registro de archivos analizados guardado al finalizar script.")
     return exit_code
-
 
 def _validarConfiguracionEsencial(api_provider: str) -> bool:
     logPrefix = f"_validarConfiguracionEsencial({api_provider.upper()}):"
@@ -783,7 +782,7 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
     return "mision_generada_ok", contenido_markdown_mision, nombre_clave_mision
 
 
-def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, modo_test):
+def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, modo_automatico):
     # Esta función ahora es llamada cuando ya se está en la rama de la misión.
     # El contenido de la misión (metadatos, lista_tareas) se carga desde el archivo en la rama.
     logPrefix = f"paso2_ejecutar_tarea_mision (Rama: {nombre_rama_mision}):"
@@ -992,7 +991,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
 
 
 # --- Función Principal de Fase del Agente (MODIFICADO) ---
-def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
+def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
     logPrefix = f"ejecutarFaseDelAgente({api_provider.upper()}):"
     logging.info(f"{logPrefix} ===== INICIO FASE AGENTE =====")
     
@@ -1019,19 +1018,19 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
             
             if res_paso0 == "procesar_mision_existente":
                 logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' confirmada en rama, procesando tarea.")
-                res_paso2, _ = paso2_ejecutar_tarea_mision(settings.RUTACLON, nombre_clave_mision_activa, api_provider, modo_test)
+                res_paso2, _ = paso2_ejecutar_tarea_mision(settings.RUTACLON, nombre_clave_mision_activa, api_provider, modo_automatico)
                 
                 if res_paso2 == "tarea_ejecutada_continuar_mision":
                     logging.info(f"{logPrefix} Tarea ejecutada en '{nombre_clave_mision_activa}', quedan más. Script se detendrá.")
-                    if modo_test: manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_mision_activa)
+                    if modo_automatico: manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_mision_activa)
                     return True # Fase OK, script sale, se reiniciará
                 
                 elif res_paso2 == "mision_completada":
                     logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada. Todas las tareas procesadas.")
                     
-                    # Si modo_test está activo, hacer push de la rama de la misión a origin.
+                    # Si modo_automatico está activo, hacer push de la rama de la misión a origin.
                     # Esto asegura que los últimos cambios de la misión (incluyendo el misionOrion.md final) se suban.
-                    if modo_test:
+                    if modo_automatico:
                         logging.info(f"{logPrefix} Modo test activo. Haciendo push de la rama de misión '{nombre_clave_mision_activa}' completada.")
                         manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_mision_activa)
                     
@@ -1046,7 +1045,7 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
                     logging.info(f"{logPrefix} Cambiando a la rama de trabajo principal '{settings.RAMATRABAJO}'.")
                     if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
                         logging.error(f"{logPrefix} CRÍTICO: No se pudo cambiar a '{settings.RAMATRABAJO}' después de completar la misión '{nombre_clave_mision_activa}'. El estado del repositorio puede ser inesperado para la próxima ejecución del agente.")
-                        # Considerar el impacto: La misión actual se completó en su rama y se hizo push (si modo_test).
+                        # Considerar el impacto: La misión actual se completó en su rama y se hizo push (si modo_automatico).
                         # El problema es para la SIGUIENTE fase. Se devuelve True porque la fase actual de "ejecutar misión" fue "exitosa" en sus términos.
                     else:
                         logging.info(f"{logPrefix} Cambiado a '{settings.RAMATRABAJO}'. El agente está listo para una nueva fase (probablemente crear una nueva misión).")
@@ -1056,7 +1055,7 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
                 
                 elif res_paso2 == "tarea_fallida":
                     logging.error(f"{logPrefix} Tarea falló en misión '{nombre_clave_mision_activa}'. Script se detendrá.")
-                    if modo_test: manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_mision_activa) # Push con la tarea marcada como fallida
+                    if modo_automatico: manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_mision_activa) # Push con la tarea marcada como fallida
                     return True # Fase técnicamente OK (error manejado), script sale
                 
                 else: # Errores críticos en paso2 (ej. mision no encontrada, parseo)
@@ -1120,7 +1119,7 @@ def ejecutarFaseDelAgente(api_provider: str, modo_test: bool):
 
             guardar_estado_mision_activa(nombre_clave_generado)
             logging.info(f"{logPrefix} Nueva misión '{nombre_clave_generado}' creada y estado guardado. Script se detendrá.")
-            if modo_test: manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_generado, setUpstream=True) # Primera vez, set upstream
+            if modo_automatico: manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_generado, setUpstream=True) # Primera vez, set upstream
             return True # Fase OK
         
         else: # error_generando_mision
