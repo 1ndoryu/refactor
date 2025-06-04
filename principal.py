@@ -501,59 +501,128 @@ def parsear_nombre_clave_de_mision(contenido_mision: str):
 
 def obtener_proxima_tarea_pendiente(contenido_mision_o_lista_tareas):
     logPrefix = "obtener_proxima_tarea_pendiente:"
+    MAX_REINTENTOS_FALLA_TEMPORAL = 3  # Número máximo de reintentos para tareas fallidas temporalmente
+
     lista_tareas = []
-    if isinstance(contenido_mision_o_lista_tareas, str): _, lista_tareas, _ = parsear_mision_orion(contenido_mision_o_lista_tareas)
-    elif isinstance(contenido_mision_o_lista_tareas, list): lista_tareas = contenido_mision_o_lista_tareas
-    else: logging.error(f"{logPrefix} Entrada inválida."); return None, -1
-    if lista_tareas is None: logging.error(f"{logPrefix} Lista de tareas es None."); return None, -1
+    if isinstance(contenido_mision_o_lista_tareas, str):
+        _, lista_tareas, _ = parsear_mision_orion(contenido_mision_o_lista_tareas)
+    elif isinstance(contenido_mision_o_lista_tareas, list):
+        lista_tareas = contenido_mision_o_lista_tareas
+    else:
+        logging.error(f"{logPrefix} Entrada inválida. Tipo: {type(contenido_mision_o_lista_tareas)}")
+        return None, -1
+
+    if lista_tareas is None:  # parsear_mision_orion puede devolver None para lista_tareas si hay error
+        logging.error(f"{logPrefix} Lista de tareas es None (posiblemente por error de parseo previo).")
+        return None, -1
+
+    # Primera pasada: Buscar tareas FALLIDA_TEMPORALMENTE con reintentos pendientes
+    for i, tarea in enumerate(lista_tareas):
+        if isinstance(tarea, dict) and tarea.get("estado", "").upper() == "FALLIDA_TEMPORALMENTE":
+            intentos_realizados = tarea.get("intentos", 0)
+            if intentos_realizados < MAX_REINTENTOS_FALLA_TEMPORAL:
+                logging.info(f"{logPrefix} Próxima tarea (REINTENTO): ID '{tarea.get('id', 'N/A')}' - Título: '{tarea.get('titulo', 'N/A')}' (Intentos: {intentos_realizados}/{MAX_REINTENTOS_FALLA_TEMPORAL})")
+                return tarea, i
+            else:
+                logging.info(f"{logPrefix} Tarea FALLIDA_TEMPORALMENTE ID '{tarea.get('id', 'N/A')}' ha alcanzado el límite de reintentos ({intentos_realizados}/{MAX_REINTENTOS_FALLA_TEMPORAL}). Se omite.")
+
+    # Segunda pasada: Buscar tareas PENDIENTE
     for i, tarea in enumerate(lista_tareas):
         if isinstance(tarea, dict) and tarea.get("estado", "").upper() == "PENDIENTE":
-            logging.info(f"{logPrefix} Próxima tarea: ID '{tarea.get('id', 'N/A')}' - Título: '{tarea.get('titulo', 'N/A')}'")
+            logging.info(f"{logPrefix} Próxima tarea (PENDIENTE): ID '{tarea.get('id', 'N/A')}' - Título: '{tarea.get('titulo', 'N/A')}'")
             return tarea, i
-    logging.info(f"{logPrefix} No hay más tareas pendientes."); return None, -1
 
-def marcar_tarea_como_completada(contenido_mision_md_original: str, id_tarea_a_marcar: str, nuevo_estado: str = "COMPLETADA"):
+    logging.info(f"{logPrefix} No hay más tareas elegibles (FALLIDA_TEMPORALMENTE con reintentos o PENDIENTE).")
+    return None, -1
+
+def marcar_tarea_como_completada(contenido_mision_md_original: str, id_tarea_a_marcar: str, nuevo_estado: str = "COMPLETADA", incrementar_intentos_si_fallida_temp: bool = False):
     logPrefix = "marcar_tarea_como_completada:"
-    if not contenido_mision_md_original or not id_tarea_a_marcar: logging.error(f"{logPrefix} Faltan argumentos."); return None
+    if not contenido_mision_md_original or not id_tarea_a_marcar:
+        logging.error(f"{logPrefix} Faltan argumentos: contenido_mision_md_original o id_tarea_a_marcar.")
+        return None
+    
     nuevo_estado_valido = nuevo_estado.upper()
-    if nuevo_estado_valido not in ["COMPLETADA", "SALTADA", "PENDIENTE", "FALLIDA_TEMPORALMENTE"]: logging.error(f"{logPrefix} Estado '{nuevo_estado}' no válido."); return None
+    estados_permitidos = ["COMPLETADA", "SALTADA", "PENDIENTE", "FALLIDA_TEMPORALMENTE", "FALLIDA_PERMANENTEMENTE"] # Añadido FALLIDA_PERMANENTEMENTE
+    if nuevo_estado_valido not in estados_permitidos:
+        logging.error(f"{logPrefix} Estado '{nuevo_estado}' no válido. Permitidos: {estados_permitidos}")
+        return None
     
     _, tareas_originales, _ = parsear_mision_orion(contenido_mision_md_original)
-    if not tareas_originales: logging.warning(f"{logPrefix} No se parsearon tareas."); return contenido_mision_md_original
+    if not tareas_originales:
+        logging.warning(f"{logPrefix} No se parsearon tareas del contenido original. Devolviendo original.")
+        return contenido_mision_md_original # O None si es mejor un error duro
     
     lineas_originales = list(contenido_mision_md_original.splitlines())
     tarea_encontrada_y_modificada = False
 
     for tarea_dict in tareas_originales:
         if tarea_dict and tarea_dict.get("id") == id_tarea_a_marcar:
-            line_start = tarea_dict.get("line_start_index", -1); line_end = tarea_dict.get("line_end_index", -1)
-            if not (0 <= line_start <= line_end < len(lineas_originales)):
-                logging.error(f"{logPrefix} Índices inválidos para tarea ID '{id_tarea_a_marcar}'."); continue
+            line_start_abs = tarea_dict.get("line_start_index", -1) # Índice absoluto en lineas_originales
+            # raw_lines son las líneas originales de la tarea, tal cual están en el MD
+            raw_lines_tarea = tarea_dict.get("raw_lines", []) 
+            if not (0 <= line_start_abs < len(lineas_originales)) or not raw_lines_tarea:
+                logging.error(f"{logPrefix} Índices inválidos o raw_lines vacías para tarea ID '{id_tarea_a_marcar}'. Start: {line_start_abs}, Len Raw: {len(raw_lines_tarea)}")
+                continue
 
-            estado_line_idx_rel = -1
-            for idx_rel, linea_tarea_raw in enumerate(tarea_dict.get("raw_lines", [])):
-                if re.match(r"-\s*\*\*Estado:\*\*", linea_tarea_raw, re.I): estado_line_idx_rel = idx_rel; break
+            # --- Modificar Estado ---
+            estado_line_idx_rel = -1 # Relativo al inicio de raw_lines_tarea
+            for idx_rel, linea_tarea_raw in enumerate(raw_lines_tarea):
+                if re.match(r"-\s*\*\*Estado:\*\*", linea_tarea_raw, re.I):
+                    estado_line_idx_rel = idx_rel
+                    break
             
             if estado_line_idx_rel != -1:
-                estado_line_idx_abs = line_start + estado_line_idx_rel
+                estado_line_idx_abs = line_start_abs + estado_line_idx_rel
                 linea_estado_antigua = lineas_originales[estado_line_idx_abs]
-                # Extraer el prefijo (todo hasta el valor del estado) para preservar indentación y formato.
-                match_prefijo = re.match(r"(.*-\s*\*\*Estado:\*\*\s*)(?:PENDIENTE|COMPLETADA|SALTADA|FALLIDA_TEMPORALMENTE)(.*)", linea_estado_antigua, re.IGNORECASE)
+                match_prefijo = re.match(r"(.*-\s*\*\*Estado:\*\*\s*)(?:[A-Z_]+)(.*)", linea_estado_antigua, re.IGNORECASE)
                 if match_prefijo:
                     prefijo_estado = match_prefijo.group(1)
-                    sufijo_estado = match_prefijo.group(2) # Podría haber algo después, como comentarios
+                    sufijo_estado = match_prefijo.group(2)
                     lineas_originales[estado_line_idx_abs] = f"{prefijo_estado}{nuevo_estado_valido}{sufijo_estado}"
-                    logging.info(f"{logPrefix} Tarea ID '{id_tarea_a_marcar}' marcada como '{nuevo_estado_valido}' en línea {estado_line_idx_abs + 1}.")
-                    tarea_encontrada_y_modificada = True; break 
-                else: # Fallback si el regex de prefijo falla, menos preciso
-                    logging.warning(f"{logPrefix} No se pudo parsear prefijo de estado para Tarea ID '{id_tarea_a_marcar}'. Usando reemplazo simple.")
-                    lineas_originales[estado_line_idx_abs] = re.sub(r"(PENDIENTE|COMPLETADA|SALTADA|FALLIDA_TEMPORALMENTE)", nuevo_estado_valido, linea_estado_antigua, flags=re.IGNORECASE)
-                    logging.info(f"{logPrefix} Tarea ID '{id_tarea_a_marcar}' marcada como '{nuevo_estado_valido}' (reemplazo simple).")
-                    tarea_encontrada_y_modificada = True; break
-            else: logging.warning(f"{logPrefix} No se encontró línea de 'Estado:' para tarea ID '{id_tarea_a_marcar}'.")
+                    logging.info(f"{logPrefix} Estado de Tarea ID '{id_tarea_a_marcar}' actualizado a '{nuevo_estado_valido}' en línea {estado_line_idx_abs + 1}.")
+                    tarea_encontrada_y_modificada = True # Marcar que al menos el estado se intentó/modificó
+                else:
+                    logging.warning(f"{logPrefix} No se pudo parsear prefijo/sufijo de estado para Tarea ID '{id_tarea_a_marcar}'. Reemplazo simple.")
+                    lineas_originales[estado_line_idx_abs] = re.sub(r"(PENDIENTE|COMPLETADA|SALTADA|FALLIDA_TEMPORALMENTE|FALLIDA_PERMANENTEMENTE)", nuevo_estado_valido, linea_estado_antigua, flags=re.IGNORECASE)
+                    tarea_encontrada_y_modificada = True
+            else:
+                logging.warning(f"{logPrefix} No se encontró línea de 'Estado:' para tarea ID '{id_tarea_a_marcar}'. Estado no modificado.")
+
+            # --- Modificar Intentos si aplica ---
+            if incrementar_intentos_si_fallida_temp and nuevo_estado_valido == "FALLIDA_TEMPORALMENTE":
+                intentos_line_idx_rel = -1
+                intentos_actuales = tarea_dict.get("intentos", 0) # Tomar de la tarea parseada
+
+                for idx_rel, linea_tarea_raw in enumerate(raw_lines_tarea):
+                    if re.match(r"-\s*\*\*Intentos:\*\*", linea_tarea_raw, re.I):
+                        intentos_line_idx_rel = idx_rel
+                        break
+                
+                nuevos_intentos = intentos_actuales + 1
+                if intentos_line_idx_rel != -1:
+                    intentos_line_idx_abs = line_start_abs + intentos_line_idx_rel
+                    linea_intentos_antigua = lineas_originales[intentos_line_idx_abs]
+                    match_prefijo_intentos = re.match(r"(.*-\s*\*\*Intentos:\*\*\s*)(\d+)(.*)", linea_intentos_antigua, re.IGNORECASE)
+                    if match_prefijo_intentos:
+                        prefijo_intentos = match_prefijo_intentos.group(1)
+                        sufijo_intentos = match_prefijo_intentos.group(3)
+                        lineas_originales[intentos_line_idx_abs] = f"{prefijo_intentos}{nuevos_intentos}{sufijo_intentos}"
+                        logging.info(f"{logPrefix} Intentos para Tarea ID '{id_tarea_a_marcar}' incrementados a {nuevos_intentos} en línea {intentos_line_idx_abs + 1}.")
+                    else:
+                        logging.warning(f"{logPrefix} No se pudo parsear prefijo/sufijo de intentos para Tarea ID '{id_tarea_a_marcar}'. Intentos no modificados en MD directamente.")
+                else: # Si no existe la línea de Intentos, pero tenemos la tarea parseada, es raro.
+                      # Podríamos considerar añadirla, pero es más seguro asumir que el formato está.
+                    logging.warning(f"{logPrefix} No se encontró línea de '- **Intentos:**' para Tarea ID '{id_tarea_a_marcar}'. Intentos no actualizados en el Markdown, aunque el valor parseado era {intentos_actuales}.")
+            
+            if tarea_encontrada_y_modificada: # Si se modificó algo (al menos el estado)
+                break # Salir del bucle de tareas_originales, ya encontramos y procesamos la tarea.
     
-    if not tarea_encontrada_y_modificada: logging.warning(f"{logPrefix} Tarea ID '{id_tarea_a_marcar}' no encontrada o no modificada."); return contenido_mision_md_original
+    if not tarea_encontrada_y_modificada:
+        logging.warning(f"{logPrefix} Tarea ID '{id_tarea_a_marcar}' no encontrada o no modificada. Devolviendo contenido original.")
+        return contenido_mision_md_original # o None, si es un error que deba detener el flujo
+        
     return "\n".join(lineas_originales)
+
 
 # --- Funciones específicas para los nuevos pasos ---
 
