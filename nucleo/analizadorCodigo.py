@@ -951,7 +951,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     if start_brace == -1 or end_brace == -1 or start_brace >= end_brace:
         log.error(
             f"{logPrefix} Respuesta de IA no parece contener un bloque JSON válido {{...}}. Respuesta (limpia inicial): {textoLimpio[:500]}...")
-        log.debug(f"{logPrefix} Respuesta Original Completa:\n{textoRespuesta}")
+        log.debug(f"{logPrefix} Respuesta Original Completa Pre-Limpieza:\n{textoRespuesta}") # Log completo antes de JSON
         return None
 
     json_candidate = textoLimpio[start_brace: end_brace + 1]
@@ -965,37 +965,36 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         return resultadoJson
     except json.JSONDecodeError as e:
         # Mejorar log de error de JSON
-        contexto_inicio = max(0, e.pos - 150)
-        contexto_fin = min(len(json_candidate), e.pos + 150)
-        contexto_error = json_candidate[contexto_inicio:contexto_fin]
+        contexto_inicio_error = max(0, e.pos - 150)
+        contexto_fin_error = min(len(json_candidate), e.pos + 150)
+        contexto_error_str = json_candidate[contexto_inicio_error:contexto_fin_error]
         # Usar repr() para ver caracteres problemáticos
-        contexto_error_repr = repr(contexto_error)
+        contexto_error_repr = repr(contexto_error_str)
 
         log.error(
             f"{logPrefix} Error crítico parseando JSON de IA: {e.msg} (char {e.pos})")
         log.error(
-            f"{logPrefix} Contexto alrededor del error ({contexto_inicio}-{contexto_fin}):\n{contexto_error_repr}")
+            f"{logPrefix} Contexto alrededor del error ({contexto_inicio_error}-{contexto_fin_error}):\n{contexto_error_repr}")
 
-        # Loguear una porción más grande si el contexto es muy pequeño.
-        if len(json_candidate) > 1000:
+        # Loguear una porción más grande o todo el candidato si es razonable
+        if len(json_candidate) > 2000: # Si es muy largo, loguear inicio y fin
             log.debug(
-                f"{logPrefix} JSON Candidato (inicio):\n{json_candidate[:500]}...")
+                f"{logPrefix} JSON Candidato que falló (Inicio - 1000 chars):\n{json_candidate[:1000]}...")
             log.debug(
-                f"{logPrefix} JSON Candidato (fin):...{json_candidate[-500:]}")
-        else:
+                f"{logPrefix} JSON Candidato que falló (Fin - 1000 chars):...{json_candidate[-1000:]}")
+        else: # Si es más corto, loguear completo
             log.debug(
-                f"{logPrefix} JSON Candidato Completo:\n{json_candidate}")
+                f"{logPrefix} JSON Candidato Completo que falló:\n{json_candidate}")
 
         log.debug(
-            f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}")
+            f"{logPrefix} Respuesta Original Completa Pre-Limpieza (la que generó el JSON candidato):\n{textoRespuesta}")
         return None
-    except Exception as e:  # Otros errores inesperados durante el parseo
+    except Exception as e_general_parse:  # Otros errores inesperados durante el parseo
         log.error(
-            f"{logPrefix} Error inesperado durante json.loads: {e}", exc_info=True)
-        log.debug(f"{logPrefix} JSON Candidato que falló:\n{json_candidate}")
-        # <-- MODIFICACIÓN: Añadido log de textoRespuesta aquí
+            f"{logPrefix} Error inesperado durante json.loads: {e_general_parse}", exc_info=True)
+        log.debug(f"{logPrefix} JSON Candidato que falló (por error general):\n{json_candidate}")
         log.debug(
-            f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}")
+            f"{logPrefix} Respuesta Original Completa Pre-Limpieza (la que generó el JSON candidato):\n{textoRespuesta}")
         return None
 
 
