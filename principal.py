@@ -398,7 +398,13 @@ def parsear_mision_orion(contenido_mision: str):
                 if m_r11: metadatos["razon_paso1_1"] = m_r11.group(1).strip(); continue
                 if m_eg: metadatos["estado_general"] = m_eg.group(1).upper().strip(); continue
                 for m, key in [(m_acg, "archivos_contexto_generacion"), (m_ace, "archivos_contexto_ejecucion")]:
-                    if m: s = m.group(1).strip(); metadatos[key] = [a.strip() for a in s.split(',') if a.strip() and s.lower() not in ["ninguno", "ninguno."]]; continue
+                    if m: 
+                        s = m.group(1).strip()
+                        # Eliminar corchetes si están al principio y al final de la cadena
+                        if s.startswith('[') and s.endswith(']'):
+                            s = s[1:-1].strip()
+                        metadatos[key] = [a.strip() for a in s.split(',') if a.strip() and a.lower() not in ["ninguno", "ninguno."]]; 
+                        continue
             elif seccion_actual == "tareas" and tarea_actual_buffer is not None: tarea_actual_buffer["raw_lines"].append(linea_orig)
         
         if tarea_actual_buffer: parsed = _parse_tarea_individual(tarea_actual_buffer); (tareas.append(parsed) if parsed else None)
