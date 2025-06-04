@@ -43,23 +43,13 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
                                        '.git', 'vendor', 'node_modules'])
 
     rutaBaseParaListar = rutaProyecto
-    # Nueva lógica para seleccionar subcarpeta de 'app/' aleatoriamente
+    # Nueva lógica para listar la carpeta 'app/' completa
     if rutaProyecto == settings.RUTACLON: # Solo si estamos en la raíz del proyecto clonado
         rutaApp = os.path.join(settings.RUTACLON, 'app')
-        log.info(f"{logPrefix} Proyecto raíz detectado. Intentando seleccionar subcarpeta aleatoria de: {rutaApp}")
+        log.info(f"{logPrefix} Proyecto raíz detectado. Intentando listar contenido de: {rutaApp}")
         if os.path.isdir(rutaApp):
-            subcarpetasApp = [d for d in os.listdir(rutaApp) if os.path.isdir(os.path.join(rutaApp, d)) and d not in directoriosIgnorados and not d.startswith('.')]
-            if subcarpetasApp:
-                subcarpetaElegida = random.choice(subcarpetasApp)
-                rutaBaseParaListar = os.path.join(rutaApp, subcarpetaElegida)
-                log.info(f"{logPrefix} Subcarpeta aleatoria seleccionada para análisis: {rutaBaseParaListar}")
-            else:
-                log.warning(f"{logPrefix} No se encontraron subcarpetas válidas en '{rutaApp}'. Se listarán todos los archivos de '{rutaApp}' si existe, o se procederá con la ruta original del proyecto si '{rutaApp}' no existe o está vacía.")
-                if os.path.exists(rutaApp) and os.listdir(rutaApp): # Si app existe y tiene algo (aunque no sean subcarpetas validas para elegir una)
-                    rutaBaseParaListar = rutaApp
-                else:
-                    log.warning(f"{logPrefix} La carpeta '{rutaApp}' está vacía o no existe. Se usará la ruta original del proyecto: {rutaProyecto}")
-                    # rutaBaseParaListar permanece como rutaProyecto
+            rutaBaseParaListar = rutaApp
+            log.info(f"{logPrefix} Se listará el contenido completo de la carpeta: {rutaBaseParaListar}")
         else:
             log.warning(f"{logPrefix} La carpeta '{rutaApp}' no existe. Se usará la ruta original del proyecto: {rutaProyecto}")
             # rutaBaseParaListar permanece como rutaProyecto
@@ -83,18 +73,7 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
                     rutaCompleta = os.path.join(raiz, nombreArchivo)
                     archivosProyecto.append(os.path.normpath(rutaCompleta))
 
-        if not archivosProyecto and rutaBaseParaListar != rutaProyecto:
-            log.warning(f"{logPrefix} No se encontraron archivos en la subcarpeta seleccionada '{rutaBaseParaListar}'. Intentando con la ruta original del proyecto '{rutaProyecto}' como fallback.")
-            # Fallback a la ruta original del proyecto si no se encontraron archivos en la subcarpeta
-            # Esto es para evitar no enviar nada si la subcarpeta elegida estaba vacía de archivos permitidos
-            for raiz, dirs, archivos in os.walk(rutaProyecto, topdown=True):
-                dirs[:] = [d for d in dirs if d not in directoriosIgnorados and not d.startswith('.')]
-                for nombreArchivo in archivos:
-                    if nombreArchivo.startswith('.'): continue
-                    _, ext = os.path.splitext(nombreArchivo)
-                    if not extensionesPermitidas or ext.lower() in extensionesPermitidas:
-                        rutaCompleta = os.path.join(raiz, nombreArchivo)
-                        archivosProyecto.append(os.path.normpath(rutaCompleta))
+
 
         log.info(
             f"{logPrefix} Archivos relevantes encontrados ({len(archivosProyecto)}) desde '{rutaBaseParaListar}'.")
