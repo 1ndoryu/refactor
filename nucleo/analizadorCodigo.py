@@ -4,7 +4,7 @@ import logging
 import json
 import random
 import google.generativeai as genai
-from google.generativeai.types import Schema, Type, GenerationConfig
+import google.generativeai.types as types
 import google.api_core.exceptions
 # Mantenido por si se usa OpenRouter directamente
 from openai import OpenAI, APIError
@@ -831,9 +831,9 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
 
     # Definición del esquema de respuesta para Gemini
     # Asumimos que Schema y Type han sido importados como:
-    # from google.generativeai.types import Schema, Type, GenerationConfig
-    response_schema_ejecutar_tarea = Schema(
-        type=Type.OBJECT,
+    # import google.generativeai.types as types
+    response_schema_ejecutar_tarea = types.Schema(
+         type=types.Type.OBJECT,
         properties={
             'archivos_modificados': Schema(
                 type=Type.OBJECT,
