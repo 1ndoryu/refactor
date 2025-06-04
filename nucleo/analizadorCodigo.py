@@ -1,5 +1,5 @@
 import os
-import logging as log
+import logging
 import random
 import google.generativeai as genai
 from config import settings  # Corregido para apuntar a config/settings.py
