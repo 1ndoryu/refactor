@@ -3,6 +3,7 @@ import os
 import logging
 import json
 import random
+import re
 import google.generativeai as genai
 import google.generativeai.types as types
 import google.api_core.exceptions
