@@ -371,17 +371,17 @@ def ejecutarProcesoPrincipal(api_provider: str):
             # El script principal (orchestrar) manejará el código de salida si esto falla.
             return False  # Indica fallo temprano
 
-        historialRefactor = cargarHistorial()
+        historialRefactor = manejadorHistorial.cargarHistorial()
 
         logging.info(f"{logPrefix} Preparando repositorio local...")
         if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO):
             logging.error(f"{logPrefix} Falló la preparación del repositorio.")
             estadoFinal = "[ERROR_GIT_SETUP]"
-            historialRefactor.append(formatearEntradaHistorial(
+            historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                 outcome=estadoFinal,
                 error_message="Fallo al clonar o actualizar repositorio."
             ))
-            guardarHistorial(historialRefactor)
+            manejadorHistorial.guardarHistorial(historialRefactor)
             return False
         logging.info(
             f"{logPrefix} Repositorio listo y en la rama '{settings.RAMATRABAJO}'.")
@@ -470,11 +470,11 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 logging.info(
                     f"{logPrefix} IA ({api_provider.upper()}) decidió 'no_accion'. Razón: {razonamientoNoAccion}. Terminando ciclo.")
                 estadoFinal = "[NO_ACCION]"
-                historialRefactor.append(formatearEntradaHistorial(
+                historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada
                 ))
-                guardarHistorial(historialRefactor)
+                manejadorHistorial.guardarHistorial(historialRefactor)
                 manejadorGit.descartarCambiosLocales(settings.RUTACLON)
                 return False
 
@@ -485,12 +485,12 @@ def ejecutarProcesoPrincipal(api_provider: str):
             logging.error(
                 f"{logPrefix} Error en Paso 1: {e_paso1}", exc_info=True)
             estadoFinal = "[ERROR_PASO1]"
-            historialRefactor.append(formatearEntradaHistorial(
+            historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 error_message=str(e_paso1)
             ))
-            guardarHistorial(historialRefactor)
+            manejadorHistorial.guardarHistorial(historialRefactor)
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
             return False
 
@@ -629,7 +629,7 @@ def ejecutarProcesoPrincipal(api_provider: str):
             logging.error(
                 f"{logPrefix} Error en Paso 2 o Aplicación: {e_paso2_apply}", exc_info=True)
             estadoFinal = "[ERROR_PASO2_APPLY]"
-            historialRefactor.append(formatearEntradaHistorial(
+            historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 result_details=resultadoEjecucion if resultadoEjecucion is not None else resultadoJson,
@@ -668,7 +668,7 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 logging.error(
                     f"{logPrefix} Error en Paso 3 (Verificación): {e_paso3_verify}", exc_info=True)
                 estadoFinal = "[VERIFY_FAIL]"
-                historialRefactor.append(formatearEntradaHistorial(
+                historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
                     result_details=resultadoEjecucion,
@@ -705,13 +705,13 @@ def ejecutarProcesoPrincipal(api_provider: str):
             if seHizoCommitNuevo:
                 logging.info(f"{logPrefix} Commit realizado con éxito.")
                 estadoFinal = "[ÉXITO]"
-                historialRefactor.append(formatearEntradaHistorial(
+                historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
                     result_details=resultadoEjecucion,
                     verification_details=verification_details_msg
                 ))
-                guardarHistorial(historialRefactor)
+                manejadorHistorial.guardarHistorial(historialRefactor)
                 logging.info(
                     f"{logPrefix} ===== FIN CICLO DE REFACTORIZACIÓN (Commit realizado) =====")
                 return True
@@ -719,14 +719,14 @@ def ejecutarProcesoPrincipal(api_provider: str):
                 logging.warning(
                     f"{logPrefix} No se realizó un nuevo commit (ver logs de manejadorGit: puede ser por falta de cambios o error).")
                 estadoFinal = "[COMMIT_NO_REALIZADO]"
-                historialRefactor.append(formatearEntradaHistorial(
+                historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                     outcome=estadoFinal,
                     decision=decisionParseada,
                     result_details=resultadoEjecucion,
                     verification_details=verification_details_msg,
                     error_message="No se generó un nuevo commit (sin cambios detectados por Git o error en commit)."
                 ))
-                guardarHistorial(historialRefactor)
+                manejadorHistorial.guardarHistorial(historialRefactor)
                 logging.info(
                     f"{logPrefix} Descartando cambios locales ya que no hubo commit...")
                 manejadorGit.descartarCambiosLocales(settings.RUTACLON)
@@ -736,14 +736,14 @@ def ejecutarProcesoPrincipal(api_provider: str):
             logging.error(
                 f"{logPrefix} Error en fase de Commit/Finalización: {e_commit_final}", exc_info=True)
             estadoFinal = "[ERROR_COMMIT]"
-            historialRefactor.append(formatearEntradaHistorial(
+            historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,
                 result_details=resultadoEjecucion,
                 verification_details=verification_details_msg,
                 error_message=str(e_commit_final)
             ))
-            guardarHistorial(historialRefactor)
+            manejadorHistorial.guardarHistorial(historialRefactor)
             logging.info(
                 f"{logPrefix} Intentando descartar cambios locales tras fallo de commit...")
             manejadorGit.descartarCambiosLocales(settings.RUTACLON)
@@ -755,13 +755,13 @@ def ejecutarProcesoPrincipal(api_provider: str):
         estadoFinal = "[ERROR_CRITICO]"
         try:
             if not historialRefactor:  # Cargar solo si está vacío
-                historialRefactor = cargarHistorial()
-            historialRefactor.append(formatearEntradaHistorial(
+                historialRefactor = manejadorHistorial.cargarHistorial()
+            historialRefactor.append(manejadorHistorial.formatearEntradaHistorial(
                 outcome=estadoFinal,
                 decision=decisionParseada,  # Puede ser None si el error es muy temprano
                 error_message=str(e_global)
             ))
-            guardarHistorial(historialRefactor)
+            manejadorHistorial.guardarHistorial(historialRefactor)
         except Exception as e_hist_crit:
             logging.error(
                 f"Fallo adicional al intentar guardar historial de error crítico: {e_hist_crit}")
