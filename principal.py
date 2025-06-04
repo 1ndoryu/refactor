@@ -1143,17 +1143,90 @@ def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
         logging.error(f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Saliendo.")
         return False # Fase falló
     
+def realizarReseteoAgente():
+    logPrefix = "realizarReseteoAgente:"
+    logging.info(f"{logPrefix} Iniciando reseteo del estado del agente...")
+
+    # Es importante asegurarse que las configuraciones básicas como RUTACLON estén disponibles.
+    # Esto normalmente ocurre cuando se importa settings, pero una verificación no hace daño.
+    if not hasattr(settings, 'RUTACLON') or not hasattr(settings, 'RAMATRABAJO'):
+        logging.critical(f"{logPrefix} Configuraciones esenciales (RUTACLON, RAMATRABAJO) no disponibles. Abortando reseteo.")
+        return False # Indicar fallo
+
+    nombre_mision_activa = cargar_estado_mision_activa()
+
+    if nombre_mision_activa:
+        logging.info(f"{logPrefix} Misión activa encontrada según el archivo de estado: '{nombre_mision_activa}'.")
+        ruta_repo_git = os.path.join(settings.RUTACLON, '.git')
+        if not os.path.isdir(ruta_repo_git):
+            logging.warning(f"{logPrefix} El directorio de clonación '{settings.RUTACLON}' no parece ser un repositorio Git válido (falta '{ruta_repo_git}'). No se puede gestionar la rama de misión '{nombre_mision_activa}'.")
+        else:
+            logging.info(f"{logPrefix} Intentando limpiar la rama de misión local '{nombre_mision_activa}'.")
+            rama_actual_repo = manejadorGit.obtener_rama_actual(settings.RUTACLON)
+
+            if rama_actual_repo == nombre_mision_activa:
+                logging.info(f"{logPrefix} Actualmente en la rama de misión '{nombre_mision_activa}'. Cambiando a la rama de trabajo principal '{settings.RAMATRABAJO}' antes de eliminar.")
+                if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
+                    logging.error(f"{logPrefix} No se pudo cambiar a la rama de trabajo '{settings.RAMATRABAJO}'. La rama de misión '{nombre_mision_activa}' no será eliminada. Puede requerir intervención manual.")
+                else:
+                    if not manejadorGit.eliminarRama(settings.RUTACLON, nombre_mision_activa, local=True, remota=False): # No eliminar remota por defecto
+                        logging.warning(f"{logPrefix} No se pudo eliminar la rama de misión local '{nombre_mision_activa}'. Puede que necesite intervención manual.")
+                    else:
+                        logging.info(f"{logPrefix} Rama de misión local '{nombre_mision_activa}' eliminada.")
+            elif manejadorGit.existe_rama(settings.RUTACLON, nombre_mision_activa, local_only=True):
+                # No estamos en la rama de misión, pero existe localmente
+                logging.info(f"{logPrefix} La rama de misión '{nombre_mision_activa}' existe localmente (pero no es la actual). Procediendo a eliminarla.")
+                if not manejadorGit.eliminarRama(settings.RUTACLON, nombre_mision_activa, local=True, remota=False):
+                     logging.warning(f"{logPrefix} No se pudo eliminar la rama de misión local '{nombre_mision_activa}'.")
+                else:
+                    logging.info(f"{logPrefix} Rama de misión local '{nombre_mision_activa}' eliminada.")
+            else:
+                logging.info(f"{logPrefix} La rama de misión '{nombre_mision_activa}' (indicada en el estado activo) no existe localmente. No se requiere eliminación de rama.")
+    else:
+        logging.info(f"{logPrefix} No hay misión activa registrada en el archivo de estado. No se requiere limpieza de rama de misión específica por estado.")
+
+    limpiar_estado_mision_activa() # Esto borra .active_mission
+
+    # Opcional: Limpiar registro de archivos analizados. Por ahora, nos limitamos a lo solicitado.
+    # if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
+    #     try:
+    #         os.remove(REGISTRO_ARCHIVOS_ANALIZADOS_PATH)
+    #         logging.info(f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
+    #     except Exception as e:
+    #         logging.error(f"{logPrefix} Error eliminando '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}")
+
+    # Opcional: Limpiar el archivo de log. El FileHandler actual en modo 'w' ya lo trunca/sobrescribe.
+    # logging.info(f"{logPrefix} El archivo de log principal se truncará/sobrescribirá en la próxima ejecución normal debido al modo 'w' del FileHandler.")
+
+    logging.info(f"{logPrefix} Reseteo del estado del agente (archivo .active_mission y rama de misión local asociada si existía) completado.")
+    return True # Indicar éxito
+    
 if __name__ == "__main__":
-    configurarLogging()
+    configurarLogging() # Configurar logging primero para todas las operaciones
     parser = argparse.ArgumentParser(
         description="Agente Adaptativo de Refactorización de Código con IA.",
-        epilog="Ejecuta una fase del ciclo adaptativo (crear misión o ejecutar tarea) y luego se detiene."
+        epilog="Ejecuta una fase del ciclo adaptativo (crear misión o ejecutar tarea) y luego se detiene, o resetea el estado del agente."
     )
     parser.add_argument("--modo-automatico", action="store_true", help="Activa modo automatico (hace push a Git).")
     parser.add_argument("--openrouter", action="store_true", help="Utilizar OpenRouter como proveedor de IA.")
+    parser.add_argument("--reset", action="store_true", help="Formatea el estado del agente (borra misión activa, rama de misión local asociada, etc.) y sale.")
+    
     args = parser.parse_args()
-    
-    codigo_salida = orchestrarEjecucionScript(args)
-    
-    logging.info(f"Script principal (adaptativo) finalizado con código: {codigo_salida}")
-    sys.exit(codigo_salida)
+
+    if args.reset:
+        logging.info("Opción --reset detectada. Iniciando reseteo del agente...")
+        # La función realizarReseteoAgente ya está definida en este archivo (principal.py)
+        # y utiliza cargar_estado_mision_activa, limpiar_estado_mision_activa de este mismo archivo.
+        # También utiliza manejadorGit y settings.
+        reset_exitoso = realizarReseteoAgente() 
+        if reset_exitoso:
+            logging.info("Reseteo del agente completado con éxito.")
+            sys.exit(0)
+        else:
+            logging.error("Reseteo del agente falló. Revise los logs.")
+            sys.exit(1)
+    else:
+        # Proceder con la orquestación normal si no es --reset
+        codigo_salida = orchestrarEjecucionScript(args)
+        logging.info(f"Script principal (adaptativo) finalizado con código: {codigo_salida}")
+        sys.exit(codigo_salida)
