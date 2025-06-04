@@ -911,7 +911,12 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
             manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_ERROR_TAREA_IA:{nombre_rama_mision}", decision=tarea_actual_info, error_message="IA no generó cambios válidos")
         ])
         # Marcar tarea como fallida temporalmente
-        contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "FALLIDA_TEMPORALMENTE")
+        contenido_mision_post_tarea = marcar_tarea_como_completada(
+            contenido_mision_actual_md, 
+            tarea_id, 
+            "FALLIDA_TEMPORALMENTE", 
+            incrementar_intentos_si_fallida_temp=True
+        )
         if not contenido_mision_post_tarea: return "error_critico_actualizando_mision", contenido_mision_actual_md
         try:
             with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f: f.write(contenido_mision_post_tarea)
@@ -948,7 +953,12 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
                 manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_APPLY_FAIL:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea, error_message=msg_err_aplicar)
             ])
             manejadorGit.descartarCambiosLocales(ruta_repo) # Descartar cambios fallidos de ESTA tarea
-            contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "FALLIDA_TEMPORALMENTE")
+            contenido_mision_post_tarea = marcar_tarea_como_completada(
+                contenido_mision_actual_md, 
+                tarea_id, 
+                "FALLIDA_TEMPORALMENTE",
+                incrementar_intentos_si_fallida_temp=True
+            )
             if not contenido_mision_post_tarea: return "error_critico_actualizando_mision", contenido_mision_actual_md
             try:
                 with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f: f.write(contenido_mision_post_tarea)
