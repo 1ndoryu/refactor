@@ -86,9 +86,7 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
     except Exception as e:
         log.error(
             f"{logPrefix} Error listando archivos en {rutaBaseParaListar}: {e}", exc_info=True)
-        return None
-
-
+            
 def leerArchivos(listaArchivos, rutaBase, api_provider='google'):  # Añadido api_provider
     logPrefix = "leerArchivos:"
 
