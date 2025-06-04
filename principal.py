@@ -1,3 +1,5 @@
+# principal.py
+
 import logging
 import sys
 import os
@@ -12,14 +14,107 @@ from nucleo import manejadorGit
 from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 
+
 class TimeoutException(Exception):
     """Excepción para indicar que el tiempo límite de ejecución fue alcanzado."""
     pass
+
+
+def orchestrarEjecucionScript(args):
+    api_provider_seleccionado = "openrouter" if args.openrouter else "google"
+
+    logging.info(
+        f"Iniciando lógica de orquestación. Proveedor API: {api_provider_seleccionado.upper()}. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
+
+    if api_provider_seleccionado == 'google' and not settings.GEMINIAPIKEY:
+        logging.critical(
+            "Error: Se seleccionó Google Gemini pero GEMINI_API_KEY no está configurada en .env o settings.py. Abortando.")
+        return 2
+    elif api_provider_seleccionado == 'openrouter' and not settings.OPENROUTER_API_KEY:
+        logging.critical(
+            "Error: Se seleccionó OpenRouter (--openrouter) pero OPENROUTER_API_KEY no está configurada en .env o settings.py. Abortando.")
+        return 2
+
+    # TIMEOUT_SECONDS ahora viene de settings
+    if hasattr(signal, 'SIGALRM'):
+        logging.info(
+            f"Configurando timeout de ejecución a {settings.SCRIPT_EXECUTION_TIMEOUT_SECONDS} segundos usando signal.alarm.")
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(settings.SCRIPT_EXECUTION_TIMEOUT_SECONDS)
+    else:
+        logging.warning(
+            "signal.alarm no está disponible en este sistema operativo (ej. Windows). El timeout de ejecución general no estará activo.")
+
+    exit_code = 1
+
+    try:
+        cicloTuvoExitoConCommit = ejecutarProcesoPrincipal(
+            api_provider=api_provider_seleccionado)
+
+        if cicloTuvoExitoConCommit:
+            logging.info(
+                "Proceso principal completado: Se realizó un commit con cambios efectivos.")
+            if args.modo_test:
+                logging.info("Modo Test activado: Intentando hacer push...")
+                ramaPush = getattr(settings, 'RAMATRABAJO', 'main')
+                if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
+                    logging.info(
+                        f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
+                    exit_code = 0
+                else:
+                    logging.error(
+                        f"Modo Test: Falló el push a la rama '{ramaPush}'. El commit local se mantiene.")
+                    exit_code = 1
+            else:
+                logging.info(
+                    "Modo Test desactivado. Commit local realizado, no se hizo push.")
+                exit_code = 0
+        else:
+            logging.warning(
+                "Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error, fallo de verificación, API inestable o commit sin cambios). Verifique logs e historial.")
+            exit_code = 1
+
+    except TimeoutException as e:
+        logging.critical(
+            f"TIMEOUT: El script fue terminado porque excedió el límite de {settings.SCRIPT_EXECUTION_TIMEOUT_SECONDS} segundos.")
+        try:
+            historial = cargarHistorial()
+            historial.append(formatearEntradaHistorial(
+                outcome="[TIMEOUT]", error_message=str(e)))
+            guardarHistorial(historial)
+            logging.info(
+                "Intentando guardar historial tras timeout (puede fallar).")
+        except Exception as e_hist_timeout:
+            logging.error(
+                f"Fallo al guardar historial durante manejo de timeout: {e_hist_timeout}")
+        exit_code = 124
+
+    except Exception as e:
+        logging.critical(
+            f"Error fatal no manejado en orquestación: {e}", exc_info=True)
+        try:
+            historial = cargarHistorial()
+            historial.append(formatearEntradaHistorial(
+                outcome="[ERROR_FATAL_ORQUESTRACION]", error_message=str(e)))
+            guardarHistorial(historial)
+        except Exception as e_hist_fatal:
+            logging.error(
+                f"No se pudo guardar historial del error fatal: {e_hist_fatal}")
+        exit_code = 2
+
+    finally:
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
+            logging.debug("Alarma de timeout cancelada.")
+
+    return exit_code
+
 
 def _timeout_handler(signum, frame):
     """Manejador para la señal SIGALRM. Lanza TimeoutException."""
     logging.error("¡Tiempo límite de ejecución alcanzado!")
     raise TimeoutException("El script excedió el tiempo máximo de ejecución.")
+
 
 def configurarLogging():
     log_raiz = logging.getLogger()
@@ -48,6 +143,7 @@ def configurarLogging():
     logging.info(
         f"configurarLogging: Nivel de log establecido a {logging.getLevelName(log_raiz.level)}")
 
+
 def cargarHistorial():
     logPrefix = "cargarHistorial:"
     historial = []
@@ -75,6 +171,7 @@ def cargarHistorial():
             f"{logPrefix} Error crítico cargando historial desde {rutaArchivoHistorial}: {e}. Se procederá con historial vacío.")
         historial = []
     return historial
+
 
 def guardarHistorial(historial):
     logPrefix = "guardarHistorial:"
@@ -105,6 +202,7 @@ def guardarHistorial(historial):
         logging.error(
             f"{logPrefix} Error crítico guardando historial en {rutaArchivoHistorial}: {e}")
         return False
+
 
 def parsearDecisionGemini(decisionJson):
     logPrefix = "parsearDecision:"
@@ -152,6 +250,7 @@ def parsearDecisionGemini(decisionJson):
 
     return decisionJson
 
+
 def parsearResultadoEjecucion(resultadoJson):
     logPrefix = "parsearResultadoEjecucion:"
 
@@ -193,6 +292,7 @@ def parsearResultadoEjecucion(resultadoJson):
         f"{logPrefix} Resultado de ejecución parseado exitosamente. {len(archivosModificados)} archivos a modificar.")
     return archivosModificados
 
+
 def formatearEntradaHistorial(outcome, decision=None, result_details=None, verification_details=None, error_message=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = f"[{timestamp}] [{outcome}]\n"
@@ -226,6 +326,7 @@ def formatearEntradaHistorial(outcome, decision=None, result_details=None, verif
         entry += f"  Error: {error_message}\n"
 
     return entry.strip()
+
 
 def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
     logPrefix = "verificarCambiosAplicados (Paso 3):"
@@ -314,6 +415,7 @@ def verificarCambiosAplicados(decisionParseada, resultadoEjecucion, rutaRepo):
         msg = "OK. Los cambios aplicados parecen consistentes con la intención."
         logging.info(f"{logPrefix} {msg}")
         return True, msg
+
 
 def ejecutarProcesoPrincipal(api_provider: str):
     logPrefix = f"ejecutarProcesoPrincipal({api_provider.upper()}):"
@@ -528,7 +630,8 @@ def ejecutarProcesoPrincipal(api_provider: str):
                     f"{logPrefix} Acción '{decisionParseada.get('accion_propuesta')}' no requiere contexto de archivo para Paso 2, o no se encontraron archivos relevantes existentes.")
                 contextoReducido = ""
 
-            logging.info(f"{logPrefix} Obteniendo RESULTADO de ejecución de IA ({api_provider.upper()})...")
+            logging.info(
+                f"{logPrefix} Obteniendo RESULTADO de ejecución de IA ({api_provider.upper()})...")
 
             MAX_RETRIES_PASO2 = 7
             RETRY_DELAY_SECONDS_PASO2 = 5
@@ -536,7 +639,8 @@ def ejecutarProcesoPrincipal(api_provider: str):
 
             for intento in range(MAX_RETRIES_PASO2):
                 try:
-                    logging.info(f"{logPrefix} Intento {intento + 1}/{MAX_RETRIES_PASO2} para obtener resultado de ejecución...")
+                    logging.info(
+                        f"{logPrefix} Intento {intento + 1}/{MAX_RETRIES_PASO2} para obtener resultado de ejecución...")
 
                     resultadoJson = analizadorCodigo.ejecutarAccionConGemini(
                         decisionParseada, contextoReducido,
@@ -544,25 +648,29 @@ def ejecutarProcesoPrincipal(api_provider: str):
                     )
 
                     if resultadoJson is not None:
-                        logging.info(f"{logPrefix} Resultado obtenido con éxito en intento {intento + 1}.")
+                        logging.info(
+                            f"{logPrefix} Resultado obtenido con éxito en intento {intento + 1}.")
                         break
                     else:
-                        logging.warning(f"{logPrefix} Intento {intento + 1} fallido (API devolvió None o respuesta inválida).")
+                        logging.warning(
+                            f"{logPrefix} Intento {intento + 1} fallido (API devolvió None o respuesta inválida).")
 
                 except Exception as e_api_call:
-                    logging.error(f"{logPrefix} Excepción durante el intento {intento + 1} de llamada API (Paso 2): {e_api_call}", exc_info=True)
+                    logging.error(
+                        f"{logPrefix} Excepción durante el intento {intento + 1} de llamada API (Paso 2): {e_api_call}", exc_info=True)
                     resultadoJson = None
 
                 if resultadoJson is None and intento < MAX_RETRIES_PASO2 - 1:
-                    logging.info(f"{logPrefix} Esperando {RETRY_DELAY_SECONDS_PASO2} segundos antes del reintento...")
+                    logging.info(
+                        f"{logPrefix} Esperando {RETRY_DELAY_SECONDS_PASO2} segundos antes del reintento...")
                     time.sleep(RETRY_DELAY_SECONDS_PASO2)
                 elif resultadoJson is None and intento == MAX_RETRIES_PASO2 - 1:
-                    logging.error(f"{logPrefix} Fallaron todos los {MAX_RETRIES_PASO2} intentos para obtener el resultado de ejecución (Paso 2).")
-
+                    logging.error(
+                        f"{logPrefix} Fallaron todos los {MAX_RETRIES_PASO2} intentos para obtener el resultado de ejecución (Paso 2).")
 
             if resultadoJson is None:
-                raise Exception(f"Fallaron todos los {MAX_RETRIES_PASO2} intentos para obtener el resultado de ejecución de IA (Paso 2). La API puede estar inestable o la solicitud es inválida.")
-
+                raise Exception(
+                    f"Fallaron todos los {MAX_RETRIES_PASO2} intentos para obtener el resultado de ejecución de IA (Paso 2). La API puede estar inestable o la solicitud es inválida.")
 
             logging.info(f"{logPrefix} Parseando RESULTADO de ejecución IA...")
             if isinstance(resultadoJson, dict):
@@ -762,86 +870,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    api_provider_seleccionado = "openrouter" if args.openrouter else "google"
+    codigo_salida = orchestrarEjecucionScript(args)
 
     logging.info(
-        f"Iniciando script principal. Proveedor API: {api_provider_seleccionado.upper()}. Modo Test: {'Activado' if args.modo_test else 'Desactivado'}")
-
-    if api_provider_seleccionado == 'google' and not settings.GEMINIAPIKEY:
-        logging.critical(
-            "Error: Se seleccionó Google Gemini pero GEMINI_API_KEY no está configurada en .env o settings.py. Abortando.")
-        sys.exit(2)
-    elif api_provider_seleccionado == 'openrouter' and not settings.OPENROUTER_API_KEY:
-        logging.critical(
-            "Error: Se seleccionó OpenRouter (--openrouter) pero OPENROUTER_API_KEY no está configurada en .env o settings.py. Abortando.")
-        sys.exit(2)
-
-    TIMEOUT_SECONDS = 5 * 60
-
-    if hasattr(signal, 'SIGALRM'):
-        logging.info(f"Configurando timeout de ejecución a {TIMEOUT_SECONDS} segundos usando signal.alarm.")
-        signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(TIMEOUT_SECONDS)
-    else:
-        logging.warning("signal.alarm no está disponible en este sistema operativo (ej. Windows). El timeout de ejecución general no estará activo.")
-
-    exit_code = 1
-
-    try:
-        cicloTuvoExitoConCommit = ejecutarProcesoPrincipal(
-            api_provider=api_provider_seleccionado)
-
-        if cicloTuvoExitoConCommit:
-            logging.info(
-                "Proceso principal completado: Se realizó un commit con cambios efectivos.")
-            if args.modo_test:
-                logging.info("Modo Test activado: Intentando hacer push...")
-                ramaPush = getattr(settings, 'RAMATRABAJO', 'main')
-                if manejadorGit.hacerPush(settings.RUTACLON, ramaPush):
-                    logging.info(
-                        f"Modo Test: Push a la rama '{ramaPush}' realizado con éxito.")
-                    exit_code = 0
-                else:
-                    logging.error(
-                        f"Modo Test: Falló el push a la rama '{ramaPush}'. El commit local se mantiene.")
-                    exit_code = 1
-            else:
-                logging.info(
-                    "Modo Test desactivado. Commit local realizado, no se hizo push.")
-                exit_code = 0
-        else:
-            logging.warning(
-                "Proceso principal finalizó SIN realizar un commit efectivo (puede ser por 'no_accion', error, fallo de verificación, API inestable o commit sin cambios). Verifique logs e historial.")
-            exit_code = 1
-
-    except TimeoutException as e:
-        logging.critical(f"TIMEOUT: El script fue terminado porque excedió el límite de {TIMEOUT_SECONDS} segundos.")
-        try:
-            historial = cargarHistorial()
-            historial.append(formatearEntradaHistorial(outcome="[TIMEOUT]", error_message=str(e)))
-            guardarHistorial(historial)
-            logging.info("Intentando guardar historial tras timeout (puede fallar).")
-        except Exception as e_hist_timeout:
-            logging.error(f"Fallo al guardar historial durante manejo de timeout: {e_hist_timeout}")
-        exit_code = 124
-
-    except Exception as e:
-        logging.critical(
-            f"Error fatal no manejado en __main__: {e}", exc_info=True)
-        try:
-            historial = cargarHistorial()
-            historial.append(formatearEntradaHistorial(
-                outcome="[ERROR_FATAL_MAIN]", error_message=str(e)))
-            guardarHistorial(historial)
-        except Exception as e_hist_fatal:
-            logging.error(
-                f"No se pudo guardar historial del error fatal: {e_hist_fatal}")
-        exit_code = 2
-
-    finally:
-        if hasattr(signal, 'SIGALRM'):
-            signal.alarm(0)
-            logging.debug("Alarma de timeout cancelada.")
-
-    logging.info(f"Script finalizado con código de salida: {exit_code}")
-    sys.exit(exit_code)
+        f"Script principal finalizado con código de salida: {codigo_salida}")
+    sys.exit(codigo_salida)

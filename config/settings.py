@@ -186,6 +186,9 @@ MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-exp-03-25") # M
 
 N_HISTORIAL_CONTEXTO = 30 # Manteniendo tu configuración
 
+# --- NUEVO: Configuración del Timeout Global del Script ---
+SCRIPT_EXECUTION_TIMEOUT_SECONDS = int(os.getenv("SCRIPT_EXECUTION_TIMEOUT_SECONDS", 5 * 60)) # Default 5 minutos
+
 # --- Configuracion de Analisis (sin cambios) ---
 EXTENSIONESPERMITIDAS = ['.php', '.js', '.py', '.md'] # Manteniendo tu configuración
 DIRECTORIOS_IGNORADOS = ['vendor', 'node_modules', '.git', '.github', 'docs', 'assets', 'Tests', 'languages'] # Manteniendo tu configuración
@@ -232,6 +235,7 @@ print(f"settings: Ruta Clon: {RUTACLON}")
 print(f"settings: Ruta Historial: {RUTAHISTORIAL}")
 print(f"settings: Rama de Trabajo: {RAMATRABAJO}")
 print(f"settings: Entradas de Historial para Contexto: {N_HISTORIAL_CONTEXTO}")
+print(f"settings: Timeout Global del Script: {SCRIPT_EXECUTION_TIMEOUT_SECONDS} segundos") # Log para el nuevo setting
 
 # Configuración del logger (sin cambios)
 log = logging.getLogger(__name__)
@@ -243,3 +247,4 @@ if OPENROUTER_API_KEY and openrouter_key_actually_used_index != -1:
     log.info(f"settings: Usando índice de OpenRouter API Key: {openrouter_key_actually_used_index}")
 elif OPENROUTER_API_KEY and OPENROUTER_NUM_API_KEYS == 0:
     log.info("settings: Usando clave base de OpenRouter (rotación desactivada).")
+log.info(f"settings: Timeout Global del Script configurado a {SCRIPT_EXECUTION_TIMEOUT_SECONDS} segundos.") # Log para el nuevo setting
