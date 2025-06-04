@@ -1149,7 +1149,7 @@ if __name__ == "__main__":
         description="Agente Adaptativo de Refactorización de Código con IA.",
         epilog="Ejecuta una fase del ciclo adaptativo (crear misión o ejecutar tarea) y luego se detiene."
     )
-    parser.add_argument("--modo-test", action="store_true", help="Activa modo prueba (hace push a Git).")
+    parser.add_argument("--modo-automatico", action="store_true", help="Activa modo automatico (hace push a Git).")
     parser.add_argument("--openrouter", action="store_true", help="Utilizar OpenRouter como proveedor de IA.")
     args = parser.parse_args()
     
