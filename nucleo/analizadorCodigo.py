@@ -174,6 +174,7 @@ def contarTokensTexto(texto, api_provider='google'):
     return tokens
 
 
+    if archivosLeidos > 0:
         return {'contenido': contenidoConcatenado, 'bytes': bytesTotales, 'tokens': tokensTotales, 'archivos_leidos': archivosLeidos}
     else:
         log.warning(f"{logPrefix} No se leyó ningún archivo. Total de rutas intentadas: {len(listaArchivos)}.")
