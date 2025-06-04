@@ -832,19 +832,19 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
     # Definición del esquema de respuesta para Gemini
     # Asumimos que Schema y Type han sido importados como:
     # import google.generativeai.types as types
-    response_schema_ejecutar_tarea = types.Schema(
-         type=types.Type.OBJECT,
-        properties={
-            'archivos_modificados': Schema(
-                type=Type.OBJECT,
-            ),
-            'advertencia_ejecucion': Schema(
-                type=Type.STRING,
-                nullable=True 
-            )
+    response_schema_ejecutar_tarea = {
+         'type': 'OBJECT',
+        'properties': {
+            'archivos_modificados': {
+                'type': 'OBJECT',
+            },
+            'advertencia_ejecucion': {
+                'type': 'STRING',
+                'nullable': True 
+            }
         },
-        required=['archivos_modificados'] 
-    )
+        'required': ['archivos_modificados'] 
+    }
 
 
     try:
