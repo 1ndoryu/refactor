@@ -198,7 +198,11 @@ def clonarOActualizarRepo(repoUrl: str, rutaLocal: str, ramaTrabajo: str) -> boo
             if not cambiar_a_rama_existente(rutaLocal, ramaTrabajo): return False
         elif existe_rama(rutaLocal, ramaTrabajo, remote_only=True):
             log.info(f"Creando rama local '{ramaTrabajo}' desde 'origin/{ramaTrabajo}'.")
-            if not ejecutarComando(['git', 'checkout', '-b', ramaTrabajo, f'origin/{ramaTrabajo}'], cwd=rutaLocal, check=True): return False
+            if not ejecutarComando(['git', 'checkout', '-b', ramaTrabajo, f'origin/{ramaTrabajo}'], cwd=rutaLocal, check=False):
+                log.warning(f"Falló la creación de la rama '{ramaTrabajo}' desde 'origin/{ramaTrabajo}'. Intentando desde '{ramaPrincipal}'.")
+                if not crear_y_cambiar_a_rama(rutaLocal, ramaTrabajo, ramaPrincipal):
+                    log.error(f"No se pudo crear la rama '{ramaTrabajo}' ni desde 'origin/{ramaTrabajo}' ni desde '{ramaPrincipal}'.")
+                    return False
         else:
             log.info(f"Creando nueva rama local '{ramaTrabajo}' desde '{ramaPrincipal}'.")
             if not crear_y_cambiar_a_rama(rutaLocal, ramaTrabajo, ramaPrincipal): return False
