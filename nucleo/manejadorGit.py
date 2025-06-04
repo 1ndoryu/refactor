@@ -9,7 +9,6 @@ from config import settings # Para RAMATRABAJO en eliminarRama
 log = logging.getLogger(__name__)
 
 
-# MODIFICADO ### Añadir check y return_output
 def ejecutarComando(comando: List[str], cwd: Optional[str] = None, check: bool = True, return_output: bool = False):
     """
     Ejecuta un comando de shell.
@@ -40,17 +39,37 @@ def ejecutarComando(comando: List[str], cwd: Optional[str] = None, check: bool =
 
         # Si check=False, debemos verificar el returncode manualmente.
         if not check and resultado.returncode != 0:
-            # El comando falló, pero no se lanzó una excepción porque check=False.
+            # El comando falló (código de retorno != 0), pero no se lanzó una excepción porque check=False.
             stderrLimpio = resultado.stderr.strip() if resultado.stderr else ""
-            stdoutLimpio = resultado.stdout.strip() if resultado.stdout else "" # Puede haber stdout incluso en error
-            log.error(
-                f"{logPrefix} Comando '{comandoStr}' falló con código {resultado.returncode} (check=False).")
-            if stderrLimpio:
-                log.error(f"{logPrefix} Stderr: {stderrLimpio}")
-            if stdoutLimpio:
-                log.debug(f"{logPrefix} Stdout (en error): {stdoutLimpio}")
+            stdoutLimpio = resultado.stdout.strip() if resultado.stdout else ""
             
-            error_message = stderrLimpio or f"Comando '{comandoStr}' falló con código {resultado.returncode}"
+            # Determinar si es un caso especial donde un código no-cero es esperado y no un error de ejecución.
+            # Caso específico: 'git diff --staged --quiet' devuelve 1 si hay cambios staged.
+            esCasoEspecialDiffStagedQuietConCambios = (
+                comando == ['git', 'diff', '--staged', '--quiet'] and 
+                resultado.returncode == 1
+            )
+
+            if esCasoEspecialDiffStagedQuietConCambios:
+                # Para 'git diff --staged --quiet' código 1, este es un resultado esperado, no un error de ejecución.
+                log.info(
+                    f"{logPrefix} Comando '{comandoStr}' resultó en código {resultado.returncode} (esperado, indica cambios staged).")
+                if stderrLimpio: # No se espera stderr en este caso, si existe es un error.
+                    log.error(f"{logPrefix} Stderr (inesperado para diff --quiet con código 1): {stderrLimpio}")
+            else:
+                # Para otros comandos o 'git diff --staged --quiet' con código > 1 (error real de ejecución).
+                log.error(
+                    f"{logPrefix} Comando '{comandoStr}' falló con código {resultado.returncode} (check=False).")
+                if stderrLimpio:
+                    log.error(f"{logPrefix} Stderr: {stderrLimpio}")
+            
+            if stdoutLimpio: # Loguear stdout si existe, incluso con código no cero.
+                log.debug(f"{logPrefix} Stdout (con código no cero {resultado.returncode}): {stdoutLimpio}")
+            
+            # La lógica de retorno se mantiene: si returncode !=0 y check=False, la función devuelve "fallo"
+            # para que el llamador decida cómo interpretar ese "fallo" según el comando específico.
+            # El mensaje de error prioriza stderr si existe.
+            error_message = stderrLimpio or f"Comando '{comandoStr}' resultó en código {resultado.returncode}"
             return (False, error_message) if return_output else False
 
         # Si llegamos aquí, el comando fue exitoso:
@@ -295,8 +314,9 @@ def hacerCommit(rutaRepo: str, mensaje: str) -> bool:
     """
     Añade todos los cambios y hace commit.
     Returns:
-        bool: True si se realizó un NUEVO commit con éxito.
-              False si falló 'git add', 'git commit', o si no había nada que commitear.
+        bool: True si se realizó un NUEVO commit con éxito y este tuvo cambios reales.
+              False si falló 'git add', 'git commit', no había nada que commitear,
+              o si el commit no resultó en cambios efectivos.
     """
     logPrefix = "hacerCommit:"
     log.info(f"{logPrefix} Intentando commit en {rutaRepo}")
@@ -305,43 +325,47 @@ def hacerCommit(rutaRepo: str, mensaje: str) -> bool:
         log.error(f"{logPrefix} Falló 'git add -A'. No se intentará commit.")
         return False
 
-    # Verificar si hay cambios staged
-    # 'git diff --staged --quiet' devuelve:
-    # 0 si no hay diferencias (nada staged para commit)
-    # 1 si hay diferencias (algo staged para commit)
-    # >1 en otros errores
-    diff_success, diff_output_or_error = ejecutarComando(
-        ['git', 'diff', '--staged', '--quiet'], cwd=rutaRepo, check=False, return_output=True
+    # Verificar si hay cambios staged o untracked que serán commiteados
+    # 'git status --porcelain' devuelve una lista de archivos con sus estados.
+    # Si la salida está vacía, no hay cambios (staged, unstaged, untracked).
+    # Si `git add -A` fue exitoso, los cambios unstaged y untracked ahora deberían estar staged.
+    status_success, status_output = ejecutarComando(
+        ['git', 'status', '--porcelain'], cwd=rutaRepo, check=False, return_output=True
     )
-    # Aquí, diff_success es True si el comando diff en sí se ejecutó sin errores (exit code 0 o 1)
-    # y False si el comando diff falló (p.ej. no es un repo git, código de salida > 1)
 
-    # Para saber si hay algo que commitear, necesitamos verificar el *comportamiento* de `git diff --quiet`:
-    # Necesitamos el código de salida del comando `diff` en sí.
-    # Re-ejecutamos, pero esta vez para obtener el código de salida del subprocess.
-    # Esta es una limitación de la abstracción actual de ejecutarComando si necesitamos el código de salida exacto
-    # para la lógica de control y no solo éxito/fallo del comando.
-    # Por ahora, una forma más simple es verificar `git status --porcelain`
-    
-    status_success, status_output = ejecutarComando(['git', 'status', '--porcelain'], cwd=rutaRepo, check=False, return_output=True)
     if not status_success:
         log.error(f"{logPrefix} Falló 'git status --porcelain' para verificar cambios. No se intentará commit. Error: {status_output}")
         return False
 
-    if not status_output.strip(): 
-        log.warning(f"{logPrefix} No hay cambios detectados por 'git status --porcelain' para hacer commit.")
+    if not status_output.strip():
+        log.warning(f"{logPrefix} No hay cambios detectados por 'git status --porcelain' después de 'git add -A'. Nada para commitear.")
         return False
     
-    log.info(f"{logPrefix} Detectados cambios en staging area o working tree. Realizando commit con mensaje: '{mensaje[:80]}...'")
-    if ejecutarComando(['git', 'commit', '-m', mensaje], cwd=rutaRepo, check=False):
-        log.info(f"{logPrefix} Comando 'git commit' ejecutado con éxito (o no había nada que commitear después del add).")
-        if commitTuvoCambiosReales(rutaRepo):
-             return True
-        else:
-             log.warning(f"{logPrefix} 'git commit' no resultó en cambios efectivos (posiblemente commit vacío o enmienda sin cambios).")
-             return False 
+    log.info(f"{logPrefix} Detectados cambios por 'git status --porcelain'. Salida:\n{status_output.strip()}")
+    log.info(f"{logPrefix} Realizando commit con mensaje: '{mensaje[:80]}...'")
+
+    commit_command_success, commit_error_output = ejecutarComando(
+        ['git', 'commit', '-m', mensaje], cwd=rutaRepo, check=False, return_output=True
+    )
+
+    if not commit_command_success:
+        # 'git commit' puede fallar si no hay nada que commitear (aunque 'git status --porcelain' haya mostrado algo,
+        # como archivos untracked que no se añadieron por alguna razón, o si el add falló silenciosamente).
+        # También puede fallar por otras razones (ej. hook pre-commit).
+        log.error(f"{logPrefix} El comando 'git commit' falló. Error: {commit_error_output}")
+        # Aquí podríamos intentar verificar si la falla fue por "nothing to commit"
+        if "nothing to commit" in commit_error_output or "nada para hacer commit" in commit_error_output:
+            log.warning(f"{logPrefix} 'git commit' indicó que no había nada que commitear, a pesar de la salida de 'git status --porcelain'.")
+        return False
+    
+    log.info(f"{logPrefix} Comando 'git commit' ejecutado. Verificando si tuvo cambios reales...")
+    if commitTuvoCambiosReales(rutaRepo):
+        log.info(f"{logPrefix} Commit realizado con éxito y tuvo cambios reales.")
+        return True
     else:
-        log.error(f"{logPrefix} Falló 'git commit'.")
+        log.warning(f"{logPrefix} 'git commit' se ejecutó, pero no resultó en cambios efectivos (posiblemente commit vacío o enmienda sin cambios).")
+        # Aquí se podría considerar si revertir el commit vacío, pero la tarea solo es simplificar la detección.
+        # Dejamos esa lógica para una tarea separada si es necesario.
         return False
 
 
