@@ -367,9 +367,22 @@ def ejecutarProcesoPrincipal(api_provider: str):
 
     try:
         if not _validarConfiguracionEsencial(api_provider):
-            # No es necesario guardar historial aquí, ya que _validarConfiguracionEsencial ya loguea el crítico.
-            # El script principal (orchestrar) manejará el código de salida si esto falla.
-            return False  # Indica fallo temprano
+            return False
+
+        # Configurar Gemini globalmente si es el proveedor y la clave está disponible
+        if api_provider == 'google':
+            if settings.GEMINIAPIKEY:
+                try:
+                    import google.generativeai as genai # Asegurar importación local si no está global
+                    genai.configure(api_key=settings.GEMINIAPIKEY)
+                    logging.info(f"{logPrefix} Google GenAI configurado globalmente para este ciclo.")
+                except ImportError:
+                    logging.error(f"{logPrefix} No se pudo importar google.generativeai. El conteo de tokens y las llamadas a Gemini fallarán.")
+                except Exception as e_config_genai:
+                    logging.error(f"{logPrefix} Error al configurar google.generativeai globalmente: {e_config_genai}")
+            else:
+                logging.warning(f"{logPrefix} Proveedor es Google, pero GEMINIAPIKEY no está disponible. El conteo de tokens y llamadas a Gemini podrían fallar.")
+
 
         historialRefactor = manejadorHistorial.cargarHistorial()
 
@@ -428,14 +441,19 @@ def ejecutarProcesoPrincipal(api_provider: str):
                     f"{logPrefix} No se encontraron archivos relevantes para leer.")
                 codigoProyectoCompleto = ""
             else:
-                codigoProyectoCompleto = analizadorCodigo.leerArchivos(
-                    todosLosArchivos, settings.RUTACLON)
-                if codigoProyectoCompleto is None:
-                    raise Exception("Error al leer contenido de archivos.")
-                tamanoKB_completo = len(
-                    codigoProyectoCompleto.encode('utf-8')) / 1024
+                resultadoLectura = analizadorCodigo.leerArchivos(
+                    todosLosArchivos, settings.RUTACLON, api_provider=api_provider)
+
+                if resultadoLectura is None or resultadoLectura.get('contenido') is None:
+                    raise Exception(f"Error al leer contenido de archivos o resultado de lectura inválido. Proveedor: {api_provider}")
+
+                codigoProyectoCompleto = resultadoLectura['contenido']
+                bytesTotales = resultadoLectura.get('bytes', 0)
+                tokensTotales = resultadoLectura.get('tokens', 0)
+                archivosLeidosCount = resultadoLectura.get('archivos_leidos', len(todosLosArchivos))
+
                 logging.info(
-                    f"{logPrefix} Código completo leído ({len(todosLosArchivos)} archivos, {tamanoKB_completo:.2f} KB).")
+                    f"{logPrefix} Código completo leído ({archivosLeidosCount} archivos, {bytesTotales / 1024:.2f} KB, {tokensTotales} tokens).")
 
             logging.info(
                 f"{logPrefix} Obteniendo DECISIÓN de IA ({api_provider.upper()})...")

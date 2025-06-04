@@ -1,7 +1,9 @@
 import os
-import logging
-import json
-import random # Añadido para selección aleatoria
+import logging as log
+import random
+import google.generativeai as genai
+from config import settings  # Corregido para apuntar a config/settings.py
+import random  # Añadido para selección aleatoria
 import google.generativeai as genai
 import google.api_core.exceptions
 from openai import OpenAI, APIError
@@ -10,7 +12,8 @@ from config import settings
 
 log = logging.getLogger(__name__)
 geminiConfigurado = False
-API_TIMEOUT_SECONDS = 300 # 2 minutos
+API_TIMEOUT_SECONDS = 300  # 2 minutos
+
 
 def configurarGemini():
     global geminiConfigurado
@@ -31,6 +34,7 @@ def configurarGemini():
             f"{logPrefix} Error configurando cliente Google Gemini: {e}")
         return False
 
+
 def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directoriosIgnorados=None):
     logPrefix = "listarArchivosProyecto:"
     archivosProyecto = []
@@ -44,17 +48,21 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
 
     rutaBaseParaListar = rutaProyecto
     # Nueva lógica para listar la carpeta 'app/' completa
-    if rutaProyecto == settings.RUTACLON: # Solo si estamos en la raíz del proyecto clonado
+    if rutaProyecto == settings.RUTACLON:  # Solo si estamos en la raíz del proyecto clonado
         rutaApp = os.path.join(settings.RUTACLON, 'app')
-        log.info(f"{logPrefix} Proyecto raíz detectado. Intentando listar contenido de: {rutaApp}")
+        log.info(
+            f"{logPrefix} Proyecto raíz detectado. Intentando listar contenido de: {rutaApp}")
         if os.path.isdir(rutaApp):
             rutaBaseParaListar = rutaApp
-            log.info(f"{logPrefix} Se listará el contenido completo de la carpeta: {rutaBaseParaListar}")
+            log.info(
+                f"{logPrefix} Se listará el contenido completo de la carpeta: {rutaBaseParaListar}")
         else:
-            log.warning(f"{logPrefix} La carpeta '{rutaApp}' no existe. Se usará la ruta original del proyecto: {rutaProyecto}")
+            log.warning(
+                f"{logPrefix} La carpeta '{rutaApp}' no existe. Se usará la ruta original del proyecto: {rutaProyecto}")
             # rutaBaseParaListar permanece como rutaProyecto
     else:
-        log.info(f"{logPrefix} No se está analizando el proyecto raíz, se listarán archivos de: {rutaProyecto}")
+        log.info(
+            f"{logPrefix} No se está analizando el proyecto raíz, se listarán archivos de: {rutaProyecto}")
 
     try:
         log.info(
@@ -73,8 +81,6 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
                     rutaCompleta = os.path.join(raiz, nombreArchivo)
                     archivosProyecto.append(os.path.normpath(rutaCompleta))
 
-
-
         log.info(
             f"{logPrefix} Archivos relevantes encontrados ({len(archivosProyecto)}) desde '{rutaBaseParaListar}'.")
         return archivosProyecto
@@ -83,11 +89,18 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
             f"{logPrefix} Error listando archivos en {rutaBaseParaListar}: {e}", exc_info=True)
         return None
 
-def leerArchivos(listaArchivos, rutaBase):
+
+def leerArchivos(listaArchivos, rutaBase, api_provider='google'):  # Añadido api_provider
     logPrefix = "leerArchivos:"
+
+    if not listaArchivos:
+        log.info(f"{logPrefix} La lista de archivos a leer estaba vacía.")
+        return {'contenido': "", 'bytes': 0, 'tokens': 0, 'archivos_leidos': 0}
+
     contenidoConcatenado = ""
     archivosLeidos = 0
     bytesTotales = 0
+    tokensTotales = 0  # Nuevo para contar tokens
     archivosFallidos = []
 
     for rutaAbsoluta in listaArchivos:
@@ -122,22 +135,56 @@ def leerArchivos(listaArchivos, rutaBase):
                 f"{logPrefix} Error leyendo '{rutaAbsNorm}' (Relativa: '{rutaRelativa if 'rutaRelativa' in locals() else 'N/A'}'): {e}")
             archivosFallidos.append(rutaAbsoluta)
 
-    tamanoKB = bytesTotales / 1024
     if archivosFallidos:
         log.warning(
             f"{logPrefix} No se pudieron leer {len(archivosFallidos)} archivos: {archivosFallidos[:5]}{'...' if len(archivosFallidos) > 5 else ''}")
 
     if archivosLeidos > 0:
-        log.info(
-            f"{logPrefix} Leídos {archivosLeidos} archivos. Tamaño total: {tamanoKB:.2f} KB.")
-        return contenidoConcatenado
-    elif not listaArchivos:
-        log.info(f"{logPrefix} La lista de archivos a leer estaba vacía.")
-        return ""
-    else:
-        log.error(
-            f"{logPrefix} No se pudo leer ningún archivo de la lista proporcionada (contenía {len(listaArchivos)} rutas).")
-        return None
+        tamanoKB = bytesTotales / 1024
+        log_msg_base = f"{logPrefix} Leídos {archivosLeidos} archivos. Tamaño total: {tamanoKB:.2f} KB."
+
+        if api_provider == 'google' and contenidoConcatenado:
+            try: # Correctamente indentado
+                # Se asume que Gemini ya está configurado si api_provider es 'google'
+                modelo_gemini_para_conteo = getattr(
+                    settings, 'MODELO_GOOGLE_GEMINI', None)
+                if modelo_gemini_para_conteo:
+                    log.debug(
+                        f"{logPrefix} Intentando contar tokens con el modelo Gemini: {modelo_gemini_para_conteo}")
+                    try: # Correctamente indentado
+                        model = genai.GenerativeModel(modelo_gemini_para_conteo)
+                        respuesta_conteo = model.count_tokens(contenidoConcatenado)
+                        tokensTotales = respuesta_conteo.total_tokens
+                        log.info(
+                            f"{log_msg_base} Tokens estimados (Gemini): {tokensTotales}.")
+                    except Exception as e_genai_init_count:
+                        log.error(
+                            f"{logPrefix} Error al inicializar GenerativeModel o contar tokens: {e_genai_init_count}", exc_info=True)
+                        log.info(log_msg_base +
+                                 " Conteo de tokens fallido (error Gemini).")
+                else:
+                    log.warning(
+                        f"{logPrefix} MODELO_GOOGLE_GEMINI no está definido en settings. No se pueden contar tokens.")
+                    log.info(
+                        log_msg_base + " Conteo de tokens no realizado (modelo no configurado).")
+            except Exception as e_count_tokens: # Correctamente indentado
+                log.error(
+                    f"{logPrefix} Error contando tokens con Gemini: {e_count_tokens}", exc_info=True)
+                log.info(log_msg_base + " Conteo de tokens fallido.")
+        else:
+            log.info(
+                log_msg_base + " Conteo de tokens no aplicable para este proveedor o contenido vacío.")
+
+        return {'contenido': contenidoConcatenado, 'bytes': bytesTotales, 'tokens': tokensTotales, 'archivos_leidos': archivosLeidos}
+    else: # Si archivosLeidos es 0 (ningún archivo fue leído exitosamente)
+        # Este log ya cubre el caso donde la lista original pudo tener items pero ninguno se leyó.
+        # El caso de listaArchivos vacía se maneja al inicio.
+        log.warning(
+            f"{logPrefix} No se leyó ningún archivo o la lista estaba vacía. Total de rutas intentadas (si no estaba vacía): {len(listaArchivos)}.")
+        return {'contenido': "", 'bytes': 0, 'tokens': 0, 'archivos_leidos': 0}
+
+
+
 
 def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth=8, incluir_archivos=True, indent_char="    "):
     logPrefix = "generarEstructuraDirectorio:"
