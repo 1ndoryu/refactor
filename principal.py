@@ -497,25 +497,28 @@ def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archi
 
     gestionar_limite_tokens(tokens_estimados, api_provider)
     
-    # decision_IA_paso1_1 = analizadorCodigo.solicitar_evaluacion_archivo(
-    #     archivo_seleccionado_rel, contenido_archivo, estructura_proyecto, api_provider, ""
-    # )
-    # Simulación:
-    logging.warning(f"{logPrefix} USANDO PLACEHOLDER para decisión IA Paso 1.1 para '{archivo_seleccionado_rel}'")
-    time.sleep(0.1)
-    necesita_refactor_sim = True 
-    necesita_ctx_sim = True if necesita_refactor_sim else False
-    archivos_sugeridos_sim = ["nucleo/manejadorGit.py", "config/settings.py"] if archivo_seleccionado_rel == "principal.py" else []
-    decision_IA_paso1_1 = {
-        "necesita_refactor": necesita_refactor_sim,
-        "necesita_contexto_adicional": necesita_ctx_sim,
-        "archivos_contexto_sugeridos": archivos_sugeridos_sim,
-        "razonamiento": f"Simulación: El archivo '{archivo_seleccionado_rel}' necesita refactor y contexto.",
-        "tokens_consumidos_api": tokens_estimados
-    }
-    # Fin Simulación
+    decision_IA_paso1_1 = analizadorCodigo.solicitar_evaluacion_archivo(
+        archivo_seleccionado_rel, contenido_archivo, estructura_proyecto, api_provider, "" # reglas_refactor vacío por ahora
+    )
+    # # Simulación:
+    # logging.warning(f"{logPrefix} USANDO PLACEHOLDER para decisión IA Paso 1.1 para '{archivo_seleccionado_rel}'")
+    # time.sleep(0.1)
+    # necesita_refactor_sim = True 
+    # necesita_ctx_sim = True if necesita_refactor_sim else False
+    # archivos_sugeridos_sim = ["nucleo/manejadorGit.py", "config/settings.py"] if archivo_seleccionado_rel == "principal.py" else []
+    # decision_IA_paso1_1 = {
+    #     "necesita_refactor": necesita_refactor_sim,
+    #     "necesita_contexto_adicional": necesita_ctx_sim,
+    #     "archivos_contexto_sugeridos": archivos_sugeridos_sim,
+    #     "razonamiento": f"Simulación: El archivo '{archivo_seleccionado_rel}' necesita refactor y contexto.",
+    #     "tokens_consumidos_api": tokens_estimados
+    # }
+    # # Fin Simulación
 
-    registrar_tokens_usados(decision_IA_paso1_1.get("tokens_consumidos_api", tokens_estimados))
+    # Asumiendo que la función de IA devuelve 'tokens_consumidos_api' o lo estimamos nosotros si no lo hace.
+    # Si no lo devuelve, el 'tokens_estimados' es una buena proxy.
+    registrar_tokens_usados(decision_IA_paso1_1.get("tokens_consumidos_api", tokens_estimados) if decision_IA_paso1_1 else tokens_estimados)
+
 
     if not decision_IA_paso1_1 or not decision_IA_paso1_1.get("necesita_refactor"):
         logging.info(f"{logPrefix} IA decidió que '{archivo_seleccionado_rel}' no necesita refactor. Razón: {decision_IA_paso1_1.get('razonamiento', 'N/A') if decision_IA_paso1_1 else 'Error IA'}")
@@ -553,50 +556,50 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
 
     gestionar_limite_tokens(tokens_estimados, api_provider)
 
-    # contenido_mision_generado_dict = analizadorCodigo.generar_contenido_mision_orion(
-    #     archivo_a_refactorizar_rel, contexto_completo_para_mision,
-    #     decision_paso1_1.get("razonamiento"), api_provider
-    # )
-    # Simulación:
-    logging.warning(f"{logPrefix} USANDO PLACEHOLDER para generación de misión Paso 1.2")
-    time.sleep(0.1)
-    nombre_base_limpio = ''.join(c if c.isalnum() else '_' for c in os.path.splitext(os.path.basename(archivo_a_refactorizar_rel))[0])
-    nombre_clave_simulado = f"Mision_{nombre_base_limpio}_{int(time.time()*100) % 10000}"
-    archivos_ctx_ejecucion_sim = list(set([archivo_a_refactorizar_rel] + archivos_contexto_para_crear_mision_rel))
+    contenido_mision_generado_dict = analizadorCodigo.generar_contenido_mision_orion(
+        archivo_a_refactorizar_rel, contexto_completo_para_mision,
+        decision_paso1_1.get("razonamiento"), api_provider
+    )
+    # # Simulación:
+    # logging.warning(f"{logPrefix} USANDO PLACEHOLDER para generación de misión Paso 1.2")
+    # time.sleep(0.1)
+    # nombre_base_limpio = ''.join(c if c.isalnum() else '_' for c in os.path.splitext(os.path.basename(archivo_a_refactorizar_rel))[0])
+    # nombre_clave_simulado = f"Mision_{nombre_base_limpio}_{int(time.time()*100) % 10000}"
+    # archivos_ctx_ejecucion_sim = list(set([archivo_a_refactorizar_rel] + archivos_contexto_para_crear_mision_rel))
 
-    contenido_md_simulado = f"""# Misión: {nombre_clave_simulado}
+    # contenido_md_simulado = f"""# Misión: {nombre_clave_simulado}
 
-**Metadatos de la Misión:**
-- **Nombre Clave:** {nombre_clave_simulado}
-- **Archivo Principal:** {archivo_a_refactorizar_rel}
-- **Archivos de Contexto (Generación):** {', '.join(archivos_contexto_para_crear_mision_rel) if archivos_contexto_para_crear_mision_rel else 'Ninguno'}
-- **Archivos de Contexto (Ejecución):** {', '.join(archivos_ctx_ejecucion_sim) if archivos_ctx_ejecucion_sim else 'Ninguno'}
-- **Razón (Paso 1.1):** {decision_paso1_1.get('razonamiento', 'N/A')}
-- **Estado:** PENDIENTE
+# **Metadatos de la Misión:**
+# - **Nombre Clave:** {nombre_clave_simulado}
+# - **Archivo Principal:** {archivo_a_refactorizar_rel}
+# - **Archivos de Contexto (Generación):** {', '.join(archivos_contexto_para_crear_mision_rel) if archivos_contexto_para_crear_mision_rel else 'Ninguno'}
+# - **Archivos de Contexto (Ejecución):** {', '.join(archivos_ctx_ejecucion_sim) if archivos_ctx_ejecucion_sim else 'Ninguno'}
+# - **Razón (Paso 1.1):** {decision_paso1_1.get('razonamiento', 'N/A')}
+# - **Estado:** PENDIENTE
 
-## Tareas de Refactorización:
----
-### Tarea 1: Simular análisis de función X
-- **ID:** T1
-- **Estado:** PENDIENTE
-- **Descripción:** Analizar la función X en '{archivo_a_refactorizar_rel}' y proponer simplificación (Simulación).
-- **Intentos:** 0
----
-### Tarea 2: Simular verificación de variable Y
-- **ID:** T2
-- **Estado:** PENDIENTE
-- **Descripción:** Verificar si la variable Y se usa correctamente en '{archivo_a_refactorizar_rel}' (Simulación).
-- **Intentos:** 0
----
-"""
-    contenido_mision_generado_dict = {
-        "nombre_clave_mision": nombre_clave_simulado,
-        "contenido_markdown_mision": contenido_md_simulado,
-        "tokens_consumidos_api": tokens_estimados
-    }
-    # Fin Simulación
+# ## Tareas de Refactorización:
+# ---
+# ### Tarea 1: Simular análisis de función X
+# - **ID:** T1
+# - **Estado:** PENDIENTE
+# - **Descripción:** Analizar la función X en '{archivo_a_refactorizar_rel}' y proponer simplificación (Simulación).
+# - **Intentos:** 0
+# ---
+# ### Tarea 2: Simular verificación de variable Y
+# - **ID:** T2
+# - **Estado:** PENDIENTE
+# - **Descripción:** Verificar si la variable Y se usa correctamente en '{archivo_a_refactorizar_rel}' (Simulación).
+# - **Intentos:** 0
+# ---
+# """
+    # contenido_mision_generado_dict = {
+    #     "nombre_clave_mision": nombre_clave_simulado,
+    #     "contenido_markdown_mision": contenido_md_simulado,
+    #     "tokens_consumidos_api": tokens_estimados
+    # }
+    # # Fin Simulación
     
-    registrar_tokens_usados(contenido_mision_generado_dict.get("tokens_consumidos_api", tokens_estimados))
+    registrar_tokens_usados(contenido_mision_generado_dict.get("tokens_consumidos_api", tokens_estimados) if contenido_mision_generado_dict else tokens_estimados)
 
     if not contenido_mision_generado_dict or \
        not contenido_mision_generado_dict.get("nombre_clave_mision") or \
@@ -611,7 +614,7 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
     contenido_markdown_mision = contenido_mision_generado_dict["contenido_markdown_mision"]
     
     rama_base = manejadorGit.obtener_rama_actual(ruta_repo) or settings.RAMATRABAJO
-    if not manejadorGit.crear_y_cambiar_a_rama(ruta_repo, nombre_clave_mision, rama_base): # NECESITA IMPLEMENTACIÓN EN manejadorGit
+    if not manejadorGit.crear_y_cambiar_a_rama(ruta_repo, nombre_clave_mision, rama_base):
         logging.error(f"{logPrefix} No se pudo crear o cambiar a rama '{nombre_clave_mision}' desde '{rama_base}'.")
         return "error_generando_mision", None, None
     logging.info(f"{logPrefix} En rama de misión: '{nombre_clave_mision}' (desde '{rama_base}')")
@@ -621,10 +624,10 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
         logging.info(f"{logPrefix} {MISION_ORION_MD} guardado en rama '{nombre_clave_mision}'")
     except Exception as e:
         logging.error(f"{logPrefix} Error guardando {MISION_ORION_MD}: {e}", exc_info=True)
-        manejadorGit.cambiar_a_rama_existente(ruta_repo, rama_base); manejadorGit.eliminarRama(ruta_repo, nombre_clave_mision, local=True) # NECESITA IMPLEMENTACIÓN
+        manejadorGit.cambiar_a_rama_existente(ruta_repo, rama_base); manejadorGit.eliminarRama(ruta_repo, nombre_clave_mision, local=True)
         return "error_generando_mision", None, None
 
-    if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Crear misión: {nombre_clave_mision}", [MISION_ORION_MD]): # NECESITA IMPLEMENTACIÓN
+    if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Crear misión: {nombre_clave_mision}", [MISION_ORION_MD]):
         logging.error(f"{logPrefix} No se pudo hacer commit de {MISION_ORION_MD} en '{nombre_clave_mision}'.")
         manejadorGit.cambiar_a_rama_existente(ruta_repo, rama_base); manejadorGit.eliminarRama(ruta_repo, nombre_clave_mision, local=True)
         return "error_generando_mision", None, None
@@ -640,7 +643,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
     logPrefix = f"paso2_ejecutar_tarea_mision (Rama: {nombre_rama_mision}):"
     logging.info(f"{logPrefix} Iniciando ejecución de tarea.")
 
-    if not manejadorGit.cambiar_a_rama_existente(ruta_repo, nombre_rama_mision): # NECESITA IMPLEMENTACIÓN
+    if not manejadorGit.cambiar_a_rama_existente(ruta_repo, nombre_rama_mision):
         logging.error(f"{logPrefix} No se pudo cambiar a rama '{nombre_rama_mision}'. Abortando tarea.")
         return "error_en_tarea", None # Retorna (estado, contenido_mision_actualizado_o_none)
 
@@ -651,10 +654,13 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
         with open(ruta_mision_actual_md, 'r', encoding='utf-8') as f:
             contenido_mision_actual_md = f.read()
         # Re-parsear para obtener la lista de tareas más actualizada
-        metadatos_mision, lista_tareas_mision, _ = parsear_mision_orion(contenido_mision_actual_md)
-        if not metadatos_mision: # Fallo de parseo
+        metadatos_mision_parseados_recientemente, lista_tareas_mision_parseadas_recientemente, _ = parsear_mision_orion(contenido_mision_actual_md)
+        if not metadatos_mision_parseados_recientemente: # Fallo de parseo
              logging.error(f"{logPrefix} Fallo al re-parsear {MISION_ORION_MD} desde la rama. Abortando tarea.")
              return "error_en_tarea", contenido_mision_actual_md
+        # Actualizar las variables con los datos recién parseados
+        metadatos_mision = metadatos_mision_parseados_recientemente
+        lista_tareas_mision = lista_tareas_mision_parseadas_recientemente
     else:
         logging.error(f"{logPrefix} {MISION_ORION_MD} no encontrado en la rama '{nombre_rama_mision}'. Abortando tarea.")
         return "error_en_tarea", None
@@ -692,34 +698,34 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
 
     gestionar_limite_tokens(tokens_estimados, api_provider)
     
-    # resultado_ejecucion_tarea = analizadorCodigo.ejecutar_tarea_especifica_mision(
-    #     tarea_actual_info, contenido_mision_actual_md, contexto_para_tarea_str, api_provider
-    # )
-    # Simulación:
-    logging.warning(f"{logPrefix} USANDO PLACEHOLDER para ejecución de tarea Paso 2: '{tarea_titulo}'")
-    time.sleep(0.1)
-    archivos_modificados_simulados = {}
-    archivo_principal_mision = metadatos_mision.get("archivo_principal")
-    if archivo_principal_mision:
-        path_principal_abs_sim = os.path.join(ruta_repo, archivo_principal_mision)
-        contenido_orig_sim = ""
-        if os.path.exists(path_principal_abs_sim):
-            with open(path_principal_abs_sim, "r", encoding="utf-8") as f_sim: contenido_orig_sim = f_sim.read()
-        archivos_modificados_simulados[archivo_principal_mision] = f"// Tarea SIMULADA: '{tarea_titulo}' ejecutada en {archivo_principal_mision}\n" + \
-                                                                f"// Timestamp: {datetime.now().isoformat()}\n" + contenido_orig_sim
-    else: # Crear uno nuevo si no hay principal
-        nuevo_archivo_sim = f"sim_paso2_{nombre_rama_mision}_{tarea_id}.py"
-        archivos_modificados_simulados[nuevo_archivo_sim] = f"// Generado por tarea SIMULADA '{tarea_titulo}' (ID: {tarea_id})\n// Timestamp: {datetime.now().isoformat()}"
-        logging.info(f"{logPrefix} Simulación: Creará '{nuevo_archivo_sim}'")
+    resultado_ejecucion_tarea = analizadorCodigo.ejecutar_tarea_especifica_mision(
+        tarea_actual_info, contenido_mision_actual_md, contexto_para_tarea_str, api_provider
+    )
+    # # Simulación:
+    # logging.warning(f"{logPrefix} USANDO PLACEHOLDER para ejecución de tarea Paso 2: '{tarea_titulo}'")
+    # time.sleep(0.1)
+    # archivos_modificados_simulados = {}
+    # archivo_principal_mision = metadatos_mision.get("archivo_principal")
+    # if archivo_principal_mision:
+    #     path_principal_abs_sim = os.path.join(ruta_repo, archivo_principal_mision)
+    #     contenido_orig_sim = ""
+    #     if os.path.exists(path_principal_abs_sim):
+    #         with open(path_principal_abs_sim, "r", encoding="utf-8") as f_sim: contenido_orig_sim = f_sim.read()
+    #     archivos_modificados_simulados[archivo_principal_mision] = f"// Tarea SIMULADA: '{tarea_titulo}' ejecutada en {archivo_principal_mision}\n" + \
+    #                                                             f"// Timestamp: {datetime.now().isoformat()}\n" + contenido_orig_sim
+    # else: # Crear uno nuevo si no hay principal
+    #     nuevo_archivo_sim = f"sim_paso2_{nombre_rama_mision}_{tarea_id}.py"
+    #     archivos_modificados_simulados[nuevo_archivo_sim] = f"// Generado por tarea SIMULADA '{tarea_titulo}' (ID: {tarea_id})\n// Timestamp: {datetime.now().isoformat()}"
+    #     logging.info(f"{logPrefix} Simulación: Creará '{nuevo_archivo_sim}'")
     
-    resultado_ejecucion_tarea = {
-        "archivos_modificados": archivos_modificados_simulados,
-        "advertencia_ejecucion": None,
-        "tokens_consumidos_api": tokens_estimados
-    }
-    # Fin Simulación
+    # resultado_ejecucion_tarea = {
+    #     "archivos_modificados": archivos_modificados_simulados,
+    #     "advertencia_ejecucion": None,
+    #     "tokens_consumidos_api": tokens_estimados
+    # }
+    # # Fin Simulación
 
-    registrar_tokens_usados(resultado_ejecucion_tarea.get("tokens_consumidos_api", tokens_estimados))
+    registrar_tokens_usados(resultado_ejecucion_tarea.get("tokens_consumidos_api", tokens_estimados) if resultado_ejecucion_tarea else tokens_estimados)
 
     if not resultado_ejecucion_tarea or "archivos_modificados" not in resultado_ejecucion_tarea:
         logging.error(f"{logPrefix} IA no devolvió 'archivos_modificados'. Respuesta: {resultado_ejecucion_tarea}")
@@ -732,7 +738,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
 
     if resultado_ejecucion_tarea.get("advertencia_ejecucion"):
         logging.warning(f"{logPrefix} IA advirtió: {resultado_ejecucion_tarea['advertencia_ejecucion']}")
-        if not resultado_ejecucion_tarea.get("archivos_modificados"):
+        if not resultado_ejecucion_tarea.get("archivos_modificados"): # Si hay advertencia Y NO HAY CAMBIOS
             logging.info(f"{logPrefix} Tarea no resultó en cambios debido a advertencia. Marcando como SALTADA.")
             contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "SALTADA")
             if not contenido_mision_post_tarea: return "error_en_tarea", contenido_mision_actual_md # Error marcando
@@ -742,17 +748,19 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
                 logging.info(f"{logPrefix} {MISION_ORION_MD} actualizado (tarea saltada).")
                 if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' SALTADA", [MISION_ORION_MD]):
                     logging.error(f"{logPrefix} No se pudo commitear {MISION_ORION_MD} (tarea saltada).")
-                    return "error_en_tarea", contenido_mision_post_tarea # Problema de estado
+                    # No es fatal para el estado del ciclo, pero la misión en disco puede no reflejar el estado.
+                    # Podríamos decidir retornar error_en_tarea aquí. Por ahora, continuamos y se re-evaluará.
             except Exception as e: logging.error(f"{logPrefix} Error guardando {MISION_ORION_MD} (tarea saltada): {e}"); return "error_en_tarea", contenido_mision_actual_md
             
             manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
                 manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_TAREA_SALTADA:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea.get("advertencia_ejecucion"))
             ])
             
-            _, prox_tarea_info, _ = parsear_mision_orion(contenido_mision_post_tarea) # Re-parsear para ver si quedan
-            if not prox_tarea_info: # No quedan tareas pendientes
+            # Re-parsear para ver si quedan tareas después de saltar
+            _, _, hay_pendientes_despues_salto = parsear_mision_orion(contenido_mision_post_tarea) 
+            if not hay_pendientes_despues_salto:
                  logging.info(f"{logPrefix} No quedan más tareas después de saltar. Misión completada (sin merge).")
-                 return "mision_completada_sin_merge", None
+                 return "mision_completada_sin_merge", contenido_mision_post_tarea # Devolver contenido por si acaso
             return "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
 
 
@@ -766,14 +774,19 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
             manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
                 manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_APPLY_FAIL:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea, error_message=msg_err_aplicar)
             ])
-            manejadorGit.descartarCambiosLocales(ruta_repo) # NECESITA IMPLEMENTACIÓN
+            manejadorGit.descartarCambiosLocales(ruta_repo)
             return "error_en_tarea", contenido_mision_actual_md
         
         commit_msg = f"Tarea ID {tarea_id} ({tarea_titulo[:50]}) completada (Misión {nombre_rama_mision})"
-        if not manejadorGit.hacerCommit(ruta_repo, commit_msg): # NECESITA IMPLEMENTACIÓN
-             logging.warning(f"{logPrefix} No se realizó commit para tarea (quizás sin cambios efectivos).")
+        if not manejadorGit.hacerCommit(ruta_repo, commit_msg): 
+             logging.warning(f"{logPrefix} No se realizó commit para tarea (quizás sin cambios efectivos o fallo en git add/commit).")
+             # Podría ser que los "archivos_modificados" por la IA no resultaran en cambios reales en disco.
+             # O un fallo en `hacerCommit` que no es crítico para el flujo de la tarea.
     else:
-        logging.info(f"{logPrefix} IA no especificó archivos modificados. Asumiendo sin cambios.")
+        # Esto puede pasar si la IA devuelve advertencia Y archivos_modificados vacío.
+        # Ya se manejó arriba si la advertencia implicaba saltar la tarea.
+        # Si llegamos aquí sin "archivos_modificados" y sin advertencia que salte, es un estado anómalo.
+        logging.info(f"{logPrefix} IA no especificó archivos modificados. Asumiendo sin cambios o ya manejado por advertencia.")
 
     contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "COMPLETADA")
     if not contenido_mision_post_tarea: return "error_en_tarea", contenido_mision_actual_md
@@ -785,19 +798,20 @@ def paso2_ejecutar_tarea_mision(ruta_repo, metadatos_mision, lista_tareas_mision
 
     if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Actualizar Misión '{nombre_rama_mision}', Tarea '{tarea_id}' completada", [MISION_ORION_MD]):
         logging.error(f"{logPrefix} No se pudo commitear actualización de {MISION_ORION_MD}.")
-        return "error_en_tarea", contenido_mision_post_tarea
+        # Similar a antes, no necesariamente fatal para el ciclo, pero el estado en disco puede no ser el esperado.
     
     manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
         manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO2_TAREA_OK:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea.get("archivos_modificados"))
     ])
 
-    _, lista_tareas_actualizada, hay_pendientes_actualizada = parsear_mision_orion(contenido_mision_post_tarea)
+    _, _, hay_pendientes_actualizada = parsear_mision_orion(contenido_mision_post_tarea)
     if hay_pendientes_actualizada:
         logging.info(f"{logPrefix} Quedan más tareas en misión '{nombre_rama_mision}'.")
         return "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
     else:
         logging.info(f"{logPrefix} Todas las tareas de misión '{nombre_rama_mision}' completadas.")
-        return "mision_completada_para_merge", None # contenido_mision ya no es relevante para merge
+        # Devolvemos el contenido del mision.md por si es útil para el merge o log final
+        return "mision_completada_para_merge", contenido_mision_post_tarea
 
 
 # --- Función Principal del Ciclo Adaptativo (NUEVO) ---
@@ -809,7 +823,7 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
     if api_provider == 'google' and settings.GEMINIAPIKEY and not analizadorCodigo.configurarGemini():
         logging.critical(f"{logPrefix} Falló config Google GenAI."); return False
 
-    if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO): # NECESITA IMPLEMENTACIÓN
+    if not manejadorGit.clonarOActualizarRepo(settings.REPOSITORIOURL, settings.RUTACLON, settings.RAMATRABAJO):
         logging.error(f"{logPrefix} Falló preparación de repo en '{settings.RAMATRABAJO}'."); return False
     logging.info(f"{logPrefix} Repositorio listo en rama base: '{settings.RAMATRABAJO}'.")
 
@@ -843,11 +857,17 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
             path_mision_trabajo_abs = os.path.join(settings.RUTACLON, MISION_ORION_MD)
             if os.path.exists(path_mision_trabajo_abs):
                 try:
+                    # Primero, intentar commitear si hay cambios (por si quedó de un ciclo anterior)
+                    # Esto es opcional y depende de si queremos que sea tan robusto.
+                    # Por ahora, lo eliminaremos directamente para simplificar, asumiendo que el estado es limpio.
                     os.remove(path_mision_trabajo_abs)
-                    logging.info(f"{logPrefix} Eliminado {MISION_ORION_MD} de '{settings.RAMATRABAJO}'.")
+                    logging.info(f"{logPrefix} Eliminado {MISION_ORION_MD} de '{settings.RAMATRABAJO}' (si existía).")
+                    # Intentar un commit si la eliminación causó un cambio.
+                    # `hacerCommitEspecifico` devolverá False si no hay nada que commitear.
                     if manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Limpiar {MISION_ORION_MD} de {settings.RAMATRABAJO}", [MISION_ORION_MD]):
                         logging.info(f"{logPrefix} Commit de limpieza de {MISION_ORION_MD} en '{settings.RAMATRABAJO}'.")
-                    else: logging.warning(f"{logPrefix} No se pudo commitear limpieza de {MISION_ORION_MD}.")
+                    else: 
+                        logging.debug(f"{logPrefix} No se hizo commit de limpieza (o no había {MISION_ORION_MD} para limpiar del staging).")
                 except Exception as e_clean: logging.warning(f"{logPrefix} No se pudo limpiar {MISION_ORION_MD} de '{settings.RAMATRABAJO}': {e_clean}")
             
             res_paso0, meta, tareas, nombre_clave = paso0_revisar_mision_local(settings.RUTACLON)
@@ -908,47 +928,67 @@ def ejecutarCicloAdaptativo(api_provider: str, modo_test: bool):
             )
             
             if res_paso2 == "tarea_ejecutada_continuar_mision":
-                # Re-parsear el mision.md actualizado para el siguiente ciclo de tarea
-                meta, tareas, _ = parsear_mision_orion(mision_actualizada_contenido_md)
-                if not meta: # Si falla el parseo, algo está mal
-                    logging.error(f"{logPrefix} Misión actualizada no pudo ser parseada. Error de estado. Volviendo a revisar.")
+                if mision_actualizada_contenido_md: # Asegurarse que no sea None
+                    meta, tareas, _ = parsear_mision_orion(mision_actualizada_contenido_md)
+                    if not meta: # Si falla el parseo, algo está mal
+                        logging.error(f"{logPrefix} Misión actualizada no pudo ser parseada. Error de estado. Volviendo a revisar.")
+                        estado_agente = "revisar_mision_local"; continue
+                    metadatos_mision_activa, lista_tareas_mision_activa = meta, tareas
+                else: # mision_actualizada_contenido_md fue None, error de estado
+                    logging.error(f"{logPrefix} Contenido de misión fue None después de tarea. Error de estado. Volviendo a revisar.")
                     estado_agente = "revisar_mision_local"; continue
-                metadatos_mision_activa, lista_tareas_mision_activa = meta, tareas
+
                 logging.info(f"{logPrefix} Tarea ejecutada en '{nombre_clave_mision_activa}'. Quedan más.")
                 estado_agente = "ejecutar_tarea_mision" # Continuar en la misma misión
             
             elif res_paso2 == "mision_completada_para_merge":
                 logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada, lista para merge.")
                 if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
-                    logging.error(f"{logPrefix} No se pudo cambiar a '{settings.RAMATRABAJO}' para merge. Misión no mergeada."); # Continuar a revisar_mision_local
-                elif manejadorGit.hacerMergeRama(settings.RUTACLON, nombre_clave_mision_activa, settings.RAMATRABAJO): # NECESITA IMPLEMENTACIÓN
+                    logging.error(f"{logPrefix} No se pudo cambiar a '{settings.RAMATRABAJO}' para merge. Misión no mergeada.");
+                elif manejadorGit.hacerMergeRama(settings.RUTACLON, nombre_clave_mision_activa, settings.RAMATRABAJO):
                     logging.info(f"{logPrefix} Merge de '{nombre_clave_mision_activa}' a '{settings.RAMATRABAJO}' exitoso.")
-                    if modo_test and manejadorGit.hacerPush(settings.RUTACLON, settings.RAMATRABAJO): # NECESITA IMPLEMENTACIÓN
-                        logging.info(f"{logPrefix} Push de '{settings.RAMATRABAJO}' exitoso (modo test).")
-                    # Opcional: eliminar rama de misión local/remota
-                    # manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True, remota=modo_test)
+                    if modo_test:
+                        # Antes de pushear, asegurar que la rama de trabajo esté actualizada con origin
+                        logging.info(f"{logPrefix} Modo Test: Actualizando '{settings.RAMATRABAJO}' con su contraparte remota antes de push.")
+                        # Comentado: Esta lógica podría ser compleja si RAMATRABAJO divergió. Un simple pull puede fallar.
+                        # Por ahora, asumimos que el merge local es suficiente para el test y hacemos push directo.
+                        # if not ejecutarComando(['git', 'pull', 'origin', settings.RAMATRABAJO], cwd=settings.RUTACLON, check=False):
+                        #    logging.warning(f"{logPrefix} Falló pull de 'origin/{settings.RAMATRABAJO}'. Push podría fallar si hay divergencia.")
+
+                        if manejadorGit.hacerPush(settings.RUTACLON, settings.RAMATRABAJO):
+                            logging.info(f"{logPrefix} Push de '{settings.RAMATRABAJO}' exitoso (modo test).")
+                            # Opcional: eliminar rama de misión remota si el push de la rama base fue exitoso
+                            # if manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=False, remota=True):
+                            #     logging.info(f"{logPrefix} Rama de misión '{nombre_clave_mision_activa}' eliminada remotamente.")
+                    # Eliminar rama de misión local después de merge exitoso (o intento de push en modo test)
+                    if manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True, remota=False):
+                         logging.info(f"{logPrefix} Rama de misión local '{nombre_clave_mision_activa}' eliminada.")
                 else:
                     logging.error(f"{logPrefix} Falló merge de '{nombre_clave_mision_activa}' a '{settings.RAMATRABAJO}'. Rama de misión persiste.")
+                
                 nombre_clave_mision_activa = None; metadatos_mision_activa = None; lista_tareas_mision_activa = None
                 estado_agente = "revisar_mision_local"
 
             elif res_paso2 == "mision_completada_sin_merge":
-                logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada (sin tareas o saltadas, no requiere merge).")
-                # Opcional: Limpiar rama de misión
-                # manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True)
+                logging.info(f"{logPrefix} Misión '{nombre_clave_mision_activa}' completada (sin tareas o todas saltadas, no requiere merge).")
+                # Asegurar volver a la rama de trabajo principal
+                manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
+                # Opcional: Limpiar rama de misión si no se va a mergear.
+                if manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_mision_activa, local=True, remota=False):
+                    logging.info(f"{logPrefix} Rama de misión '{nombre_clave_mision_activa}' eliminada localmente (sin merge).")
+                
                 nombre_clave_mision_activa = None; metadatos_mision_activa = None; lista_tareas_mision_activa = None
                 estado_agente = "revisar_mision_local"
 
             elif res_paso2 == "error_en_tarea":
-                logging.error(f"{logPrefix} Error ejecutando tarea en '{nombre_clave_mision_activa}'. Volviendo a revisar.")
-                # La rama y mision.md quedan como están. La próxima revisión podría reintentar.
+                logging.error(f"{logPrefix} Error ejecutando tarea en '{nombre_clave_mision_activa}'. Volviendo a revisar (la rama y misión persisten).")
                 estado_agente = "revisar_mision_local"
             else:
                 logging.error(f"{logPrefix} Resultado inesperado de paso2: {res_paso2}. Deteniendo."); break
         else:
             logging.error(f"{logPrefix} Estado desconocido: {estado_agente}. Deteniendo."); break
 
-        delay_ciclo = getattr(settings, 'DELAY_ENTRE_CICLOS_AGENTE', 1) # Reducido para pruebas rápidas, default era 3
+        delay_ciclo = getattr(settings, 'DELAY_ENTRE_CICLOS_AGENTE', 1)
         logging.debug(f"{logPrefix} Fin iteración. Pausando {delay_ciclo}s.")
         time.sleep(delay_ciclo)
 
