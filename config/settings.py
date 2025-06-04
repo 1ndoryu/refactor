@@ -157,7 +157,7 @@ RAMATRABAJO = os.getenv("RAMATRABAJO", "refactor-main")
 
 # --- Configuracion de Modelos IA ---
 MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-05-20")
-MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv("MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS", 8192)) # Default 8192
+MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv("MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS", 60000)) # Default 8192
 
 # --- Configuración del Agente Adaptativo y Límites de API ---
 N_HISTORIAL_CONTEXTO = int(os.getenv("N_HISTORIAL_CONTEXTO", 10)) # Reducido de 30 a 10

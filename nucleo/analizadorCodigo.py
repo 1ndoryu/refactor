@@ -5,7 +5,8 @@ import json
 import random
 import google.generativeai as genai
 import google.api_core.exceptions
-from openai import OpenAI, APIError # Mantenido por si se usa OpenRouter directamente
+# Mantenido por si se usa OpenRouter directamente
+from openai import OpenAI, APIError
 from config import settings
 # from google.generativeai import types # types está en genai.types
 
@@ -86,7 +87,8 @@ def listarArchivosProyecto(rutaProyecto, extensionesPermitidas=None, directorios
     except Exception as e:
         log.error(
             f"{logPrefix} Error listando archivos en {rutaBaseParaListar}: {e}", exc_info=True)
-            
+
+
 def leerArchivos(listaArchivos, rutaBase, api_provider='google'):  # Añadido api_provider
     logPrefix = "leerArchivos:"
 
@@ -141,14 +143,16 @@ def leerArchivos(listaArchivos, rutaBase, api_provider='google'):  # Añadido ap
         log_msg_base = f"{logPrefix} Leídos {archivosLeidos} archivos. Tamaño total: {tamanoKB:.2f} KB."
 
         if contenidoConcatenado:
-            tokensTotales = contarTokensTexto(contenidoConcatenado, api_provider)
+            tokensTotales = contarTokensTexto(
+                contenidoConcatenado, api_provider)
             log.info(f"{log_msg_base} Tokens estimados: {tokensTotales}.")
         else:
             log.info(log_msg_base + " Contenido vacío, 0 tokens.")
-    
+
         return {'contenido': contenidoConcatenado, 'bytes': bytesTotales, 'tokens': tokensTotales, 'archivos_leidos': archivosLeidos}
     else:
-        log.warning(f"{logPrefix} No se leyó ningún archivo. Total de rutas intentadas: {len(listaArchivos)}.")
+        log.warning(
+            f"{logPrefix} No se leyó ningún archivo. Total de rutas intentadas: {len(listaArchivos)}.")
         return {'contenido': "", 'bytes': 0, 'tokens': 0, 'archivos_leidos': 0}
 
 
@@ -160,7 +164,8 @@ def contarTokensTexto(texto, api_provider='google'):
 
     if api_provider == 'google':
         try:
-            modelo_gemini_para_conteo = getattr(settings, 'MODELO_GOOGLE_GEMINI', None)
+            modelo_gemini_para_conteo = getattr(
+                settings, 'MODELO_GOOGLE_GEMINI', None)
             if modelo_gemini_para_conteo:
                 if not geminiConfigurado:
                     configurarGemini()
@@ -168,10 +173,12 @@ def contarTokensTexto(texto, api_provider='google'):
                 respuesta_conteo = model.count_tokens(texto)
                 tokens = respuesta_conteo.total_tokens
             else:
-                log.warning(f"{logPrefix} MODELO_GOOGLE_GEMINI no definido. Tokens no contados para Google.")
+                log.warning(
+                    f"{logPrefix} MODELO_GOOGLE_GEMINI no definido. Tokens no contados para Google.")
                 tokens = len(texto) // 4  # Aproximación muy general
         except Exception as e_count_tokens:
-            log.error(f"{logPrefix} Error contando tokens con Gemini: {e_count_tokens}", exc_info=True)
+            log.error(
+                f"{logPrefix} Error contando tokens con Gemini: {e_count_tokens}", exc_info=True)
             tokens = len(texto) // 4
     else:  # OpenRouter u otros
         tokens = len(texto) // 4  # Aproximación general
@@ -260,6 +267,7 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
             f"{logPrefix} Error inesperado generando estructura: {e}", exc_info=True)
         return None
 
+
 def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, estructura_proyecto_texto=None, api_provider='google'):
     # Esta función es la del "Paso 1" original, se mantiene por si se usa, pero el nuevo flujo usa funciones más específicas.
     # Se podría refactorizar para que llame a `solicitar_evaluacion_archivo` si el contexto es de un solo archivo,
@@ -279,26 +287,31 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
     promptPartes = []
     promptPartes.append("Eres un asistente experto en refactorización de código PHP/JS (WordPress). Tu tarea es analizar TODO el código fuente, **la estructura del proyecto** y el historial, y proponer UNA ÚNICA acción de refactorización PEQUEÑA, SEGURA y ATÓMICA. Es importante que seas detallado con la informacion que generas para que el segundo agente que realiza la accion sepa exactamente que hacer. La organización primero y dejeramos para el final la seguridad, el proyecto carece de arquitectura y todo esta muy desordenado, hay que ordenar primero. Y POR FAVOR MUY IMPORTANTE, NO HAGAS ARCHIVO TAN LARGOS Y GRANDE; SI NOTAS QUE HAY UNA ARCHIVO MUY EXTENSO, DIVIDELO EN PARTES PEQUEÑAS!")
     # ... (resto del prompt original) ...
-    promptPartes.append("10. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío.")
-
+    promptPartes.append(
+        "10. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío.")
 
     if estructura_proyecto_texto:
-        promptPartes.append("\n--- ESTRUCTURA ACTUAL DEL PROYECTO (Visión Global) ---")
-        promptPartes.append("# Nota: Esta estructura puede estar limitada en profundidad.")
+        promptPartes.append(
+            "\n--- ESTRUCTURA ACTUAL DEL PROYECTO (Visión Global) ---")
+        promptPartes.append(
+            "# Nota: Esta estructura puede estar limitada en profundidad.")
         promptPartes.append(estructura_proyecto_texto)
         promptPartes.append("--- FIN ESTRUCTURA ---")
     else:
         promptPartes.append("\n(No se proporcionó la estructura del proyecto)")
 
     if historialCambiosTexto:
-        promptPartes.append("\n--- HISTORIAL DE CAMBIOS RECIENTES (para tu contexto, EVITA REPETIR o deshacer) ---")
+        promptPartes.append(
+            "\n--- HISTORIAL DE CAMBIOS RECIENTES (para tu contexto, EVITA REPETIR o deshacer) ---")
         promptPartes.append(historialCambiosTexto)
         promptPartes.append("--- FIN HISTORIAL ---")
 
     promptPartes.append("\n--- CÓDIGO FUENTE COMPLETO A ANALIZAR ---")
-    promptPartes.append(contextoCodigoCompleto if contextoCodigoCompleto else "(No se proporcionó código fuente completo, analiza basado en estructura e historial)")
+    promptPartes.append(
+        contextoCodigoCompleto if contextoCodigoCompleto else "(No se proporcionó código fuente completo, analiza basado en estructura e historial)")
     promptPartes.append("--- FIN CÓDIGO ---")
-    promptPartes.append("\n**IMPORTANTE**: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores. No incluyas explicaciones adicionales fuera del JSON. Asegúrate de que el JSON sea válido.")
+    promptPartes.append(
+        "\n**IMPORTANTE**: Responde ÚNICAMENTE con el objeto JSON que cumple TODAS las reglas anteriores. No incluyas explicaciones adicionales fuera del JSON. Asegúrate de que el JSON sea válido.")
 
     promptCompleto = "\n".join(promptPartes)
     # (Lógica de llamada a API y parseo de JSON como en el original)
@@ -309,46 +322,60 @@ def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, 
 
     try:
         if api_provider == 'google':
-            log.info(f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
-            if not configurarGemini(): return None
+            log.info(
+                f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
+            if not configurarGemini():
+                return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(temperature=0.4, response_mime_type="application/json", max_output_tokens=8192),
-                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE', 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.4, response_mime_type="application/json", max_output_tokens=60000),
+                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
+                                 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
             )
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         elif api_provider == 'openrouter':
             # ... (Lógica OpenRouter como en el original)
-            log.info(f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
+            log.info(
+                f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
             if not settings.OPENROUTER_API_KEY:
-                log.error(f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
+                log.error(
+                    f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
                 return None
-            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL, api_key=settings.OPENROUTER_API_KEY)
+            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
+                            api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
             completion = client.chat.completions.create(
-                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER, "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=8192, timeout=API_TIMEOUT_SECONDS # Ajustar max_tokens según necesidad
+                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
+                               "X-Title": settings.OPENROUTER_TITLE},
+                # Ajustar max_tokens según necesidad
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=60000, timeout=API_TIMEOUT_SECONDS
             )
-            if completion.choices: textoRespuesta = completion.choices[0].message.content
+            if completion.choices:
+                textoRespuesta = completion.choices[0].message.content
         else:
-            log.error(f"{logPrefix} Proveedor de API no soportado: {api_provider}")
+            log.error(
+                f"{logPrefix} Proveedor de API no soportado: {api_provider}")
             return None
 
         if not textoRespuesta:
-            log.error(f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
+            log.error(
+                f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
             return None
-        
+
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
         # (Validaciones del JSON como en el original)
         if respuestaJson and respuestaJson.get("tipo_analisis") == "refactor_decision":
             return respuestaJson
         else:
-            log.error(f"{logPrefix} JSON de respuesta inválido o tipo incorrecto.")
+            log.error(
+                f"{logPrefix} JSON de respuesta inválido o tipo incorrecto.")
             return None
 
     except Exception as e:
-        log.error(f"{logPrefix} Error durante llamada a API: {e}", exc_info=True)
+        log.error(f"{logPrefix} Error durante llamada a API: {e}",
+                  exc_info=True)
         # (Manejo de excepciones como en el original)
         return None
 
@@ -357,7 +384,8 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
     # Esta función es la del "Paso 2" original. Se podría refactorizar para que la llame `ejecutar_tarea_especifica_mision`
     # si la "decisión parseada" coincide con el formato de una tarea.
     # Por ahora, la dejamos como estaba en el archivo original.
-    logPrefix = f"ejecutarAccionConIA(Paso 2 ANTIGUO/{api_provider.upper()}):" # Renombrado en log para claridad
+    # Renombrado en log para claridad
+    logPrefix = f"ejecutarAccionConIA(Paso 2 ANTIGUO/{api_provider.upper()}):"
     # ... (prompt y lógica como en el archivo original) ...
     # Esto es un placeholder de la lógica de llamada que ya existe.
     # ... (prompt original)
@@ -367,22 +395,29 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
     razonamiento_paso1 = decisionParseada.get("razonamiento")
 
     promptPartes = []
-    promptPartes.append("Eres un asistente de refactorización que EJECUTA una decisión ya tomada por otro agente IA.")
+    promptPartes.append(
+        "Eres un asistente de refactorización que EJECUTA una decisión ya tomada por otro agente IA.")
     promptPartes.append("**FORMATO DE COMENTARIOS O CODIGO CON SALTO DE LINEAS:** Si generas comentarios multilínea que usan `//` (PHP/JS), ASEGÚRATE de que **CADA LÍNEA** del comentario comience con `//` dentro del código generado.")
     promptPartes.append("1. No uses namespace, aqui todos los archivos estan al alcance global para que sea mas facil mover cosas, si se te pide usarlos o hacerlos, fue un error, decide no hacer nada si te causa confusión una decisión y regresa el codigo igual sin cambiar nada.")
     promptPartes.append("2. Si vas a mover algo, segurate de que realmente se esta moviendo algo, asegurate de tener el contexto necesario para mover lo que se te pide a los archivos indicados, si la decisión parece erronea, mejor no hagas nada y regresa el codigo igual sin cambiar nada.")
     promptPartes.append("3. Si vas a eliminar algo porque un archivo esta vacío, asegurate de que realmente este vacío, el anterior agente puede cometer el error de pedir eliminar un archivo supuestamente vacío pero a veces no lo esta, mejor no hagas nada si la decisión parece confusa y regresa el codigo igual sin cambiar nada.")
-    promptPartes.append("4. Siempre deja un comentario en el codigo indicando brevemente la acción que realizaste.")
-    promptPartes.append("Se ha decidido realizar la siguiente acción basada en el análisis previo:")
-    promptPartes.append("\n--- DECISIÓN DEL PASO 1 (Debes seguirla EXACTAMENTE) ---")
+    promptPartes.append(
+        "4. Siempre deja un comentario en el codigo indicando brevemente la acción que realizaste.")
+    promptPartes.append(
+        "Se ha decidido realizar la siguiente acción basada en el análisis previo:")
+    promptPartes.append(
+        "\n--- DECISIÓN DEL PASO 1 (Debes seguirla EXACTAMENTE) ---")
     promptPartes.append(f"Acción: {accion}")
     promptPartes.append(f"Descripción: {descripcion}")
     promptPartes.append(f"Parámetros Detallados: {json.dumps(params)}")
     promptPartes.append(f"Razonamiento (Contexto): {razonamiento_paso1}")
     promptPartes.append("--- FIN DECISIÓN ---")
-    promptPartes.append("\nSe te proporciona el contenido ACTUAL de los archivos relevantes (si aplica).")
-    promptPartes.append("**TU ÚNICA TAREA:** Realizar la acción descrita en los 'Parámetros Detallados'.")
-    promptPartes.append("\n**RESPUESTA ESPERADA:** Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura:")
+    promptPartes.append(
+        "\nSe te proporciona el contenido ACTUAL de los archivos relevantes (si aplica).")
+    promptPartes.append(
+        "**TU ÚNICA TAREA:** Realizar la acción descrita en los 'Parámetros Detallados'.")
+    promptPartes.append(
+        "\n**RESPUESTA ESPERADA:** Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura:")
     promptPartes.append("""
 ```json
 {
@@ -395,24 +430,30 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
   }
 }
 ```""")
-    promptPartes.append("\n--- REGLAS DE EJECUCIÓN Y FORMATO JSON (¡MUY IMPORTANTE!) ---")
+    promptPartes.append(
+        "\n--- REGLAS DE EJECUCIÓN Y FORMATO JSON (¡MUY IMPORTANTE!) ---")
     promptPartes.append("1.  **SIGUE LA DECISIÓN AL PIE DE LA LETRA.**")
     promptPartes.append("2.  **CONTENIDO DE ARCHIVOS:** Para CADA archivo afectado (modificado o creado), incluye su ruta relativa como clave y su contenido ÍNTEGRO final como valor string en `archivos_modificados`.")
     promptPartes.append("3.  **¡ESCAPADO CRÍTICO!** Dentro de las cadenas de texto que representan el contenido de los archivos (los valores en `archivos_modificados`), **TODAS** las comillas dobles (`\"`) literales DEBEN ser escapadas como `\\\"`. Todos los backslashes (`\\`) literales DEBEN ser escapados como `\\\\`. Los saltos de línea DEBEN ser `\\n`.")
-    promptPartes.append("4.  **PRESERVA CÓDIGO:** Mantén intacto el resto del código no afectado en los archivos modificados, asegurate de que todo el codigo tenga sentido.")
-    promptPartes.append("5.  **MOVIMIENTOS:** Si mueves código y `eliminar_de_origen` es true, BORRA el código original del `archivo_origen`.")
-    promptPartes.append("6.  **MODIFICACIONES INTERNAS:** Aplica EXACTAMENTE la `descripcion_del_cambio_interno`.")
-    promptPartes.append("7.  **CREACIÓN:** Genera contenido inicial basado en `proposito_del_archivo`.")
+    promptPartes.append(
+        "4.  **PRESERVA CÓDIGO:** Mantén intacto el resto del código no afectado en los archivos modificados, asegurate de que todo el codigo tenga sentido.")
+    promptPartes.append(
+        "5.  **MOVIMIENTOS:** Si mueves código y `eliminar_de_origen` es true, BORRA el código original del `archivo_origen`.")
+    promptPartes.append(
+        "6.  **MODIFICACIONES INTERNAS:** Aplica EXACTAMENTE la `descripcion_del_cambio_interno`.")
+    promptPartes.append(
+        "7.  **CREACIÓN:** Genera contenido inicial basado en `proposito_del_archivo`.")
     promptPartes.append("8.  **SIN CONTENIDO:** Si la acción es `eliminar_archivo` o `crear_directorio`, el objeto `archivos_modificados` debe ser exactamente `{}`, un objeto JSON vacío. EXCEPCIÓN: Si se pide eliminar un archivo NO VACÍO, devuelve el JSON con el contenido original del archivo (no lo borres) y añade una nota en un campo 'advertencia_ejecucion'.")
     promptPartes.append("9. **VALIDACIÓN CRÍTICA DE STRINGS JSON PARA CÓDIGO:** Asegúrate de que el contenido de los archivos (especialmente código PHP/JS) sea un string JSON VÁLIDO Y COMPLETO (escapa `\"` como `\\\"`, `\\` como `\\\\`, saltos de línea como `\\n`). Evita truncamiento. Presta MÁXIMA atención a esto.")
 
-
     if contextoCodigoReducido:
-        promptPartes.append("\n--- CONTENIDO ACTUAL DE ARCHIVOS RELEVANTES ---")
+        promptPartes.append(
+            "\n--- CONTENIDO ACTUAL DE ARCHIVOS RELEVANTES ---")
         promptPartes.append(contextoCodigoReducido)
         promptPartes.append("--- FIN CONTENIDO ---")
     else:
-        promptPartes.append("\n(No se proporcionó contenido de archivo para esta acción específica o no aplica)")
+        promptPartes.append(
+            "\n(No se proporcionó contenido de archivo para esta acción específica o no aplica)")
 
     promptCompleto = "\n".join(promptPartes)
     textoRespuesta = None
@@ -420,35 +461,47 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
 
     try:
         if api_provider == 'google':
-            log.info(f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
-            if not configurarGemini(): return None
+            log.info(
+                f"{logPrefix} Usando Google Gemini API (Modelo: {settings.MODELO_GOOGLE_GEMINI}).")
+            if not configurarGemini():
+                return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(temperature=0.5, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 8192), # Usar 8192 si no está definido
-                safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH', 'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
+                generation_config=genai.types.GenerationConfig(temperature=0.5, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(
+                    # Usar 8192 si no está definido
+                    settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 60000),
+                safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH',
+                                 'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
             )
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         elif api_provider == 'openrouter':
             # ... (Lógica OpenRouter como en el original)
-            log.info(f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
+            log.info(
+                f"{logPrefix} Usando OpenRouter API (Modelo: {settings.OPENROUTER_MODEL}).")
             if not settings.OPENROUTER_API_KEY:
-                log.error(f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
+                log.error(
+                    f"{logPrefix} Falta OPENROUTER_API_KEY en la configuración.")
                 return None
-            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL, api_key=settings.OPENROUTER_API_KEY)
+            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
+                            api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
             completion = client.chat.completions.create(
-                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER, "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=16384, timeout=API_TIMEOUT_SECONDS # Ajustar max_tokens
-            ) # Aumentar max_tokens para generación de código
-            if completion.choices: textoRespuesta = completion.choices[0].message.content
+                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
+                               "X-Title": settings.OPENROUTER_TITLE},
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=60000, timeout=API_TIMEOUT_SECONDS  # Ajustar max_tokens
+            )  # Aumentar max_tokens para generación de código
+            if completion.choices:
+                textoRespuesta = completion.choices[0].message.content
 
         else:
-            log.error(f"{logPrefix} Proveedor de API no soportado: {api_provider}")
+            log.error(
+                f"{logPrefix} Proveedor de API no soportado: {api_provider}")
             return None
-        
+
         if not textoRespuesta:
-            log.error(f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
+            log.error(
+                f"{logPrefix} No se pudo extraer texto de la respuesta de la IA.")
             return None
 
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
@@ -456,11 +509,13 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
         if respuestaJson and respuestaJson.get("tipo_resultado") == "ejecucion_cambio" and "archivos_modificados" in respuestaJson:
             return respuestaJson
         else:
-            log.error(f"{logPrefix} JSON de respuesta inválido, tipo incorrecto o falta 'archivos_modificados'.")
+            log.error(
+                f"{logPrefix} JSON de respuesta inválido, tipo incorrecto o falta 'archivos_modificados'.")
             return None
-            
+
     except Exception as e:
-        log.error(f"{logPrefix} Error durante llamada a API: {e}", exc_info=True)
+        log.error(f"{logPrefix} Error durante llamada a API: {e}",
+                  exc_info=True)
         # (Manejo de excepciones como en el original)
         return None
 
@@ -472,7 +527,8 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
     Paso 1.1: IA decide si un archivo necesita refactorización y qué contexto adicional podría necesitar.
     """
     logPrefix = f"solicitar_evaluacion_archivo (Paso 1.1/{api_provider.upper()}):"
-    log.info(f"{logPrefix} Evaluando archivo '{ruta_archivo_seleccionado_rel}' para refactorización.")
+    log.info(
+        f"{logPrefix} Evaluando archivo '{ruta_archivo_seleccionado_rel}' para refactorización.")
 
     promptPartes = [
         f"Eres un asistente de IA experto en análisis de código. Tu tarea es evaluar el archivo '{ruta_archivo_seleccionado_rel}' y decidir si necesita refactorización.",
@@ -503,8 +559,8 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
         "Sé conciso pero claro en tu razonamiento. No generes código, solo el JSON de evaluación."
     ]
     promptCompleto = "\n".join(promptPartes)
-    
-    tokens_estimados_prompt = len(promptCompleto) // 4 # Estimación muy burda
+
+    tokens_estimados_prompt = len(promptCompleto) // 4  # Estimación muy burda
     # El conteo real de tokens del contenido ya se hizo al leer el archivo
     # Se asume que la gestión de límites se hace antes de llamar esta función en principal.py
 
@@ -513,42 +569,59 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
 
     try:
         if api_provider == 'google':
-            if not configurarGemini(): return None
+            if not configurarGemini():
+                return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(temperature=0.5, response_mime_type="application/json", max_output_tokens=2048), # Max tokens más bajo para decisión
-                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE', 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
+                generation_config=genai.types.GenerationConfig(
+                    # Max tokens más bajo para decisión
+                    temperature=0.5, response_mime_type="application/json", max_output_tokens=60000),
+                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
+                                 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
             )
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         elif api_provider == 'openrouter':
-            if not settings.OPENROUTER_API_KEY: log.error(f"{logPrefix} Falta OPENROUTER_API_KEY."); return None
-            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL, api_key=settings.OPENROUTER_API_KEY)
+            if not settings.OPENROUTER_API_KEY:
+                log.error(f"{logPrefix} Falta OPENROUTER_API_KEY.")
+                return None
+            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
+                            api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
             completion = client.chat.completions.create(
-                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER, "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.5, max_tokens=2048, timeout=API_TIMEOUT_SECONDS
+                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
+                               "X-Title": settings.OPENROUTER_TITLE},
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.5, max_tokens=60000, timeout=API_TIMEOUT_SECONDS
             )
-            if completion.choices: textoRespuesta = completion.choices[0].message.content
+            if completion.choices:
+                textoRespuesta = completion.choices[0].message.content
         else:
-            log.error(f"{logPrefix} Proveedor API '{api_provider}' no soportado."); return None
+            log.error(
+                f"{logPrefix} Proveedor API '{api_provider}' no soportado.")
+            return None
 
-        if not textoRespuesta: log.error(f"{logPrefix} No se obtuvo texto de la IA."); return None
-        
+        if not textoRespuesta:
+            log.error(f"{logPrefix} No se obtuvo texto de la IA.")
+            return None
+
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
-        if not respuestaJson: return None
+        if not respuestaJson:
+            return None
         # Validar estructura básica
         if not all(k in respuestaJson for k in ["necesita_refactor", "necesita_contexto_adicional", "archivos_contexto_sugeridos", "razonamiento"]):
-            log.error(f"{logPrefix} Respuesta JSON no tiene la estructura esperada. Recibido: {respuestaJson}")
+            log.error(
+                f"{logPrefix} Respuesta JSON no tiene la estructura esperada. Recibido: {respuestaJson}")
             return None
-        
+
         log.info(f"{logPrefix} Evaluación recibida para '{ruta_archivo_seleccionado_rel}'. Necesita refactor: {respuestaJson.get('necesita_refactor')}")
         return respuestaJson
 
     except Exception as e:
-        log.error(f"{logPrefix} Error en solicitud de evaluación de archivo: {e}", exc_info=True)
-        _manejar_excepcion_api(e, api_provider, logPrefix, locals().get('respuesta'))
+        log.error(
+            f"{logPrefix} Error en solicitud de evaluación de archivo: {e}", exc_info=True)
+        _manejar_excepcion_api(e, api_provider, logPrefix,
+                               locals().get('respuesta'))
         return None
 
 
@@ -557,7 +630,8 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
     Paso 1.2: IA genera el contenido para misionOrion.md (nombre clave y tareas).
     """
     logPrefix = f"generar_contenido_mision_orion (Paso 1.2/{api_provider.upper()}):"
-    log.info(f"{logPrefix} Generando misión para archivo: {archivo_a_refactorizar_rel}")
+    log.info(
+        f"{logPrefix} Generando misión para archivo: {archivo_a_refactorizar_rel}")
 
     promptPartes = [
         "Eres un asistente de IA que planifica misiones de refactorización de código. Basado en el archivo principal, su contexto y un razonamiento previo, debes generar una misión.",
@@ -604,35 +678,50 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
 
     try:
         if api_provider == 'google':
-            if not configurarGemini(): return None
+            if not configurarGemini():
+                return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(temperature=0.6, response_mime_type="application/json", max_output_tokens=4096), # Max tokens para misión
-                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE', 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
+                generation_config=genai.types.GenerationConfig(
+                    # Max tokens para misión
+                    temperature=0.6, response_mime_type="application/json", max_output_tokens=60000),
+                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
+                                 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
             )
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         elif api_provider == 'openrouter':
-            if not settings.OPENROUTER_API_KEY: log.error(f"{logPrefix} Falta OPENROUTER_API_KEY."); return None
-            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL, api_key=settings.OPENROUTER_API_KEY)
+            if not settings.OPENROUTER_API_KEY:
+                log.error(f"{logPrefix} Falta OPENROUTER_API_KEY.")
+                return None
+            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
+                            api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
             completion = client.chat.completions.create(
-                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER, "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=4096, timeout=API_TIMEOUT_SECONDS
+                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
+                               "X-Title": settings.OPENROUTER_TITLE},
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=60000, timeout=API_TIMEOUT_SECONDS
             )
-            if completion.choices: textoRespuesta = completion.choices[0].message.content
+            if completion.choices:
+                textoRespuesta = completion.choices[0].message.content
         else:
-            log.error(f"{logPrefix} Proveedor API '{api_provider}' no soportado."); return None
+            log.error(
+                f"{logPrefix} Proveedor API '{api_provider}' no soportado.")
+            return None
 
-        if not textoRespuesta: log.error(f"{logPrefix} No se obtuvo texto de la IA."); return None
-        
+        if not textoRespuesta:
+            log.error(f"{logPrefix} No se obtuvo texto de la IA.")
+            return None
+
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
-        if not respuestaJson: return None
-        if not all(k in respuestaJson for k in ["nombre_clave_mision", "contenido_markdown_mision"]):
-            log.error(f"{logPrefix} Respuesta JSON no tiene la estructura esperada. Recibido: {respuestaJson}")
+        if not respuestaJson:
             return None
-        
+        if not all(k in respuestaJson for k in ["nombre_clave_mision", "contenido_markdown_mision"]):
+            log.error(
+                f"{logPrefix} Respuesta JSON no tiene la estructura esperada. Recibido: {respuestaJson}")
+            return None
+
         # Validar que el nombre clave en el JSON esté en el markdown
         nombre_clave_json = respuestaJson["nombre_clave_mision"]
         contenido_md = respuestaJson["contenido_markdown_mision"]
@@ -640,12 +729,15 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
             log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide exactamente con el título '# Misión: ...' en el contenido_markdown_mision. Esto podría ser un problema.")
             # Podríamos intentar corregirlo o simplemente advertir. Por ahora, advertimos.
 
-        log.info(f"{logPrefix} Contenido de misión generado. Nombre clave: {nombre_clave_json}")
+        log.info(
+            f"{logPrefix} Contenido de misión generado. Nombre clave: {nombre_clave_json}")
         return respuestaJson
 
     except Exception as e:
-        log.error(f"{logPrefix} Error en generación de contenido de misión: {e}", exc_info=True)
-        _manejar_excepcion_api(e, api_provider, logPrefix, locals().get('respuesta'))
+        log.error(
+            f"{logPrefix} Error en generación de contenido de misión: {e}", exc_info=True)
+        _manejar_excepcion_api(e, api_provider, logPrefix,
+                               locals().get('respuesta'))
         return None
 
 
@@ -697,48 +789,68 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
 
     try:
         if api_provider == 'google':
-            if not configurarGemini(): return None
+            if not configurarGemini():
+                return None
             modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
             # Para la generación de código, podríamos querer una temperatura un poco más alta si la creatividad es útil, o más baja para precisión.
             # También, max_output_tokens debe ser generoso.
             respuesta = modelo.generate_content(
                 promptCompleto,
-                generation_config=genai.types.GenerationConfig(temperature=0.4, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 8192),
-                safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH', 'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
+                generation_config=genai.types.GenerationConfig(temperature=0.4, response_mime_type="application/json",
+                                                               max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 60000),
+                safety_settings={'HATE': 'BLOCK_ONLY_HIGH', 'HARASSMENT': 'BLOCK_ONLY_HIGH',
+                                 'SEXUAL': 'BLOCK_ONLY_HIGH', 'DANGEROUS': 'BLOCK_ONLY_HIGH'}
             )
             textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
         elif api_provider == 'openrouter':
-            if not settings.OPENROUTER_API_KEY: log.error(f"{logPrefix} Falta OPENROUTER_API_KEY."); return None
-            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL, api_key=settings.OPENROUTER_API_KEY)
+            if not settings.OPENROUTER_API_KEY:
+                log.error(f"{logPrefix} Falta OPENROUTER_API_KEY.")
+                return None
+            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
+                            api_key=settings.OPENROUTER_API_KEY)
             mensajes = [{"role": "user", "content": promptCompleto}]
             completion = client.chat.completions.create(
-                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER, "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=16384, timeout=API_TIMEOUT_SECONDS # Generoso para código
+                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
+                               "X-Title": settings.OPENROUTER_TITLE},
+                # Generoso para código
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.4, max_tokens=60000, timeout=API_TIMEOUT_SECONDS
             )
-            if completion.choices: textoRespuesta = completion.choices[0].message.content
+            if completion.choices:
+                textoRespuesta = completion.choices[0].message.content
         else:
-            log.error(f"{logPrefix} Proveedor API '{api_provider}' no soportado."); return None
+            log.error(
+                f"{logPrefix} Proveedor API '{api_provider}' no soportado.")
+            return None
 
-        if not textoRespuesta: log.error(f"{logPrefix} No se obtuvo texto de la IA."); return None
-        
+        if not textoRespuesta:
+            log.error(f"{logPrefix} No se obtuvo texto de la IA.")
+            return None
+
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
-        if not respuestaJson: return None
-        
+        if not respuestaJson:
+            return None
+
         if "archivos_modificados" not in respuestaJson or not isinstance(respuestaJson["archivos_modificados"], dict):
-            log.error(f"{logPrefix} Respuesta JSON no tiene 'archivos_modificados' como diccionario. Recibido: {respuestaJson}")
+            log.error(
+                f"{logPrefix} Respuesta JSON no tiene 'archivos_modificados' como diccionario. Recibido: {respuestaJson}")
             # Si hay una advertencia, la respetamos
             if "advertencia_ejecucion" in respuestaJson:
-                log.warning(f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
-                return {"archivos_modificados": {}, "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']} # Devolver estructura esperada
+                log.warning(
+                    f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
+                # Devolver estructura esperada
+                return {"archivos_modificados": {}, "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
             return None
-        
-        log.info(f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {list(respuestaJson['archivos_modificados'].keys())}")
+
+        log.info(
+            f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {list(respuestaJson['archivos_modificados'].keys())}")
         return respuestaJson
 
     except Exception as e:
-        log.error(f"{logPrefix} Error en ejecución de tarea específica: {e}", exc_info=True)
-        _manejar_excepcion_api(e, api_provider, logPrefix, locals().get('respuesta'))
+        log.error(
+            f"{logPrefix} Error en ejecución de tarea específica: {e}", exc_info=True)
+        _manejar_excepcion_api(e, api_provider, logPrefix,
+                               locals().get('respuesta'))
         return None
 
 
@@ -753,14 +865,15 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
         elif hasattr(respuesta, 'candidates') and respuesta.candidates:
             candidate = respuesta.candidates[0]
             if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts') and candidate.content.parts:
-                textoRespuesta = "".join(part.text for part in candidate.content.parts if hasattr(part, 'text'))
+                textoRespuesta = "".join(
+                    part.text for part in candidate.content.parts if hasattr(part, 'text'))
             # Fallback por si 'content' no tiene 'parts' pero sí 'text' (menos común)
             elif hasattr(candidate, 'content') and hasattr(candidate.content, 'text') and candidate.content.text:
-                 textoRespuesta = candidate.content.text
+                textoRespuesta = candidate.content.text
         # Estructura más antigua de Gemini (parts directamente en la respuesta)
         elif hasattr(respuesta, 'parts') and respuesta.parts:
-            textoRespuesta = "".join(part.text for part in respuesta.parts if hasattr(part, 'text'))
-
+            textoRespuesta = "".join(
+                part.text for part in respuesta.parts if hasattr(part, 'text'))
 
         if not textoRespuesta:
             finish_reason_str = "N/A"
@@ -771,17 +884,18 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
                 feedback = respuesta.prompt_feedback
                 if hasattr(feedback, 'block_reason'):
                     block_reason_str = str(feedback.block_reason)
-                if hasattr(feedback, 'safety_ratings'): # Lista de SafetyRating
-                    safety_ratings_str = ", ".join([f"{r.category}: {r.probability}" for r in feedback.safety_ratings])
-
+                if hasattr(feedback, 'safety_ratings'):  # Lista de SafetyRating
+                    safety_ratings_str = ", ".join(
+                        [f"{r.category}: {r.probability}" for r in feedback.safety_ratings])
 
             if hasattr(respuesta, 'candidates') and isinstance(respuesta.candidates, (list, tuple)) and respuesta.candidates:
                 candidate = respuesta.candidates[0]
                 if hasattr(candidate, 'finish_reason'):
                     finish_reason_str = str(candidate.finish_reason)
-                if hasattr(candidate, 'safety_ratings') and safety_ratings_str == "N/A": # Lista de SafetyRating
-                    safety_ratings_str = ", ".join([f"{r.category}: {r.probability}" for r in candidate.safety_ratings])
-
+                # Lista de SafetyRating
+                if hasattr(candidate, 'safety_ratings') and safety_ratings_str == "N/A":
+                    safety_ratings_str = ", ".join(
+                        [f"{r.category}: {r.probability}" for r in candidate.safety_ratings])
 
             log.error(f"{logPrefix} Respuesta de IA vacía o no se pudo extraer texto. "
                       f"FinishReason: {finish_reason_str}, BlockReason: {block_reason_str}, SafetyRatings: {safety_ratings_str}")
@@ -794,10 +908,11 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
         log.error(
             f"{logPrefix} Error extrayendo texto de la respuesta: {e}. Respuesta obj: {respuesta}", exc_info=True)
         return None
-    except Exception as e: # Captura general para errores inesperados
+    except Exception as e:  # Captura general para errores inesperados
         log.error(
             f"{logPrefix} Error inesperado extrayendo texto: {e}. Respuesta obj: {respuesta}", exc_info=True)
         return None
+
 
 def _limpiarYParsearJson(textoRespuesta, logPrefix):
     textoLimpio = textoRespuesta.strip()
@@ -813,7 +928,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         # Quitar el ``` final
         if textoLimpio.endswith("```"):
             textoLimpio = textoLimpio[:-3].strip()
-    
+
     # A veces la IA puede añadir texto antes del JSON. Intentar encontrar el primer '{'
     start_brace = textoLimpio.find('{')
     # Y el último '}' para asegurar que tomamos el objeto JSON completo
@@ -825,7 +940,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         log.debug(f"{logPrefix} Respuesta Original Completa:\n{textoRespuesta}")
         return None
 
-    json_candidate = textoLimpio[start_brace : end_brace + 1]
+    json_candidate = textoLimpio[start_brace: end_brace + 1]
 
     try:
         log.debug(
@@ -840,41 +955,54 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         contexto_fin = min(len(json_candidate), e.pos + 150)
         contexto_error = json_candidate[contexto_inicio:contexto_fin]
         # Usar repr() para ver caracteres problemáticos
-        contexto_error_repr = repr(contexto_error) 
+        contexto_error_repr = repr(contexto_error)
 
-        log.error(f"{logPrefix} Error crítico parseando JSON de IA: {e.msg} (char {e.pos})")
+        log.error(
+            f"{logPrefix} Error crítico parseando JSON de IA: {e.msg} (char {e.pos})")
         log.error(
             f"{logPrefix} Contexto alrededor del error ({contexto_inicio}-{contexto_fin}):\n{contexto_error_repr}")
-        
+
         # Loguear una porción más grande si el contexto es muy pequeño.
         if len(json_candidate) > 1000:
-            log.debug(f"{logPrefix} JSON Candidato (inicio):\n{json_candidate[:500]}...")
-            log.debug(f"{logPrefix} JSON Candidato (fin):...{json_candidate[-500:]}")
+            log.debug(
+                f"{logPrefix} JSON Candidato (inicio):\n{json_candidate[:500]}...")
+            log.debug(
+                f"{logPrefix} JSON Candidato (fin):...{json_candidate[-500:]}")
         else:
-            log.debug(f"{logPrefix} JSON Candidato Completo:\n{json_candidate}")
+            log.debug(
+                f"{logPrefix} JSON Candidato Completo:\n{json_candidate}")
 
-        log.debug(f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}")
+        log.debug(
+            f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}")
         return None
-    except Exception as e: # Otros errores inesperados durante el parseo
-        log.error(f"{logPrefix} Error inesperado durante json.loads: {e}", exc_info=True)
+    except Exception as e:  # Otros errores inesperados durante el parseo
+        log.error(
+            f"{logPrefix} Error inesperado durante json.loads: {e}", exc_info=True)
         log.debug(f"{logPrefix} JSON Candidato que falló:\n{json_candidate}")
-        log.debug(f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}") # <-- MODIFICACIÓN: Añadido log de textoRespuesta aquí
+        # <-- MODIFICACIÓN: Añadido log de textoRespuesta aquí
+        log.debug(
+            f"{logPrefix} Respuesta Original Completa (pre-limpieza):\n{textoRespuesta}")
         return None
+
 
 def _manejar_excepcion_api(e, api_provider, logPrefix, respuesta_api=None):
     """Función helper centralizada para manejar excepciones de API."""
     if api_provider == 'google':
         _manejarExcepcionGemini(e, logPrefix, respuesta_api)
     elif api_provider == 'openrouter':
-        if isinstance(e, APIError): # Específico de la librería OpenAI
+        if isinstance(e, APIError):  # Específico de la librería OpenAI
             if "timeout" in str(e).lower() or (hasattr(e, 'code') and e.code == 'ETIMEDOUT'):
-                 log.error(f"{logPrefix} Error de TIMEOUT ({API_TIMEOUT_SECONDS}s) en API OpenRouter: {e}", exc_info=True)
+                log.error(
+                    f"{logPrefix} Error de TIMEOUT ({API_TIMEOUT_SECONDS}s) en API OpenRouter: {e}", exc_info=True)
             else:
-                 log.error(f"{logPrefix} Error API OpenRouter (OpenAI lib): {e}", exc_info=True)
-        else: # Excepciones genéricas
-            log.error(f"{logPrefix} Error inesperado con OpenRouter: {type(e).__name__} - {e}", exc_info=True)
+                log.error(
+                    f"{logPrefix} Error API OpenRouter (OpenAI lib): {e}", exc_info=True)
+        else:  # Excepciones genéricas
+            log.error(
+                f"{logPrefix} Error inesperado con OpenRouter: {type(e).__name__} - {e}", exc_info=True)
     else:
-        log.error(f"{logPrefix} Error inesperado con proveedor API desconocido '{api_provider}': {type(e).__name__} - {e}", exc_info=True)
+        log.error(
+            f"{logPrefix} Error inesperado con proveedor API desconocido '{api_provider}': {type(e).__name__} - {e}", exc_info=True)
 
 
 def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
@@ -882,45 +1010,60 @@ def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
     # Ejemplo: google.api_core.exceptions.InvalidArgument, etc.
     # La versión actual de google.generativeai usa excepciones más directas a veces.
 
-    if isinstance(e, google.api_core.exceptions.ResourceExhausted): # Límite de cuota
-        log.error(f"{logPrefix} Error de CUOTA API Google Gemini (ResourceExhausted): {e}")
-    elif isinstance(e, google.api_core.exceptions.InvalidArgument): # Prompt inválido, contenido bloqueado
+    if isinstance(e, google.api_core.exceptions.ResourceExhausted):  # Límite de cuota
+        log.error(
+            f"{logPrefix} Error de CUOTA API Google Gemini (ResourceExhausted): {e}")
+    # Prompt inválido, contenido bloqueado
+    elif isinstance(e, google.api_core.exceptions.InvalidArgument):
         log.error(f"{logPrefix} Error de ARGUMENTO INVÁLIDO API Google Gemini (InvalidArgument): {e}. ¿Prompt mal formado, JSON no generable, o contenido bloqueado?", exc_info=True)
-    elif isinstance(e, google.api_core.exceptions.PermissionDenied): # API Key
-        log.error(f"{logPrefix} Error de PERMISO API Google Gemini (PermissionDenied): {e}. ¿API Key incorrecta o sin permisos?")
-    elif isinstance(e, google.api_core.exceptions.ServiceUnavailable): # Error temporal del servicio
-        log.error(f"{logPrefix} Error SERVICIO NO DISPONIBLE API Google Gemini (ServiceUnavailable): {e}. Reintentar más tarde.")
-    
+    elif isinstance(e, google.api_core.exceptions.PermissionDenied):  # API Key
+        log.error(
+            f"{logPrefix} Error de PERMISO API Google Gemini (PermissionDenied): {e}. ¿API Key incorrecta o sin permisos?")
+    # Error temporal del servicio
+    elif isinstance(e, google.api_core.exceptions.ServiceUnavailable):
+        log.error(
+            f"{logPrefix} Error SERVICIO NO DISPONIBLE API Google Gemini (ServiceUnavailable): {e}. Reintentar más tarde.")
+
     # Excepciones específicas de la librería google-generativeai (pueden no heredar de google.api_core)
     # type(e).__name__ es un fallback útil.
     elif type(e).__name__ in ['BlockedPromptException', 'StopCandidateException', 'ResponseBlockedError', 'GenerationStoppedException']:
-        log.error(f"{logPrefix} Prompt bloqueado o generación detenida/bloqueada por Google Gemini: {type(e).__name__} - {e}")
+        log.error(
+            f"{logPrefix} Prompt bloqueado o generación detenida/bloqueada por Google Gemini: {type(e).__name__} - {e}")
         finish_reason = "Desconocida"
         safety_ratings_str = "No disponibles"
         block_reason_str = "No disponible"
 
-        if respuesta: # 'respuesta' es el objeto devuelto por `model.generate_content()`
+        if respuesta:  # 'respuesta' es el objeto devuelto por `model.generate_content()`
             if hasattr(respuesta, 'prompt_feedback') and respuesta.prompt_feedback:
                 feedback = respuesta.prompt_feedback
-                if hasattr(feedback, 'block_reason'): # Enum BlockReason
-                    block_reason_str = str(feedback.block_reason.name) # Acceder al nombre del enum
-                if hasattr(feedback, 'safety_ratings'): # Lista de SafetyRating
-                    safety_ratings_str = ", ".join([f"{r.category.name}: {r.probability.name}" for r in feedback.safety_ratings])
-            
+                if hasattr(feedback, 'block_reason'):  # Enum BlockReason
+                    # Acceder al nombre del enum
+                    block_reason_str = str(feedback.block_reason.name)
+                if hasattr(feedback, 'safety_ratings'):  # Lista de SafetyRating
+                    safety_ratings_str = ", ".join(
+                        [f"{r.category.name}: {r.probability.name}" for r in feedback.safety_ratings])
+
             if hasattr(respuesta, 'candidates') and respuesta.candidates:
                 try:
                     candidate = respuesta.candidates[0]
-                    if hasattr(candidate, 'finish_reason'): # Enum FinishReason
+                    if hasattr(candidate, 'finish_reason'):  # Enum FinishReason
                         finish_reason = str(candidate.finish_reason.name)
-                    if hasattr(candidate, 'safety_ratings') and not safety_ratings_str: # Lista de SafetyRating
-                         safety_ratings_str = ", ".join([f"{r.category.name}: {r.probability.name}" for r in candidate.safety_ratings])
+                    # Lista de SafetyRating
+                    if hasattr(candidate, 'safety_ratings') and not safety_ratings_str:
+                        safety_ratings_str = ", ".join(
+                            [f"{r.category.name}: {r.probability.name}" for r in candidate.safety_ratings])
                 except (IndexError, AttributeError):
-                    log.debug(f"{logPrefix} No se pudo extraer finish_reason/safety_ratings del candidato (posiblemente bloqueado antes).")
-        
+                    log.debug(
+                        f"{logPrefix} No se pudo extraer finish_reason/safety_ratings del candidato (posiblemente bloqueado antes).")
+
         log.error(f"{logPrefix} Detalles (Gemini): FinishReason: {finish_reason}, BlockReason: {block_reason_str}, SafetyRatings: {safety_ratings_str}")
-    
-    else: # Otras excepciones de google.api_core o genéricas
-        log.error(f"{logPrefix} Error inesperado en llamada API Google Gemini: {type(e).__name__} - {e}", exc_info=True)
+
+    else:  # Otras excepciones de google.api_core o genéricas
+        log.error(
+            f"{logPrefix} Error inesperado en llamada API Google Gemini: {type(e).__name__} - {e}", exc_info=True)
         if respuesta and hasattr(respuesta, 'prompt_feedback'):
-            try: log.debug(f"{logPrefix} Prompt Feedback (si disponible): {respuesta.prompt_feedback}")
-            except Exception: pass
+            try:
+                log.debug(
+                    f"{logPrefix} Prompt Feedback (si disponible): {respuesta.prompt_feedback}")
+            except Exception:
+                pass
