@@ -449,7 +449,7 @@ def ejecutarAccionConGemini(decisionParseada, contextoCodigoReducido, api_provid
             respuesta = modelo.generate_content(
                 promptCompleto,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=0.4,
+                    temperature=0.5,
                     response_mime_type="application/json",
                     max_output_tokens=65536
                 ),

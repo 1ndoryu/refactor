@@ -181,7 +181,7 @@ RUTAHISTORIAL = os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor.log')
 RAMATRABAJO = "refactor-2" # Manteniendo tu configuración
 
 # --- Configuracion de Modelos (sin cambios) ---
-MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-exp-03-25") # Manteniendo tu configuración
+MODELO_GOOGLE_GEMINI = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-05-20") # Manteniendo tu configuración
 # OPENROUTER_MODEL ya está definido arriba
 
 N_HISTORIAL_CONTEXTO = 30 # Manteniendo tu configuración
