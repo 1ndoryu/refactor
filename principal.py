@@ -751,31 +751,77 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
     tarea_titulo = tarea_actual_info.get("titulo", "N/A_Titulo")
     logging.info(f"{logPrefix} Tarea a ejecutar: ID '{tarea_id}', Título: '{tarea_titulo}'")
 
-    archivos_ctx_ejecucion_mision = metadatos_mision.get("archivos_contexto_ejecucion", [])
-    archivos_especificos_tarea = tarea_actual_info.get("archivos_implicados_especificos", [])
-    archivo_principal_mision = metadatos_mision.get("archivo_principal")
+    # --- INICIO: Limpieza de rutas de archivo ---
+    def limpiar_lista_rutas(lista_rutas_crudas, origen_rutas_log=""):
+        rutas_limpias_final = []
+        if not lista_rutas_crudas:
+            return rutas_limpias_final
+        
+        for ruta_cruda in lista_rutas_crudas:
+            if not isinstance(ruta_cruda, str) or not ruta_cruda.strip():
+                logging.warning(f"{logPrefix} Ruta inválida o vacía encontrada en {origen_rutas_log}: '{ruta_cruda}'. Se ignora.")
+                continue
+            
+            # Aplicar misma lógica de limpieza que en parsear_mision_orion (parte metadatos)
+            ruta_procesada = ruta_cruda.strip()
+            ruta_procesada = ruta_procesada.replace('[', '').replace(']', '')
+            if ruta_procesada.startswith('/') or ruta_procesada.startswith('\\'):
+                ruta_procesada = ruta_procesada[1:]
+            ruta_procesada = ruta_procesada.strip()
+
+            if ruta_procesada and ruta_procesada.lower() not in ["ninguno", "ninguno."]:
+                # Validar que la ruta realmente exista después de la limpieza y antes de añadirla
+                ruta_abs_candidata = os.path.join(ruta_repo, ruta_procesada)
+                if os.path.exists(ruta_abs_candidata) and os.path.isfile(ruta_abs_candidata):
+                    rutas_limpias_final.append(ruta_procesada)
+                    logging.debug(f"{logPrefix} Ruta '{ruta_procesada}' de {origen_rutas_log} validada y añadida para contexto.")
+                else:
+                    logging.warning(f"{logPrefix} Ruta '{ruta_procesada}' (original: '{ruta_cruda}') de {origen_rutas_log} no existe o no es un archivo. Se ignora.")
+            elif ruta_procesada:
+                 logging.debug(f"{logPrefix} Ruta individual '{ruta_cruda}' de {origen_rutas_log} descartada después de limpieza (quedó vacía o como 'ninguno').")
+        return rutas_limpias_final
+
+    archivos_ctx_ejecucion_mision_crudos = metadatos_mision.get("archivos_contexto_ejecucion", [])
+    archivos_especificos_tarea_crudos = tarea_actual_info.get("archivos_implicados_especificos", [])
+    archivo_principal_mision_crudo = metadatos_mision.get("archivo_principal")
+
+    archivos_ctx_ejecucion_limpios = limpiar_lista_rutas(archivos_ctx_ejecucion_mision_crudos, "metadatos[archivos_contexto_ejecucion]")
+    archivos_especificos_tarea_limpios = limpiar_lista_rutas(archivos_especificos_tarea_crudos, f"tarea ID '{tarea_id}'[archivos_implicados_especificos]")
+    
+    # El archivo principal también se limpia y valida, aunque es uno solo
+    archivos_principal_limpios = []
+    if archivo_principal_mision_crudo:
+        archivos_principal_limpios = limpiar_lista_rutas([archivo_principal_mision_crudo], "metadatos[archivo_principal]")
+    # --- FIN: Limpieza de rutas de archivo ---
 
     archivos_para_leer_rel = []
-    if archivo_principal_mision:
-        archivos_para_leer_rel.append(archivo_principal_mision)
-    archivos_para_leer_rel.extend(archivos_ctx_ejecucion_mision)
-    archivos_para_leer_rel.extend(archivos_especificos_tarea)
+    if archivos_principal_limpios: # Será una lista con 0 o 1 elemento
+        archivos_para_leer_rel.extend(archivos_principal_limpios)
+    archivos_para_leer_rel.extend(archivos_ctx_ejecucion_limpios)
+    archivos_para_leer_rel.extend(archivos_especificos_tarea_limpios)
+    
+    # Eliminar duplicados y ordenar (aunque el orden no es crítico para leerArchivos)
     archivos_para_leer_rel = sorted(list(set(archivos_para_leer_rel)))
     
     contexto_para_tarea_str, tokens_contexto_tarea = "", 0
     archivos_leidos_para_tarea_rel = []
 
     if archivos_para_leer_rel:
-        archivos_abs_ctx_tarea = [os.path.join(ruta_repo, f_rel) for f_rel in archivos_para_leer_rel if f_rel and isinstance(f_rel, str)]
-        if archivos_abs_ctx_tarea:
-            archivos_abs_ctx_tarea_unicos = sorted(list(set(archivos_abs_ctx_tarea)))
-            resultado_lectura_ctx = analizadorCodigo.leerArchivos(archivos_abs_ctx_tarea_unicos, ruta_repo, api_provider=api_provider)
-            contexto_para_tarea_str = resultado_lectura_ctx['contenido']
-            tokens_contexto_tarea = resultado_lectura_ctx['tokens']
-            archivos_leidos_para_tarea_rel = [os.path.relpath(p, ruta_repo).replace(os.sep, '/') for p in archivos_abs_ctx_tarea_unicos if os.path.exists(p)]
-            logging.info(f"{logPrefix} Contexto para tarea leído de: {archivos_leidos_para_tarea_rel}")
-        else: logging.warning(f"{logPrefix} No hay archivos válidos para leer como contexto para la tarea.")
-    else: logging.info(f"{logPrefix} No se definieron archivos para leer como contexto para la tarea.")
+        # Las rutas en archivos_para_leer_rel ya son relativas, limpias y validadas (existen)
+        archivos_abs_ctx_tarea = [os.path.join(ruta_repo, f_rel) for f_rel in archivos_para_leer_rel]
+        
+        # leerArchivos internamente también valida existencia, pero aquí ya lo hemos hecho.
+        resultado_lectura_ctx = analizadorCodigo.leerArchivos(archivos_abs_ctx_tarea, ruta_repo, api_provider=api_provider)
+        contexto_para_tarea_str = resultado_lectura_ctx['contenido']
+        tokens_contexto_tarea = resultado_lectura_ctx['tokens']
+        # archivos_leidos_para_tarea_rel se puede reconstruir desde las rutas que sí se leyeron
+        # o asumir que todas las de archivos_para_leer_rel se leyeron porque ya las validamos.
+        # Para ser precisos, podríamos obtenerlo de resultado_lectura_ctx si leerArchivos lo devuelve.
+        # Por ahora, usamos nuestra lista validada:
+        archivos_leidos_para_tarea_rel = archivos_para_leer_rel
+        logging.info(f"{logPrefix} Contexto para tarea leído de {len(archivos_leidos_para_tarea_rel)} archivo(s) validados: {archivos_leidos_para_tarea_rel}")
+    else: 
+        logging.info(f"{logPrefix} No se definieron o validaron archivos para leer como contexto para la tarea.")
 
     tokens_mision_y_tarea_desc = analizadorCodigo.contarTokensTexto(
         contenido_mision_actual_md + tarea_actual_info.get('descripcion', ''), api_provider)
