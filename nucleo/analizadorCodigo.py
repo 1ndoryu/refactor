@@ -798,17 +798,23 @@ Ejemplo:
 {
   "archivos_modificados": {
     "ruta/relativa/al/archivo1.php": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 1...",
-    "ruta/relativa/al/archivo2.js": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 2..."
+    {
+    "nombre": "ruta/relativa/al/archivo1.php",
+    "contenido": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 1..."
+  },
+  {
+    "nombre": "ruta/relativa/al/archivo2.js",
+    "contenido": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 2..."
   }
-}
-Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver un objeto "archivos_modificados" vacío {} Y añadir un campo "advertencia_ejecucion" (string) al nivel raíz del JSON con tu explicación.
+]
+Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver un array "archivos_modificados" vacío [] Y añadir un campo "advertencia_ejecucion" (string) al nivel raíz del JSON con tu explicación.
 """,
         "REGLAS PARA `archivos_modificados` Y EL JSON DE RESPUESTA:",
-        "1. El JSON de respuesta DEBE ser un objeto con una clave `archivos_modificados` (que es un objeto de strings a strings) y opcionalmente una clave `advertencia_ejecucion` (string).",
+        "1. El JSON de respuesta DEBE ser un objeto con una clave `archivos_modificados` (que es un array de objetos con `nombre` y `contenido`) y opcionalmente una clave `advertencia_ejecucion` (string).",
         "2. Dentro de `archivos_modificados`:",
-        "   a. Incluye la ruta relativa (string) como clave y el contenido ÍNTEGRO y FINAL del archivo (string) como valor.",
+        "   a. Cada objeto en el array debe tener una clave `nombre` (string, ruta relativa) y una clave `contenido` (string, contenido íntegro y final del archivo).",
         "   b. Si la tarea implica crear un nuevo archivo, inclúyelo aquí.",
-        "   c. Si la tarea implica eliminar un archivo, NO lo incluyas aquí (la eliminación se maneja externamente si la tarea lo indica explícitamente, tú solo genera el código de los archivos que QUEDAN o CAMBIAN).",
+        "   c. Si la tarea implica eliminar un archivo, NO lo incluyas aquí (la eliminación se maneja externamente si la tarea lo indica explícitamente, tú solo genera el código de los archivos que QUEDAN o CAMBIAN)."
         "3. **ESCAPADO CRÍTICO DENTRO DEL CONTENIDO DEL ARCHIVO EN JSON (VALORES DE `archivos_modificados`):** Para que el JSON sea parseable, el *contenido del archivo* (que es un string dentro del JSON) debe tener los siguientes caracteres especiales escapados:",
         "   - Una **comilla doble literal (`\"`):** debe ser `\\\"` (barra invertida, comilla doble).",
         "   - Una **barra invertida literal (`\\`):** debe ser `\\\\` (doble barra invertida).",
@@ -836,9 +842,14 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
          'type': 'OBJECT',
         'properties': {
             'archivos_modificados': {
-                'type': 'OBJECT',
-                'patternProperties': {
-                    '^.*$': {'type': 'STRING'}
+                'type': 'ARRAY',
+                'items': {
+                    'type': 'OBJECT',
+                    'properties': {
+                        'nombre': {'type': 'STRING'},
+                        'contenido': {'type': 'STRING'}
+                    },
+                    'required': ['nombre', 'contenido']
                 }
             },
             'advertencia_ejecucion': {
@@ -905,25 +916,34 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
         if not respuestaJson:
             return None
 
-        if "archivos_modificados" not in respuestaJson or not isinstance(respuestaJson["archivos_modificados"], dict):
+        if "archivos_modificados" not in respuestaJson or not isinstance(respuestaJson["archivos_modificados"], list):
             log.error(
-                f"{logPrefix} Respuesta JSON no tiene 'archivos_modificados' como diccionario. Recibido: {respuestaJson}")
+                f"{logPrefix} Respuesta JSON no tiene 'archivos_modificados' como lista. Recibido: {respuestaJson}")
             if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
                 log.warning(
                     f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
-                return {"archivos_modificados": {}, "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
-            return None 
+                return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
+            return None
 
-        for ruta, contenido in respuestaJson["archivos_modificados"].items():
-            if not isinstance(contenido, str):
-                log.error(f"{logPrefix} Contenido para archivo '{ruta}' no es un string. Tipo: {type(contenido)}. Contenido: {str(contenido)[:200]}...")
+        for i, archivo_modificado in enumerate(respuestaJson["archivos_modificados"]):
+            if not isinstance(archivo_modificado, dict):
+                log.error(f"{logPrefix} Elemento {i} en 'archivos_modificados' no es un diccionario. Tipo: {type(archivo_modificado)}. Contenido: {str(archivo_modificado)[:200]}...")
                 if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
-                     return {"archivos_modificados": {}, "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: contenido de '{ruta}' no fue string.)"}
+                    return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: elemento {i} no fue diccionario.)"}
+                return None
+            if "nombre" not in archivo_modificado or not isinstance(archivo_modificado["nombre"], str):
+                log.error(f"{logPrefix} Elemento {i} en 'archivos_modificados' no tiene campo 'nombre' o no es string. Contenido: {str(archivo_modificado)[:200]}...")
+                if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
+                    return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: elemento {i} sin nombre válido.)"}
+                return None
+            if "contenido" not in archivo_modificado or not isinstance(archivo_modificado["contenido"], str):
+                log.error(f"{logPrefix} Elemento {i} en 'archivos_modificados' no tiene campo 'contenido' o no es string. Contenido: {str(archivo_modificado)[:200]}...")
+                if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
+                    return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: elemento {i} sin contenido válido.)"}
                 return None
 
-
         log.info(
-            f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {list(respuestaJson['archivos_modificados'].keys()) if 'archivos_modificados' in respuestaJson else 'Ninguno (solo advertencia?)'}")
+            f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {[a['nombre'] for a in respuestaJson['archivos_modificados']] if 'archivos_modificados' in respuestaJson else 'Ninguno (solo advertencia?)'}")
         return respuestaJson
 
     except Exception as e:
