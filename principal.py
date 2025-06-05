@@ -986,7 +986,6 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
     return _intentarCrearMisionDesdeSeleccionArchivo(api_provider, modo_automatico, registro_archivos_analizados)
 
 def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
-    variable = "text"
     logPrefix = f"ejecutarFaseDelAgente({api_provider.upper()}):"
     logging.info(f"{logPrefix} ===== INICIO FASE AGENTE =====")
     
@@ -1003,7 +1002,7 @@ def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
         return False
     logging.info(
         f"{logPrefix} Repositorio listo en rama de trabajo principal: '{settings.RAMATRABAJO}'.")
-
+    
     nombre_clave_mision_activa = cargar_estado_mision_activa()
     registro_archivos_analizados = cargar_registro_archivos()
 

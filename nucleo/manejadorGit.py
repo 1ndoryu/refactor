@@ -274,8 +274,8 @@ def clonarOActualizarRepo(repoUrl: str, rutaLocal: str, ramaTrabajo: str) -> boo
         if not ejecutarComando(['git', 'reset', '--hard', f'origin/{ramaPrincipal}'], cwd=rutaLocal, check=False):
             log.error(f"{logPrefix} Falló 'git reset --hard origin/{ramaPrincipal}'. Repo podría estar inconsistente. ¿Existe 'origin/{ramaPrincipal}' remotamente?"); return False
         
-        if not ejecutarComando(['git', 'clean', '-fdx'], cwd=rutaLocal, check=False):
-            log.warning(f"{logPrefix} Falló 'git clean -fdx', no es crítico pero podría haber archivos extra.")
+        if not ejecutarComando(['git', 'clean', '-fdx', '-e', '.orion_meta/'], cwd=rutaLocal, check=False):
+            log.warning(f"{logPrefix} Falló 'git clean', no es crítico pero podría haber archivos extra.")
 
         log.info(f"{logPrefix} Asegurando rama de trabajo '{ramaTrabajo}'...")
         rama_actual_local = obtener_rama_actual(rutaLocal)
