@@ -51,7 +51,7 @@ Se necesita contexto adicional para entender cómo se generan y consumen estas e
 ---
 ### Tarea RH-INTEG-001: Actualizar usos del historial en archivos de contexto
 - **ID:** RH-INTEG-001
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Revisar los archivos `nucleo/manejadorMision.py`, `nucleo/analizadorCodigo.py`, y `nucleo/aplicadorCambios.py` para identificar y actualizar las llamadas a `formatearEntradaHistorial` y cualquier otro uso de `cargarHistorial` o `guardarHistorial` para que sean compatibles con el nuevo formato de historial basado en JSON. Esto podría implicar ajustes en cómo se pasan los datos o cómo se interpretan los datos cargados.
 - **Archivos Implicados Específicos (Opcional):** nucleo/manejadorMision.py, nucleo/analizadorCodigo.py, nucleo/aplicadorCambios.py, nucleo/manejadorHistorial.py
 - **Intentos:** 0
