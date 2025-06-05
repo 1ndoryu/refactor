@@ -7,7 +7,7 @@
 
 Este es un flujo de trabajo simplificado para colaborar en el proyecto Misión Orion. Tu rol es ayudar con tareas de refactorización más pequeñas, de bajo riesgo y bien definidas que no interfieran con las refactorizaciones estructurales mayores que está llevando a cabo el agente principal (Misión Orion).
 
-**IMPORTANTE** ESTE FLUJO DEBE ACTIVARSE PARA NOMBRE CLAVE ANT0
+**IMPORTANTE** ESTE FLUJO DEBE ACTIVARSE PARA NOMBRE CLAVE ANT0, ENFOCARTE EN ESTO CUANDO SE TE DIGA QUE EL NOMBRE CLAVE ES ANT0
 
 ## Tu Tarea Actual
 
@@ -26,7 +26,7 @@ Este es un flujo de trabajo simplificado para colaborar en el proyecto Misión O
             *   Implementar verificaciones (ej. archivo vacío antes de leerlo, como la Tarea 4 del `misionStatus.md` actual).
         *   Si varias tareas cumplen estos criterios, puedes elegir una de las que tengan prioridad MEDIA o BAJA si las de ALTA parecen demasiado involucradas para este flujo. En caso de duda, **elige siempre la más simple y contenida.**
         *   **EVITA** tareas que impliquen:
-            *   Modificar la lógica central de `principal.py` sobre el manejo de fases o estado de misiones.
+            *   Modificar la lógica central de `principal.py` sobre el manejo de fases o estado de misiones. (Pero puedes corregir algo de la logica o mejorar algo de ella sin arriesgarte a romperla)
             *   Cambios profundos en `manejadorGit.py` o `manejadorMision.py` que afecten el flujo de misiones.
             *   Grandes reestructuraciones de clases o archivos.
 3.  **Una vez seleccionada la tarea:**
