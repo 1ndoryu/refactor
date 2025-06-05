@@ -943,6 +943,77 @@ def realizarReseteoAgente():
 
     logging.info(f"{logPrefix} Reseteo del estado del agente (archivo .active_mission y rama de misión local asociada si existía) completado.")
     return True # Indicar éxito
+
+def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, modoAutomatico: bool):
+    logPrefix = f"_procesarMisionExistente({nombreClaveMisionActiva}):"
+    logging.info(f"{logPrefix} Procesando misión existente '{nombreClaveMisionActiva}'.")
+
+    # Asegurar estar en la rama de la misión activa
+    if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, nombreClaveMisionActiva):
+        logging.error(f"{logPrefix} No se pudo cambiar a la rama de misión activa '{nombreClaveMisionActiva}'. Limpiando estado.")
+        limpiar_estado_mision_activa()
+        # Si no se puede cambiar a la rama de la misión, se considera que se debe proceder a crear una nueva.
+        # El cambio a RAMATRABAJO se gestionará en el flujo principal de ejecutarFaseDelAgente si es necesario antes de crear una nueva.
+        return "PROCEDER_A_CREAR_NUEVA_MISION", True 
+
+    # Se está en la rama de la misión activa. Revisar el misionOrion.md local.
+    resultadoPaso0, _, _, _ = paso0_revisar_mision_local(settings.RUTACLON)
+    
+    if resultadoPaso0 == "procesar_mision_existente":
+        logging.info(f"{logPrefix} Misión '{nombreClaveMisionActiva}' confirmada en rama, procesando tarea.")
+        resultadoPaso2, _ = paso2_ejecutar_tarea_mision(settings.RUTACLON, nombreClaveMisionActiva, proveedorApi, modoAutomatico)
+        
+        if resultadoPaso2 == "tarea_ejecutada_continuar_mision":
+            logging.info(f"{logPrefix} Tarea ejecutada en '{nombreClaveMisionActiva}', quedan más tareas pendientes en la misión.")
+            if modoAutomatico: 
+                manejadorGit.hacerPush(settings.RUTACLON, nombreClaveMisionActiva)
+            # La fase se considera exitosa, el script principal terminará y se reiniciará para la siguiente tarea.
+            return "CONTINUAR_PROCESAMIENTO_MISION", True 
+        
+        elif resultadoPaso2 == "mision_completada":
+            logging.info(f"{logPrefix} Misión '{nombreClaveMisionActiva}' completada (todas las tareas procesadas).")
+            if modoAutomatico:
+                logging.info(f"{logPrefix} Modo automático: Haciendo push de la rama de misión '{nombreClaveMisionActiva}' completada.")
+                manejadorGit.hacerPush(settings.RUTACLON, nombreClaveMisionActiva)
+            
+            limpiar_estado_mision_activa()
+            logging.info(f"{logPrefix} Cambiando a la rama de trabajo principal '{settings.RAMATRABAJO}'.")
+            if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
+                logging.error(f"{logPrefix} CRÍTICO: No se pudo cambiar a '{settings.RAMATRABAJO}' después de completar la misión '{nombreClaveMisionActiva}'.")
+                # Aunque esto es un error, la misión en sí fue procesada. 
+                # El script principal saldrá, y en la próxima ejecución, clonarOActualizarRepo debería intentar arreglar la rama.
+                # Se retorna True para la fase porque la lógica de la misión concluyó.
+            return "MISION_COMPLETADA_O_FINALIZADA", True
+        
+        elif resultadoPaso2 == "tarea_fallida":
+            # Una tarea falló (ej. FALLIDA_TEMPORALMENTE y se actualizaron intentos, o error de la IA).
+            # El estado de la misión se actualizó en misionOrion.md.
+            logging.error(f"{logPrefix} Una tarea falló en la misión '{nombreClaveMisionActiva}'. El script se detendrá.")
+            if modoAutomatico: 
+                manejadorGit.hacerPush(settings.RUTACLON, nombreClaveMisionActiva) 
+            # La fase se considera exitosa en términos de que el agente realizó su ciclo,
+            # el script principal terminará y se reiniciará. La lógica de reintentos o manejo de fallos
+            # se aplicará en la siguiente ejecución al seleccionar la próxima tarea.
+            return "CONTINUAR_PROCESAMIENTO_MISION", True 
+        
+        else: 
+            # Casos como: "error_critico_actualizando_mision", "error_critico_mision_no_encontrada", "error_critico_parseo_mision"
+            logging.error(f"{logPrefix} Error crítico durante la ejecución de la tarea (paso2) para la misión '{nombreClaveMisionActiva}': {resultadoPaso2}.")
+            limpiar_estado_mision_activa() 
+            manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO) # Intentar volver a un estado seguro
+            return "ERROR_PROCESANDO_MISION", False
+
+    elif resultadoPaso0 == "mision_existente_finalizada":
+         logging.info(f"{logPrefix} Misión '{nombreClaveMisionActiva}' encontrada en la rama, pero ya estaba finalizada (sin tareas pendientes o marcada como completada). Limpiando estado.")
+         limpiar_estado_mision_activa()
+         manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
+         return "PROCEDER_A_CREAR_NUEVA_MISION", True
+    
+    else: # Casos de paso0: "no_hay_mision_local", "ignorar_mision_actual_y_crear_nueva"
+        logging.warning(f"{logPrefix} El archivo {MISION_ORION_MD} no fue encontrado o no es válido en la rama de misión activa '{nombreClaveMisionActiva}' (resultado de paso0: {resultadoPaso0}). Limpiando estado y procediendo a crear nueva misión.")
+        limpiar_estado_mision_activa()
+        manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
+        return "PROCEDER_A_CREAR_NUEVA_MISION", True
     
 if __name__ == "__main__":
     configurarLogging() # Configurar logging primero para todas las operaciones
