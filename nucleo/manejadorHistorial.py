@@ -69,34 +69,26 @@ def guardarHistorial(historial):
 
 def formatearEntradaHistorial(outcome, decision=None, result_details=None, verification_details=None, error_message=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    entry = f"[{timestamp}] [{outcome}]\n"
 
-    if decision:
-        accion = decision.get('accion_propuesta', 'N/A')
-        desc = decision.get('descripcion', 'N/A')
-        razon = decision.get('razonamiento', 'N/A')
-        archivos = decision.get('archivos_relevantes', [])
-        params = decision.get('parametros_accion', {})
-        entry += f"  Decision (Paso 1):\n"
-        entry += f"    Accion: {accion}\n"
-        entry += f"    Descripcion: {desc}\n"
-        entry += f"    Razonamiento: {razon}\n"
-        entry += f"    Parametros: {json.dumps(params)}\n"
-        entry += f"    Archivos Relevantes: {archivos}\n"
+    entry_data = {
+        "timestamp": timestamp,
+        "outcome": outcome,
+        "decision": None,
+        "result_details": None,
+        "verification_details": None,
+        "error_message": None
+    }
 
-    if result_details:
-        entry += f"  Resultado (Paso 2):\n"
-        if isinstance(result_details, dict):
-            keys_only = list(result_details.keys())
-            entry += f"    Archivos Generados/Modificados: {keys_only}\n"
-        else:
-            entry += f"    Detalles: {result_details}\n"
+    if decision is not None:
+        entry_data["decision"] = decision
 
-    if verification_details:
-        entry += f"  Verificacion (Paso 3):\n"
-        entry += f"    Detalles: {verification_details}\n"
+    if result_details is not None:
+        entry_data["result_details"] = result_details
 
-    if error_message:
-        entry += f"  Error: {error_message}\n"
+    if verification_details is not None:
+        entry_data["verification_details"] = verification_details
 
-    return entry.strip()
+    if error_message is not None:
+        entry_data["error_message"] = error_message
+
+    return json.dumps(entry_data, ensure_ascii=False)
