@@ -481,7 +481,7 @@ def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archi
 
     manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
         manejadorHistorial.formatearEntradaHistorial(
-            outcome=f"PASO1.1_REFACTOR_APROBADO:{archivo_seleccionado_rel}", decision=decision_IA_paso1_1, archivos_contexto=archivos_ctx_validados_rel)
+            outcome=f"PASO1.1_REFACTOR_APROBADO:{archivo_seleccionado_rel}", decision=decision_IA_paso1_1)
     ])
 
     return "generar_mision", archivo_seleccionado_rel, archivos_ctx_validados_rel, decision_IA_paso1_1

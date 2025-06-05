@@ -77,20 +77,6 @@ El agente se ejecuta en fases. Cada invocación de `principal.py` intenta comple
 
 ##  Siguientes pasos segun la ultima ejecución #EXCLUSIVO PARA WAN (puede aqui se agregen cosas que no estan en las tareas pero al completarse agregarlas e indicar como agregarse)
 
-Arreglar ultimo error 
-
-2025-06-05 21:03:13 - INFO - [root] _crearNuevaMision: _crearNuevaMision: Procediendo con selección de archivo estándar para refactorización...
-2025-06-05 21:03:13 - CRITICAL - [root] orchestrarEjecucionScript: Error fatal no manejado en orquestación: name 'paso1_1_seleccion_y_decision_inicial' is not defined
-Traceback (most recent call last):
-  File "/var/www/herramientaRefactor/principal.py", line 239, in orchestrarEjecucionScript
-    fase_exitosa = ejecutarFaseDelAgente(
-  File "/var/www/herramientaRefactor/principal.py", line 1010, in ejecutarFaseDelAgente
-    exito_fase_creacion = _crearNuevaMision(
-  File "/var/www/herramientaRefactor/principal.py", line 874, in _crearNuevaMision
-    res_paso1_1, archivo_sel, ctx_sel, decision_ia_1_1 = paso1_1_seleccion_y_decision_inicial(
-NameError: name 'paso1_1_seleccion_y_decision_inicial' is not defined
-2025-06-05 21:03:13 - INFO - [root] orchestrarEjecucionScript: Registro de archivos analizados guardado al finalizar script.
-
 
 ## Hoja de Ruta de Refactorización y Desarrollo
 
