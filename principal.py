@@ -838,222 +838,159 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
 
 
 # --- Función Principal de Fase del Agente (MODIFICADO) ---
+def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
+    logPrefix = "_intentarCrearMisionDesdeTodoMD:"
+    if not modo_automatico:
+        logging.info(f"{logPrefix} Modo no automático, se omite la revisión de TODO.md.")
+        return False
+
+    logging.info(f"{logPrefix} Modo automático activo. Verificando TODO.md para nueva misión.")
+    ruta_todo_md = os.path.join(settings.RUTACLON, "TODO.md")
+    
+    if not os.path.exists(ruta_todo_md) or not os.path.isfile(ruta_todo_md) or os.path.getsize(ruta_todo_md) == 0:
+        logging.info(f"{logPrefix} Archivo TODO.md no encontrado, no es un archivo o está vacío. Se omite.")
+        return False
+
+    try:
+        with open(ruta_todo_md, 'r', encoding='utf-8') as f_todo:
+            contenido_todo_md = f_todo.read().strip()
+        if not contenido_todo_md:
+            logging.info(f"{logPrefix} TODO.md está vacío. Se omite.")
+            return False
+        
+        logging.info(f"{logPrefix} TODO.md con contenido. Intentando generar misión.")
+        tokens_estimados = 700 + analizadorCodigo.contarTokensTexto(contenido_todo_md, api_provider)
+        gestionar_limite_tokens(tokens_estimados, api_provider)
+
+        mision_dict = analizadorCodigo.generar_contenido_mision_desde_texto_guia(
+            settings.RUTACLON, contenido_todo_md, "TODO.md", api_provider
+        )
+        registrar_tokens_usados(mision_dict.get("tokens_consumidos_api", tokens_estimados) if mision_dict else tokens_estimados)
+
+        if not mision_dict or not mision_dict.get("nombre_clave_mision") or not mision_dict.get("contenido_markdown_mision"):
+            logging.warning(f"{logPrefix} IA no generó misión válida desde TODO.md. Respuesta: {mision_dict}")
+            manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+                manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_ERROR_GENERACION", error_message="IA no generó misión válida desde TODO.md")])
+            return False
+
+        nombre_clave = mision_dict["nombre_clave_mision"]
+        contenido_md = mision_dict["contenido_markdown_mision"]
+        nombre_archivo_mision = f"{nombre_clave}.md"
+        rama_base = manejadorGit.obtener_rama_actual(settings.RUTACLON) or settings.RAMATRABAJO
+
+        if not manejadorGit.crear_y_cambiar_a_rama(settings.RUTACLON, nombre_clave, rama_base):
+            logging.error(f"{logPrefix} No se pudo crear/cambiar a rama '{nombre_clave}' desde '{rama_base}'.")
+            return False
+
+        with open(os.path.join(settings.RUTACLON, nombre_archivo_mision), 'w', encoding='utf-8') as f:
+            f.write(contenido_md)
+
+        _, _, hay_pendientes = manejadorMision.parsear_mision_orion(contenido_md)
+        if not hay_pendientes:
+            logging.error(f"{logPrefix} ERROR: Misión '{nombre_clave}' desde TODO.md generada SIN TAREAS. Limpiando.")
+            manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, rama_base)
+            manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave, local=True)
+            return False
+        
+        if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave}", [nombre_archivo_mision]):
+            logging.error(f"{logPrefix} No se pudo hacer commit de {nombre_archivo_mision}.")
+            # No se limpia la rama para debug manual
+            return False
+
+        logging.info(f"{logPrefix} Misión '{nombre_clave}' generada y commiteada desde TODO.md.")
+        guardar_estado_mision_activa(nombre_clave)
+        manejadorGit.hacerPush(settings.RUTACLON, nombre_clave, setUpstream=True)
+        return True # Misión creada exitosamente
+
+    except Exception as e:
+        logging.error(f"{logPrefix} Error procesando TODO.md: {e}", exc_info=True)
+        return False
+    
+def _intentarCrearMisionDesdeSeleccionArchivo(api_provider: str, modo_automatico: bool, registro_archivos_analizados: dict):
+    logPrefix = "_intentarCrearMisionDesdeSeleccionArchivo:"
+    MAX_INTENTOS_SELECCION = 5
+
+    for intento in range(1, MAX_INTENTOS_SELECCION + 1):
+        logging.info(f"{logPrefix} Iniciando intento de selección de archivo #{intento}/{MAX_INTENTOS_SELECCION}...")
+
+        res_paso1_1, archivo_sel, ctx_sel, decision_ia_1_1 = paso1_1_seleccion_y_decision_inicial(
+            settings.RUTACLON, api_provider, registro_archivos_analizados)
+
+        if res_paso1_1 == "generar_mision":
+            logging.info(f"{logPrefix} Archivo '{archivo_sel}' seleccionado. Generando misión...")
+            res_paso1_2, _, nombre_clave_generado = paso1_2_generar_mision(
+                settings.RUTACLON, archivo_sel, ctx_sel, decision_ia_1_1, api_provider)
+
+            if res_paso1_2 == "mision_generada_ok" and nombre_clave_generado:
+                # Validar que la misión generada tiene tareas si se esperaba un refactor
+                contenido_mision_generada_md = ""
+                try:
+                    with open(os.path.join(settings.RUTACLON, f"{nombre_clave_generado}.md"), 'r', encoding='utf-8') as f:
+                        contenido_mision_generada_md = f.read()
+                except Exception as e:
+                    logging.error(f"{logPrefix} Error leyendo misión recién generada: {e}", exc_info=True)
+
+                _, _, hay_pendientes = manejadorMision.parsear_mision_orion(contenido_mision_generada_md)
+                if decision_ia_1_1.get("necesita_refactor") and not hay_pendientes:
+                    logging.error(f"{logPrefix} INCONSISTENCIA: IA indicó refactor para '{archivo_sel}' pero misión '{nombre_clave_generado}' no tiene tareas. Limpiando y reintentando.")
+                    manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
+                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
+                    continue  # Siguiente intento del bucle
+
+                guardar_estado_mision_activa(nombre_clave_generado)
+                logging.info(f"{logPrefix} Nueva misión '{nombre_clave_generado}' creada. Fase completada.")
+                if modo_automatico:
+                    manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_generado, setUpstream=True)
+                return True  # Misión creada exitosamente, termina la función
+
+            else:  # Error en paso1_2_generar_mision
+                logging.error(f"{logPrefix} Error generando misión para '{archivo_sel}'. Limpiando si es necesario y reintentando con otro archivo.")
+                manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
+                if nombre_clave_generado and manejadorGit.existe_rama(settings.RUTACLON, nombre_clave_generado, local_only=True):
+                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
+                continue  # Siguiente intento del bucle
+
+        elif res_paso1_1 == "reintentar_seleccion":
+            logging.info(f"{logPrefix} Intento #{intento}: IA rechazó el archivo o era inválido. Buscando otro.")
+            continue  # Siguiente intento del bucle
+
+        elif res_paso1_1 == "ciclo_terminado_sin_accion":
+            logging.warning(f"{logPrefix} No se encontraron más archivos para analizar. Finalizando fase.")
+            break  # Salir del bucle for
+
+        else:
+            logging.error(f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Fase de creación fallida.")
+            return False  # Fallo crítico
+
+    logging.info(f"{logPrefix} No se generó ninguna misión nueva tras {MAX_INTENTOS_SELECCION} intentos. Fase completada sin acción.")
+    return True # La fase es exitosa aunque no se haya creado nada.
+
 def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivos_analizados: dict):
     logPrefix = "_crearNuevaMision:"
     logging.info(f"{logPrefix} Iniciando proceso de creación de nueva misión.")
 
-    # Asegurar estar en RAMATRABAJO antes de cualquier intento de crear nueva misión.
-    # Esto debería ser garantizado por el llamador (ejecutarFaseDelAgente)
     if manejadorGit.obtener_rama_actual(settings.RUTACLON) != settings.RAMATRABAJO:
-        logging.info(
-            f"{logPrefix} No se está en '{settings.RAMATRABAJO}'. Intentando cambiar...")
+        logging.info(f"{logPrefix} No se está en '{settings.RAMATRABAJO}'. Intentando cambiar...")
         if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
-            logging.error(
-                f"{logPrefix} No se pudo cambiar a '{settings.RAMATRABAJO}'. Abortando creación de misión.")
+            logging.error(f"{logPrefix} No se pudo cambiar a '{settings.RAMATRABAJO}'. Abortando creación.")
             return False
 
-    mision_desde_todo_creada_ok = False
-    if modo_automatico:
-        logging.info(
-            f"{logPrefix} Modo automático activo. Verificando TODO.md para nueva misión.")
-        ruta_todo_md = os.path.join(settings.RUTACLON, "TODO.md")
-        if os.path.exists(ruta_todo_md) and os.path.isfile(ruta_todo_md):
-            try:
-                with open(ruta_todo_md, 'r', encoding='utf-8') as f_todo:
-                    contenido_todo_md = f_todo.read().strip()
-                if contenido_todo_md:
-                    logging.info(
-                        f"{logPrefix} TODO.md encontrado con contenido. Intentando generar misión.")
+    # Estrategia 1: Intentar crear misión desde TODO.md
+    mision_creada_desde_todo = _intentarCrearMisionDesdeTodoMD(api_provider, modo_automatico)
+    if mision_creada_desde_todo:
+        logging.info(f"{logPrefix} Misión creada exitosamente desde TODO.md. Fase completada.")
+        return True # Misión creada, se detiene el script para la siguiente fase
 
-                    tokens_contenido_todo = analizadorCodigo.contarTokensTexto(
-                        contenido_todo_md, api_provider)
-                    tokens_estimados_todo = 700 + tokens_contenido_todo
-                    gestionar_limite_tokens(
-                        tokens_estimados_todo, api_provider)
-
-                    contenido_mision_generado_dict_todo = analizadorCodigo.generar_contenido_mision_desde_texto_guia(
-                        settings.RUTACLON,
-                        contenido_todo_md,
-                        "TODO.md",
-                        api_provider
-                    )
-                    registrar_tokens_usados(contenido_mision_generado_dict_todo.get(
-                        "tokens_consumidos_api", tokens_estimados_todo) if contenido_mision_generado_dict_todo else tokens_estimados_todo)
-
-                    if contenido_mision_generado_dict_todo and \
-                       contenido_mision_generado_dict_todo.get("nombre_clave_mision") and \
-                       contenido_mision_generado_dict_todo.get("contenido_markdown_mision"):
-
-                        nombre_clave_mision_todo = contenido_mision_generado_dict_todo[
-                            "nombre_clave_mision"]
-                        contenido_markdown_mision_todo = contenido_mision_generado_dict_todo[
-                            "contenido_markdown_mision"]
-                        # Nombre dinámico
-                        nombre_archivo_mision_todo = f"{nombre_clave_mision_todo}.md"
-                        rama_base_todo = manejadorGit.obtener_rama_actual(
-                            settings.RUTACLON) or settings.RAMATRABAJO
-
-                        if not manejadorGit.crear_y_cambiar_a_rama(settings.RUTACLON, nombre_clave_mision_todo, rama_base_todo):
-                            logging.error(
-                                f"{logPrefix} No se pudo crear o cambiar a rama '{nombre_clave_mision_todo}' (desde TODO.md) desde '{rama_base_todo}'.")
-                        else:
-                            logging.info(
-                                f"{logPrefix} En rama de misión (desde TODO.md): '{nombre_clave_mision_todo}' (desde '{rama_base_todo}')")
-                            try:
-                                # Usar nombre dinámico
-                                with open(os.path.join(settings.RUTACLON, nombre_archivo_mision_todo), 'w', encoding='utf-8') as f_mision_todo:
-                                    f_mision_todo.write(
-                                        contenido_markdown_mision_todo)
-                                logging.info(
-                                    # Log con nombre dinámico
-                                    f"{logPrefix} {nombre_archivo_mision_todo} (desde TODO.md) guardado en rama '{nombre_clave_mision_todo}'")
-
-                                _, tareas_gen_todo, hay_pendientes_gen_todo = manejadorMision.parsear_mision_orion(
-                                    contenido_markdown_mision_todo)
-                                if not tareas_gen_todo or not hay_pendientes_gen_todo:
-                                    logging.error(
-                                        f"{logPrefix} ERROR DE GENERACIÓN (TODO.md): Misión '{nombre_clave_mision_todo}' generada SIN TAREAS PENDIENTES a partir de TODO.md.")
-                                    manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-                                        manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_ERROR_MISION_SIN_TAREAS",
-                                                                                     error_message=f"Misión '{nombre_clave_mision_todo}' (desde TODO.md) generada sin tareas.")])
-                                    manejadorGit.cambiar_a_rama_existente(
-                                        settings.RUTACLON, rama_base_todo)
-                                    manejadorGit.eliminarRama(
-                                        settings.RUTACLON, nombre_clave_mision_todo, local=True)
-                                    logging.info(
-                                        f"{logPrefix} Rama de misión (desde TODO.md) '{nombre_clave_mision_todo}' eliminada. Procediendo con flujo normal.")
-                                else:
-                                    # Usar nombre dinámico
-                                    if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave_mision_todo}", [nombre_archivo_mision_todo]):
-                                        logging.error(
-                                            # Log con nombre dinámico
-                                            f"{logPrefix} No se pudo hacer commit de {nombre_archivo_mision_todo} (desde TODO.md) en '{nombre_clave_mision_todo}'.")
-                                    else:
-                                        logging.info(
-                                            f"{logPrefix} Misión (desde TODO.md) '{nombre_clave_mision_todo}' generada y commiteada.")
-                                        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-                                            manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_MISION_GENERADA:{nombre_clave_mision_todo}", result_details=f"Fuente: TODO.md, Archivo: {nombre_archivo_mision_todo}")])
-                                        guardar_estado_mision_activa(
-                                            nombre_clave_mision_todo)
-                                        if modo_automatico:
-                                            manejadorGit.hacerPush(
-                                                settings.RUTACLON, nombre_clave_mision_todo, setUpstream=True)
-                                        mision_desde_todo_creada_ok = True
-                            except Exception as e_write_todo_mision:
-                                logging.error(
-                                    # Log con nombre dinámico
-                                    f"{logPrefix} Error guardando {nombre_archivo_mision_todo} (desde TODO.md): {e_write_todo_mision}", exc_info=True)
-                                manejadorGit.cambiar_a_rama_existente(
-                                    settings.RUTACLON, rama_base_todo)
-                                manejadorGit.eliminarRama(
-                                    settings.RUTACLON, nombre_clave_mision_todo, local=True)
-                    else:
-                        logging.warning(
-                            f"{logPrefix} IA no generó contenido válido para misión desde TODO.md. Respuesta: {contenido_mision_generado_dict_todo}")
-                        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-                            manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_ERROR_GENERACION", error_message="IA no generó misión válida desde TODO.md")])
-                else:
-                    logging.info(
-                        f"{logPrefix} TODO.md está vacío. Se ignorará.")
-            except Exception as e_todo_read:
-                logging.error(
-                    f"{logPrefix} Error leyendo TODO.md: {e_todo_read}. Se ignorará.", exc_info=True)
-        else:
-            logging.info(
-                f"{logPrefix} Archivo TODO.md no encontrado en la raíz del repositorio.")
-
-    if mision_desde_todo_creada_ok:
-        logging.info(
-            f"{logPrefix} Misión creada desde TODO.md. Fase completada. Script se detendrá para procesarla.")
-        return True  # Fase OK, el script principal se detendrá y reiniciará para procesar la nueva misión
-
-    # Si no se creó misión desde TODO.md (o no modo_automatico, o TODO.md no existe/vacío, o falló creación)
-    # continuar con el flujo normal de selección de archivo:
-    logging.info(
-        f"{logPrefix} Procediendo con selección de archivo estándar para refactorización...")
-    res_paso1_1, archivo_sel, ctx_sel, decision_ia_1_1 = paso1_1_seleccion_y_decision_inicial(
-        settings.RUTACLON, api_provider, registro_archivos_analizados)
-
-    if res_paso1_1 == "generar_mision":
-        logging.info(
-            f"{logPrefix} Archivo '{archivo_sel}' seleccionado para refactor por IA. Generando misión.")
-        res_paso1_2, _, nombre_clave_generado = paso1_2_generar_mision(
-            settings.RUTACLON, archivo_sel, ctx_sel, decision_ia_1_1, api_provider)
-
-        if res_paso1_2 == "mision_generada_ok" and nombre_clave_generado:
-            # Nombre dinámico
-            nombre_archivo_mision_generada = f"{nombre_clave_generado}.md"
-            ruta_mision_generada_md = os.path.join(
-                settings.RUTACLON, nombre_archivo_mision_generada)  # Usar nombre dinámico
-            contenido_mision_generada_md = ""
-            if os.path.exists(ruta_mision_generada_md):
-                try:
-                    with open(ruta_mision_generada_md, 'r', encoding='utf-8') as f:
-                        contenido_mision_generada_md = f.read()
-                except Exception as e_read_gen_mision:
-                    logging.error(
-                        f"{logPrefix} Error leyendo el archivo de misión recién generado '{nombre_archivo_mision_generada}': {e_read_gen_mision}", exc_info=True)
-                    # Podríamos decidir fallar aquí o continuar sin la validación de tareas.
-                    # Por ahora, continuaremos, pero el log de error es importante.
-
-            _, tareas_gen, hay_pendientes_gen = manejadorMision.parsear_mision_orion(
-                contenido_mision_generada_md)
-            se_espera_refactor = decision_ia_1_1.get(
-                "necesita_refactor", False)
-
-            if se_espera_refactor and (not tareas_gen or not hay_pendientes_gen):
-                logging.error(
-                    f"{logPrefix} ERROR DE GENERACIÓN: Paso 1.1 indicó refactor para '{archivo_sel}' pero misión '{nombre_clave_generado}' (archivo: {nombre_archivo_mision_generada}) NO TIENE TAREAS PENDIENTES.")
-                manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-                    manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO1.2_ERROR_MISION_SIN_TAREAS", decision=decision_ia_1_1,
-                                                                 error_message=f"Misión '{nombre_clave_generado}' generada sin tareas (archivo: {nombre_archivo_mision_generada}).")
-                ])
-                manejadorGit.cambiar_a_rama_existente(
-                    settings.RUTACLON, settings.RAMATRABAJO)
-                manejadorGit.eliminarRama(
-                    settings.RUTACLON, nombre_clave_generado, local=True)
-                logging.info(
-                    f"{logPrefix} Rama de misión '{nombre_clave_generado}' eliminada. Fase de creación fallida.")
-                return False  # Falló la fase de creación
-
-            guardar_estado_mision_activa(nombre_clave_generado)
-            logging.info(
-                f"{logPrefix} Nueva misión estándar '{nombre_clave_generado}' creada (archivo: {nombre_archivo_mision_generada}) y estado guardado. Script se detendrá para procesarla.")
-            if modo_automatico:
-                manejadorGit.hacerPush(
-                    settings.RUTACLON, nombre_clave_generado, setUpstream=True)
-            return True  # Fase OK, misión creada, script se detendrá
-
-        else:  # Error en paso1_2_generar_mision (error_generando_mision)
-            logging.error(
-                f"{logPrefix} Error generando misión estándar (IA o Git). Fase de creación fallida.")
-            manejadorGit.cambiar_a_rama_existente(
-                settings.RUTACLON, settings.RAMATRABAJO)  # Asegurar estar en rama principal
-            if nombre_clave_generado and manejadorGit.existe_rama(settings.RUTACLON, nombre_clave_generado, local_only=True):
-                manejadorGit.eliminarRama(
-                    settings.RUTACLON, nombre_clave_generado, local=True)
-            return False  # Falló la fase de creación
-
-    elif res_paso1_1 == "reintentar_seleccion":
-        logging.info(
-            f"{logPrefix} Paso 1.1 no seleccionó archivo o IA no vio refactor. Script se detendrá. Fase OK.")
-        return True  # Fase OK, el script se detendrá y reintentará en la próxima ejecución
-
-    elif res_paso1_1 == "ciclo_terminado_sin_accion":
-        logging.info(
-            f"{logPrefix} Paso 1.1 no encontró acción (ej. no hay archivos válidos). Script se detendrá. Fase OK.")
-        return True  # Fase OK, el script se detendrá
-
-    else:  # Resultado inesperado de paso1_1_seleccion_y_decision_inicial
-        logging.error(
-            f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Fase de creación fallida.")
-        return False  # Falló la fase de creación
-
+    # Estrategia 2: Si no se creó desde TODO.md, intentar por selección de archivo
+    logging.info(f"{logPrefix} No se creó misión desde TODO.md. Procediendo con selección de archivo estándar.")
+    return _intentarCrearMisionDesdeSeleccionArchivo(api_provider, modo_automatico, registro_archivos_analizados)
 
 def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
+    variable = "text"
     logPrefix = f"ejecutarFaseDelAgente({api_provider.upper()}):"
     logging.info(f"{logPrefix} ===== INICIO FASE AGENTE =====")
-
+    
+    
     if not _validarConfiguracionEsencial(api_provider):
         return False
     if api_provider == 'google' and settings.GEMINIAPIKEY and not analizadorCodigo.configurarGemini():

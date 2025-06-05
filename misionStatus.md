@@ -90,17 +90,6 @@ Objetivo: Asegurar la robustez del núcleo del sistema y corregir problemas fund
     *   Modificar el sistema para que el archivo de misión (actualmente `misionOrion.md`) se nombre dinámicamente usando el `nombre_clave_mision` (ej. `<nombre_clave_mision>.md`).
 2.  [x] **(CRÍTICO)** **Centralización de Archivos de Estado y Logs en el Repositorio Clonado:**
     *   Mover los archivos de estado del agente (`.active_mission`, `registro_archivos_analizados.json`) y el log principal (`historial_refactor_adaptativo.log`, y otros como `mapaArchivos`, `historial_misiones`) al directorio del repositorio clonado (`settings.RUTACLON`), dentro de una subcarpeta dedicada (ej. `.orion_meta/`).
-    *   **Subtareas:**
-        *   [x] Crear la carpeta `.orion_meta/` si no existe.
-        *   [x] Añadir `.orion_meta/` al `.gitignore` del repositorio `1ndoryu-refactor` (el proyecto del agente mismo) para no versionar los metadatos de los repositorios que analiza, pero **no** al `.gitignore` de los repositorios clonados (ya que esos metadatos sí deben persistir con el clon).
-        *   [x] Actualizar las constantes y funciones de carga/guardado en `principal.py` (ej. `ACTIVE_MISSION_STATE_FILE`, `REGISTRO_ARCHIVOS_ANALIZADOS_PATH`, `cargar_estado_mision_activa`, etc.).
-            *   [x] ruta y el nombre del archivo de log principal para que se almacene en settings.RUTACLON/.orion_meta/historial_refactor_adaptativo.log
-            *   [x] Actualizar la constante REGISTRO_ARCHIVOS_ANALIZADOS_PATH en principal.py para que apunte a settings.RUTACLON/.orion_meta/registro_archivos_analizados.json.
-            *   [x] Actualizar la constante ACTIVE_MISSION_STATE_FILE en principal.py para que apunte a settings.RUTACLON/.orion_meta/.active_mission.
-            *   [x] Actualizar la constante RUTAHISTORIAL en config/settings.py para que apunte a settings.RUTACLON/.orion_meta/ (y decidir un nombre de archivo para el historial de manejadorHistorial.py si historial_refactor_adaptativo.log ya está tomado por el log principal, por ejemplo, historial_acciones_mision.log).
-            *   [*PARCIALMENTECOMPLETADA*] Actualizar las funciones de carga/guardado en principal.py (guardar_registro_archivos, guardar_estado_mision_activa) para que incluyan os.makedirs(os.path.dirname(RUTA_AL_ARCHIVO), exist_ok=True).
-            *   [x] Revisar y actualizar realizarReseteoAgente en principal.py para asegurar que limpie los archivos en sus nuevas ubicaciones.
-        *   [x] Verificar y actualizar la función `realizarReseteoAgente` (comando `--reset`) para que limpie correctamente estos archivos en sus nuevas ubicaciones.
 3.  [ ] **(ALTO)** **Mecanismo de Validación Post-Cambio y Auto-Corrección/Reversión:**
     *   Implementar un paso de validación después de que `aplicadorCambios.aplicarCambiosSobrescrituraV2` aplique los cambios de una tarea.
     *   **Subtareas:**
