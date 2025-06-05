@@ -1,7 +1,7 @@
 import os
 import logging
-import json  # Para formatearEntradaHistorial
-from datetime import datetime  # Para formatearEntradaHistorial
+import json
+from datetime import datetime
 from config import settings
 
 log = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ def cargarHistorial():
     historial = []
     rutaArchivoHistorial = settings.RUTAHISTORIAL
     if not os.path.exists(rutaArchivoHistorial):
-        logging.info(
+        log.info(
             f"{logPrefix} Archivo de historial no encontrado en {rutaArchivoHistorial}. Iniciando historial vacío.")
         return historial
     try:
@@ -27,10 +27,10 @@ def cargarHistorial():
                     buffer += line
             if buffer:
                 historial.append(buffer.strip())
-        logging.info(
+        log.info(
             f"{logPrefix} Historial cargado desde {rutaArchivoHistorial} ({len(historial)} entradas).")
     except Exception as e:
-        logging.error(
+        log.error(
             f"{logPrefix} Error crítico cargando historial desde {rutaArchivoHistorial}: {e}. Se procederá con historial vacío.")
         historial = []
     return historial
@@ -55,14 +55,14 @@ def guardarHistorial(historial):
         num_entradas_guardadas = num_entradas_originales - entradas_filtradas_paso1
 
         if entradas_filtradas_paso1 > 0:
-            logging.warning(
+            log.warning(
                 f"{logPrefix} **TEMPORALMENTE** se filtraron y NO se guardaron {entradas_filtradas_paso1} entradas con '[[ERROR_PASO1]]'.")
 
-        logging.info(
+        log.info(
             f"{logPrefix} Historial guardado en {rutaArchivoHistorial} ({num_entradas_guardadas} entradas escritas de {num_entradas_originales} originales).")
         return True
     except Exception as e:
-        logging.error(
+        log.error(
             f"{logPrefix} Error crítico guardando historial en {rutaArchivoHistorial}: {e}")
         return False
 
