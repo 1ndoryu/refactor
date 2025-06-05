@@ -5,7 +5,7 @@ import tempfile
 import shutil
 import json
 import logging
-from nucleo.aplicadorCambios import aplicarCambiosSobrescritura
+from nucleo.aplicadorCambios import aplicarCambiosSobrescrituraV1
 
 # Configura un logger básico para ver los logs de la función durante las pruebas
 # Esto es importante para ver los logs DEBUG que añadimos
@@ -37,7 +37,7 @@ class TestAplicadorCambios(unittest.TestCase):
         params_original = {"archivo": ruta_relativa}
 
         # Llama a la función bajo prueba
-        success, error_msg = aplicarCambiosSobrescritura(
+        success, error_msg = aplicarCambiosSobrescrituraV1(
             archivos_con_contenido,
             self.test_dir,  # Ruta base es el directorio temporal
             accion_original,
@@ -46,7 +46,7 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # Verifica que la función reportó éxito
         self.assertTrue(
-            success, f"aplicarCambiosSobrescritura falló: {error_msg}")
+            success, f"aplicarCambiosSobrescrituraV1 falló: {error_msg}")
         self.assertIsNone(
             error_msg, f"Se esperaba error_msg None, pero fue: {error_msg}")
 
@@ -128,7 +128,7 @@ class TestAplicadorCambios(unittest.TestCase):
         """
         Prueba si el contenido tiene comillas y barras que necesitan escaparse en JSON.
         La entrada simula CÓMO LLEGARÍA la cadena DESPUÉS de `json.loads`.
-        `aplicarCambiosSobrescritura` recibe la cadena ya parseada.
+        `aplicarCambiosSobrescrituraV1` recibe la cadena ya parseada.
         El test verifica que `unicode_escape` maneje barras escapadas correctamente.
         """
         # Cadena original deseada: print("Hola \\ \"mundo\"")
@@ -168,7 +168,7 @@ class TestAplicadorCambios(unittest.TestCase):
         """
         # Lo que Gemini enviaría en el JSON (simplificado): "$log = \"Error:\\nDetalles\";"
         # Después de json.loads, la cadena Python sería: '$log = "Error:\\nDetalles";'
-        # Esta es la cadena que recibe aplicarCambiosSobrescritura.
+        # Esta es la cadena que recibe aplicarCambiosSobrescrituraV1.
         entrada_gemini = '$log_message = "Detalles de scriptsOrdenados:\\n" . implode("\\n", $error_log) . "\\n";'
 
         # El contenido EXACTO que esperamos en el archivo .php final.
@@ -187,7 +187,7 @@ class TestAplicadorCambios(unittest.TestCase):
         (como en un 'echo' de PHP con CSS).
         Este es el caso opuesto a test_11. Aquí SÍ queremos la conversión.
         """
-        # La cadena que recibe aplicarCambiosSobrescritura (simulando post-json.loads)
+        # La cadena que recibe aplicarCambiosSobrescrituraV1 (simulando post-json.loads)
         # Nota el uso de \\n para representar la secuencia literal \n
         entrada_gemini = (
             'function loadingBar()\\n'
