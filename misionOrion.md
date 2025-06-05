@@ -37,7 +37,7 @@ Se necesita contexto adicional para entender cómo se generan y consumen estas e
 ---
 ### Tarea RH-LOAD-001: Adaptar cargarHistorial para formato JSON
 - **ID:** RH-LOAD-001
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Modificar la función `cargarHistorial` en `nucleo/manejadorHistorial.py` para que lea y parse las entradas del historial como objetos JSON, en lugar de cadenas de texto delimitadas por `--- END ENTRY ---`.
 - **Archivos Implicados Específicos (Opcional):** nucleo/manejadorHistorial.py
 - **Intentos:** 0
