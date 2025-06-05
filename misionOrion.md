@@ -23,7 +23,7 @@ Se necesita contexto adicional para entender cómo se generan y consumen estas e
 ---
 ### Tarea RH-LOG-001: Consistencia de Logging en manejadorHistorial.py
 - **ID:** RH-LOG-001
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Reemplazar todas las llamadas directas a `logging.info` y `logging.error` en `nucleo/manejadorHistorial.py` por la instancia `log` ya definida (ej. `log.info`, `log.error`) para asegurar la consistencia en el uso del logger.
 - **Archivos Implicados Específicos (Opcional):** nucleo/manejadorHistorial.py
 - **Intentos:** 0
