@@ -9,20 +9,19 @@ import subprocess
 import time
 import signal
 import re  # Para parseo robusto de misionOrion.md
-from datetime import datetime, timedelta
+from datetime import datetime
 from config import settings
 from nucleo import manejadorGit
 from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 from nucleo import manejadorHistorial
 from nucleo import manejadorMision
+from nucleo import token_manager # NEW IMPORT
 
 # --- Nuevas Constantes y Variables Globales ---
 REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(
     settings.RUTACLON, ".orion_meta", "registro_archivos_analizados.json")
-TOKEN_LIMIT_PER_MINUTE = getattr(
-    settings, 'TOKEN_LIMIT_PER_MINUTE', 250000)
-token_usage_window = []
+# TOKEN_LIMIT_PER_MINUTE and token_usage_window moved to token_manager.py
 
 # --- Archivo para persistir el estado de la misión activa ---
 ACTIVE_MISSION_STATE_FILE = os.path.join(
@@ -34,48 +33,6 @@ ACTIVE_MISSION_STATE_FILE = os.path.join(
 class TimeoutException(Exception):
     """Excepción para indicar que el tiempo límite de ejecución fue alcanzado."""
     pass
-
-# --- Funciones para el manejo de tokens (NUEVO) ---
-
-
-def gestionar_limite_tokens(tokens_a_usar_estimados: int, proveedor_api: str):
-    global token_usage_window
-    logPrefix = "gestionar_limite_tokens:"
-    ahora = datetime.now()
-    token_usage_window = [
-        (ts, count) for ts, count in token_usage_window if ahora - ts < timedelta(seconds=60)
-    ]
-    tokens_usados_en_ventana = sum(count for _, count in token_usage_window)
-    logging.debug(
-        f"{logPrefix} Tokens usados en los últimos 60s: {tokens_usados_en_ventana}. A usar: {tokens_a_usar_estimados}")
-
-    if tokens_usados_en_ventana + tokens_a_usar_estimados > TOKEN_LIMIT_PER_MINUTE:
-        segundos_a_esperar = 60 - \
-            (ahora - token_usage_window[0][0]
-             ).total_seconds() if token_usage_window else 60
-        segundos_a_esperar = max(1, int(segundos_a_esperar) + 1)
-        logging.info(f"{logPrefix} Límite de tokens ({TOKEN_LIMIT_PER_MINUTE}/min) excedería. "
-                     f"Usados: {tokens_usados_en_ventana}. A usar: {tokens_a_usar_estimados}. "
-                     f"Pausando por {segundos_a_esperar} segundos...")
-        time.sleep(segundos_a_esperar)
-        return gestionar_limite_tokens(tokens_a_usar_estimados, proveedor_api)
-    logging.info(
-        f"{logPrefix} OK para proceder con {tokens_a_usar_estimados} tokens (estimados).")
-    return True
-
-
-def registrar_tokens_usados(tokens_usados: int):
-    global token_usage_window
-    token_usage_window.append((datetime.now(), tokens_usados))
-    ahora = datetime.now()
-    token_usage_window = [
-        (ts, count) for ts, count in token_usage_window if ahora - ts < timedelta(seconds=60)
-    ]
-    tokens_usados_en_ventana_actual = sum(
-        count for _, count in token_usage_window)
-    logging.debug(
-        f"Registrados {tokens_usados} tokens. Ventana actual ({TOKEN_LIMIT_PER_MINUTE}/min): {tokens_usados_en_ventana_actual} tokens usados.")
-
 
 # --- Funciones para el registro de archivos analizados (NUEVO) ---
 def cargar_registro_archivos():
@@ -448,12 +405,12 @@ def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archi
     tokens_estimados = 500 + tokens_contenido + \
         tokens_estructura
 
-    gestionar_limite_tokens(tokens_estimados, api_provider)
+    token_manager.gestionar_limite_tokens(tokens_estimados, api_provider)
 
     decision_IA_paso1_1 = analizadorCodigo.solicitar_evaluacion_archivo(
         archivo_seleccionado_rel, contenido_archivo, estructura_proyecto, api_provider, ""
     )
-    registrar_tokens_usados(decision_IA_paso1_1.get(
+    token_manager.registrar_tokens_usados(decision_IA_paso1_1.get(
         "tokens_consumidos_api", tokens_estimados) if decision_IA_paso1_1 else tokens_estimados)
 
     if not decision_IA_paso1_1 or not decision_IA_paso1_1.get("necesita_refactor"):
@@ -504,14 +461,14 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
     tokens_contexto_mision = resultado_lectura_ctx['tokens']
     tokens_estimados = 700 + tokens_contexto_mision  # 700 para prompt base
 
-    gestionar_limite_tokens(tokens_estimados, api_provider)
+    token_manager.gestionar_limite_tokens(tokens_estimados, api_provider)
 
     contenido_mision_generado_dict = analizadorCodigo.generar_contenido_mision_orion(
         archivo_a_refactorizar_rel, contexto_completo_para_mision,
         decision_paso1_1.get("razonamiento"), api_provider,
         archivos_contexto_generacion_rel_list=archivos_contexto_para_crear_mision_rel
     )
-    registrar_tokens_usados(contenido_mision_generado_dict.get(
+    token_manager.registrar_tokens_usados(contenido_mision_generado_dict.get(
         "tokens_consumidos_api", tokens_estimados) if contenido_mision_generado_dict else tokens_estimados)
 
     if not contenido_mision_generado_dict or \
@@ -704,12 +661,12 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         contenido_mision_actual_md + tarea_actual_info.get('descripcion', ''), api_provider)
     tokens_estimados = 800 + tokens_contexto_tarea + tokens_mision_y_tarea_desc
 
-    gestionar_limite_tokens(tokens_estimados, api_provider)
+    token_manager.gestionar_limite_tokens(tokens_estimados, api_provider)
 
     resultado_ejecucion_tarea = analizadorCodigo.ejecutar_tarea_especifica_mision(
         tarea_actual_info, contenido_mision_actual_md, contexto_para_tarea_str, api_provider
     )
-    registrar_tokens_usados(resultado_ejecucion_tarea.get(
+    token_manager.registrar_tokens_usados(resultado_ejecucion_tarea.get(
         "tokens_consumidos_api", tokens_estimados) if resultado_ejecucion_tarea else tokens_estimados)
 
     contenido_mision_post_tarea = contenido_mision_actual_md  # Inicializar
@@ -860,12 +817,12 @@ def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
         
         logging.info(f"{logPrefix} TODO.md con contenido. Intentando generar misión.")
         tokens_estimados = 700 + analizadorCodigo.contarTokensTexto(contenido_todo_md, api_provider)
-        gestionar_limite_tokens(tokens_estimados, api_provider)
+        token_manager.gestionar_limite_tokens(tokens_estimados, api_provider)
 
         mision_dict = analizadorCodigo.generar_contenido_mision_desde_texto_guia(
             settings.RUTACLON, contenido_todo_md, "TODO.md", api_provider
         )
-        registrar_tokens_usados(mision_dict.get("tokens_consumidos_api", tokens_estimados) if mision_dict else tokens_estimados)
+        token_manager.registrar_tokens_usados(mision_dict.get("tokens_consumidos_api", tokens_estimados) if mision_dict else tokens_estimados)
 
         if not mision_dict or not mision_dict.get("nombre_clave_mision") or not mision_dict.get("contenido_markdown_mision"):
             logging.warning(f"{logPrefix} IA no generó misión válida desde TODO.md. Respuesta: {mision_dict}")
@@ -989,7 +946,7 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
 
 def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
     logPrefix = f"ejecutarFaseDelAgente({api_provider.upper()}):"
-    logging.info(f"{logPrefix} ===== INICIO FASE AGENTE =====")
+    logging.info(f"{logPrefix} ===== INICIO FASE AGENTE ====")
     
     
     if not _validarConfiguracionEsencial(api_provider):
