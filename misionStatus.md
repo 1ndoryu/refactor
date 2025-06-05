@@ -208,6 +208,8 @@ Objetivo: Mejorar la eficiencia, la gestión de recursos y la mantenibilidad a l
 Este documento debe ser la guía principal para el desarrollo y refactorización de Misión Orion.
 ---
 
+*PROMPT HELPER*
+
 Revisa el archivo misionStatus.md que te he proporcionado.
 Con base en la primera tarea pendiente crítica o problema activo que identifiques en misionStatus.md (prioriza las de la sección "Problemas Activos" o "Tareas Pendientes Críticas"):
 Identifica el archivo (.py) que necesita ser modificado para abordar esa tarea.
