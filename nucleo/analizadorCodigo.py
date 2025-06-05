@@ -788,12 +788,12 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
 ```json
 {
   "nombre_clave_mision": "UnNombreCortoYUnicoParaLaMision",
-  "contenido_markdown_mision": "Contenido completo en formato Markdown para el archivo misionOrion.md"
+  "contenido_markdown_mision": "Contenido completo en formato Markdown para el archivo de misión"
 }
 ```""",
         "REGLAS PARA EL JSON:",
         "1. `nombre_clave_mision`: String. Debe ser corto (máx 30-40 chars), descriptivo, usar CamelCase o snake_case (preferiblemente con guiones bajos si es snake_case, ej. `Refactor_Login_Handler`), y ser adecuado para un nombre de rama Git (ej: `RefactorLoginHandler`, `OptimizarQueriesDB_123`). Intenta que sea único añadiendo un identificador numérico corto si es una tarea común.",
-        "2. `contenido_markdown_mision`: String. Este es el contenido completo del archivo `misionOrion.md`. Debe seguir ESTRICTAMENTE el siguiente formato:",
+        "2. `contenido_markdown_mision`: String. Este es el contenido completo para el archivo de misión (cuyo nombre será `[nombre_clave_mision].md`, donde `[nombre_clave_mision]` es el valor que generes para la clave `nombre_clave_mision` en este mismo JSON). Debe seguir ESTRICTAMENTE el siguiente formato:",
         "   ```markdown",
         "   # Misión: [nombre_clave_mision] (Debe coincidir con el JSON y la clave 'Nombre Clave' abajo)",
         "",
@@ -880,7 +880,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         # Validaciones básicas del contenido generado
         if f"# Misión: {nombre_clave_json}" not in contenido_md:
             log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide exactamente con el título '# Misión: ...' en el contenido_markdown_mision.")
-        if f"- **Nombre Clave:** {nombre_clave_json}" not in contenido_md:
+        if f"- **Nombre Clave:** {nombre_clave_json}" not in contenido_md: # CORREGIDO AQUÍ
             log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide con el metadato '- **Nombre Clave:** ...' en el contenido_markdown_mision.")
         if "### Tarea" not in contenido_md and "Revisar archivo" not in contenido_md : # Chequeo muy básico de si hay tareas
              log.warning(f"{logPrefix} El contenido_markdown_mision generado parece NO TENER TAREAS DEFINIDAS (no se encontró '### Tarea'). Esto podría ser un problema para el parser. Razonamiento original: {razonamiento_paso1_1}")
