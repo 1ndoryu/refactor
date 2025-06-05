@@ -292,12 +292,12 @@ def generar_contenido_mision_desde_texto_guia(ruta_repo: str, contenido_texto_gu
 ```json
 {
   "nombre_clave_mision": "UnNombreCortoYUnicoParaLaMision",
-  "contenido_markdown_mision": "Contenido completo en formato Markdown para el archivo misionOrion.md"
+  "contenido_markdown_mision": "Contenido completo en formato Markdown para el archivo de misión"
 }
 ```""",
         "REGLAS PARA EL JSON:",
         f"1. `nombre_clave_mision`: String. Debe ser corto (máx 30-40 chars), descriptivo, usar CamelCase o snake_case (preferiblemente con guiones bajos, ej. `Mision_Desde_TODO_{timestamp_actual}`), y ser adecuado para un nombre de rama Git. Intenta que sea único. Considera usar '{timestamp_actual}' como parte del nombre si es genérico.",
-        "2. `contenido_markdown_mision`: String. Este es el contenido completo del archivo `misionOrion.md`. Debe seguir ESTRICTAMENTE el siguiente formato:",
+        "2. `contenido_markdown_mision`: String. Este es el contenido completo para el archivo de misión (cuyo nombre será `[nombre_clave_mision].md`, donde `[nombre_clave_mision]` es el valor que generes para la clave `nombre_clave_mision` en este mismo JSON). Debe seguir ESTRICTAMENTE el siguiente formato:",
         "   ```markdown",
         "   # Misión: [nombre_clave_mision] (Debe coincidir con el JSON y la clave 'Nombre Clave' abajo)",
         "",

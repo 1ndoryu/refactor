@@ -1,6 +1,6 @@
 # principal.py
 
-import logging
+import logging 
 import sys
 import os
 import json
@@ -474,6 +474,9 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
     logPrefix = f"paso2_ejecutar_tarea_mision (Rama: {nombre_rama_mision}):"
     logging.info(f"{logPrefix} Iniciando ejecución de tarea.")
 
+    # Nombre del archivo de misión dinámico
+    nombre_archivo_mision = f"{nombre_rama_mision}.md"
+
     # Asegurar estar en la rama correcta (doble check)
     if manejadorGit.obtener_rama_actual(ruta_repo) != nombre_rama_mision:
         logging.warning(
@@ -484,21 +487,21 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
             # Retorna (estado_final_fase, contenido_mision_actualizado_o_none)
             return "error_critico_git", None
 
-    ruta_mision_actual_md = os.path.join(ruta_repo, MISION_ORION_MD)
+    ruta_mision_actual_md = os.path.join(ruta_repo, nombre_archivo_mision)
     contenido_mision_actual_md = ""
     if os.path.exists(ruta_mision_actual_md):
         with open(ruta_mision_actual_md, 'r', encoding='utf-8') as f:
             contenido_mision_actual_md = f.read()
     else:
         logging.error(
-            f"{logPrefix} {MISION_ORION_MD} no encontrado en la rama '{nombre_rama_mision}'. Abortando tarea.")
+            f"{logPrefix} Archivo de misión '{nombre_archivo_mision}' no encontrado en la rama '{nombre_rama_mision}'. Abortando tarea.")
         return "error_critico_mision_no_encontrada", None
 
     metadatos_mision, lista_tareas_mision, _ = manejadorMision.parsear_mision_orion(
         contenido_mision_actual_md)
     if not metadatos_mision:
         logging.error(
-            f"{logPrefix} Fallo al re-parsear {MISION_ORION_MD} desde la rama. Abortando tarea.")
+            f"{logPrefix} Fallo al re-parsear '{nombre_archivo_mision}' desde la rama. Abortando tarea.")
         return "error_critico_parseo_mision", contenido_mision_actual_md
 
     tarea_actual_info, _ = manejadorMision.obtener_proxima_tarea_pendiente(
@@ -632,12 +635,12 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         try:
             with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f:
                 f.write(contenido_mision_post_tarea)
-            if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' FALLIDA_TEMPORALMENTE (IA)", [MISION_ORION_MD]):
+            if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' FALLIDA_TEMPORALMENTE (IA)", [nombre_archivo_mision]):
                 logging.error(
-                    f"{logPrefix} No se pudo commitear {MISION_ORION_MD} (tarea fallida IA).")
+                    f"{logPrefix} No se pudo commitear {nombre_archivo_mision} (tarea fallida IA).")
         except Exception as e:
             logging.error(
-                f"{logPrefix} Error guardando/commiteando {MISION_ORION_MD} (tarea fallida IA): {e}")
+                f"{logPrefix} Error guardando/commiteando {nombre_archivo_mision} (tarea fallida IA): {e}")
             return "error_critico_actualizando_mision", contenido_mision_actual_md
         return "tarea_fallida", contenido_mision_post_tarea
 
@@ -651,14 +654,14 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         try:
             with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f:
                 f.write(contenido_mision_post_tarea)
-            if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' SALTADA", [MISION_ORION_MD]):
+            if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' SALTADA", [nombre_archivo_mision]):
                 # No crítico para el flujo
                 logging.error(
-                    f"{logPrefix} No se pudo commitear {MISION_ORION_MD} (tarea saltada).")
+                    f"{logPrefix} No se pudo commitear {nombre_archivo_mision} (tarea saltada).")
         except Exception as e:
             # No crítico
             logging.error(
-                f"{logPrefix} Error guardando {MISION_ORION_MD} (tarea saltada): {e}")
+                f"{logPrefix} Error guardando {nombre_archivo_mision} (tarea saltada): {e}")
         manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
             manejadorHistorial.formatearEntradaHistorial(
                 outcome=f"PASO2_TAREA_SALTADA:{nombre_rama_mision}", decision=tarea_actual_info, result_details=resultado_ejecucion_tarea.get("advertencia_ejecucion"))
@@ -692,12 +695,12 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
             try:
                 with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f:
                     f.write(contenido_mision_post_tarea)
-                if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' FALLIDA_TEMPORALMENTE (apply)", [MISION_ORION_MD]):
+                if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' FALLIDA_TEMPORALMENTE (apply)", [nombre_archivo_mision]):
                     logging.error(
-                        f"{logPrefix} No se pudo commitear {MISION_ORION_MD} (tarea fallida apply).")
+                        f"{logPrefix} No se pudo commitear {nombre_archivo_mision} (tarea fallida apply).")
             except Exception as e:
                 logging.error(
-                    f"{logPrefix} Error guardando/commiteando {MISION_ORION_MD} (tarea fallida apply): {e}")
+                    f"{logPrefix} Error guardando/commiteando {nombre_archivo_mision} (tarea fallida apply): {e}")
             return "tarea_fallida", contenido_mision_post_tarea
 
         commit_msg = f"Tarea ID {tarea_id} ({tarea_titulo[:50]}) completada (Misión {nombre_rama_mision})"
@@ -717,13 +720,13 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f:
             f.write(contenido_mision_post_tarea)
     except Exception as e:
-        logging.error(f"{logPrefix} Error guardando {MISION_ORION_MD}: {e}")
+        logging.error(f"{logPrefix} Error guardando {nombre_archivo_mision}: {e}")
         return "error_critico_actualizando_mision", contenido_mision_actual_md
 
-    if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Actualizar Misión '{nombre_rama_mision}', Tarea '{tarea_id}' completada", [MISION_ORION_MD]):
+    if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Actualizar Misión '{nombre_rama_mision}', Tarea '{tarea_id}' completada", [nombre_archivo_mision]):
         # No crítico para el flujo principal de tarea
         logging.error(
-            f"{logPrefix} No se pudo commitear actualización de {MISION_ORION_MD}.")
+            f"{logPrefix} No se pudo commitear actualización de {nombre_archivo_mision}.")
 
     manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
         manejadorHistorial.formatearEntradaHistorial(
@@ -786,6 +789,7 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                             "nombre_clave_mision"]
                         contenido_markdown_mision_todo = contenido_mision_generado_dict_todo[
                             "contenido_markdown_mision"]
+                        nombre_archivo_mision_todo = f"{nombre_clave_mision_todo}.md" # Nombre dinámico
                         rama_base_todo = manejadorGit.obtener_rama_actual(
                             settings.RUTACLON) or settings.RAMATRABAJO
 
@@ -796,11 +800,11 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                             logging.info(
                                 f"{logPrefix} En rama de misión (desde TODO.md): '{nombre_clave_mision_todo}' (desde '{rama_base_todo}')")
                             try:
-                                with open(os.path.join(settings.RUTACLON, MISION_ORION_MD), 'w', encoding='utf-8') as f_mision_todo:
+                                with open(os.path.join(settings.RUTACLON, nombre_archivo_mision_todo), 'w', encoding='utf-8') as f_mision_todo: # Usar nombre dinámico
                                     f_mision_todo.write(
                                         contenido_markdown_mision_todo)
                                 logging.info(
-                                    f"{logPrefix} {MISION_ORION_MD} (desde TODO.md) guardado en rama '{nombre_clave_mision_todo}'")
+                                    f"{logPrefix} {nombre_archivo_mision_todo} (desde TODO.md) guardado en rama '{nombre_clave_mision_todo}'") # Log con nombre dinámico
 
                                 _, tareas_gen_todo, hay_pendientes_gen_todo = manejadorMision.parsear_mision_orion(
                                     contenido_markdown_mision_todo)
@@ -817,14 +821,14 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                                     logging.info(
                                         f"{logPrefix} Rama de misión (desde TODO.md) '{nombre_clave_mision_todo}' eliminada. Procediendo con flujo normal.")
                                 else:
-                                    if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave_mision_todo}", [MISION_ORION_MD]):
+                                    if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave_mision_todo}", [nombre_archivo_mision_todo]): # Usar nombre dinámico
                                         logging.error(
-                                            f"{logPrefix} No se pudo hacer commit de {MISION_ORION_MD} (desde TODO.md) en '{nombre_clave_mision_todo}'.")
+                                            f"{logPrefix} No se pudo hacer commit de {nombre_archivo_mision_todo} (desde TODO.md) en '{nombre_clave_mision_todo}'.") # Log con nombre dinámico
                                     else:
                                         logging.info(
                                             f"{logPrefix} Misión (desde TODO.md) '{nombre_clave_mision_todo}' generada y commiteada.")
                                         manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-                                            manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_MISION_GENERADA:{nombre_clave_mision_todo}", result_details=f"Fuente: TODO.md")])
+                                            manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_MISION_GENERADA:{nombre_clave_mision_todo}", result_details=f"Fuente: TODO.md, Archivo: {nombre_archivo_mision_todo}")])
                                         guardar_estado_mision_activa(
                                             nombre_clave_mision_todo)
                                         if modo_automatico:
@@ -833,7 +837,7 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                                         mision_desde_todo_creada_ok = True
                             except Exception as e_write_todo_mision:
                                 logging.error(
-                                    f"{logPrefix} Error guardando {MISION_ORION_MD} (desde TODO.md): {e_write_todo_mision}", exc_info=True)
+                                    f"{logPrefix} Error guardando {nombre_archivo_mision_todo} (desde TODO.md): {e_write_todo_mision}", exc_info=True) # Log con nombre dinámico
                                 manejadorGit.cambiar_a_rama_existente(
                                     settings.RUTACLON, rama_base_todo)
                                 manejadorGit.eliminarRama(
@@ -872,12 +876,18 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
             settings.RUTACLON, archivo_sel, ctx_sel, decision_ia_1_1, api_provider)
 
         if res_paso1_2 == "mision_generada_ok" and nombre_clave_generado:
+            nombre_archivo_mision_generada = f"{nombre_clave_generado}.md" # Nombre dinámico
             ruta_mision_generada_md = os.path.join(
-                settings.RUTACLON, MISION_ORION_MD)
+                settings.RUTACLON, nombre_archivo_mision_generada) # Usar nombre dinámico
             contenido_mision_generada_md = ""
             if os.path.exists(ruta_mision_generada_md):
-                with open(ruta_mision_generada_md, 'r', encoding='utf-8') as f:
-                    contenido_mision_generada_md = f.read()
+                try:
+                    with open(ruta_mision_generada_md, 'r', encoding='utf-8') as f:
+                        contenido_mision_generada_md = f.read()
+                except Exception as e_read_gen_mision:
+                     logging.error(f"{logPrefix} Error leyendo el archivo de misión recién generado '{nombre_archivo_mision_generada}': {e_read_gen_mision}", exc_info=True)
+                     # Podríamos decidir fallar aquí o continuar sin la validación de tareas.
+                     # Por ahora, continuaremos, pero el log de error es importante.
 
             _, tareas_gen, hay_pendientes_gen = manejadorMision.parsear_mision_orion(
                 contenido_mision_generada_md)
@@ -886,10 +896,10 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
 
             if se_espera_refactor and (not tareas_gen or not hay_pendientes_gen):
                 logging.error(
-                    f"{logPrefix} ERROR DE GENERACIÓN: Paso 1.1 indicó refactor para '{archivo_sel}' pero misión '{nombre_clave_generado}' NO TIENE TAREAS PENDIENTES.")
+                    f"{logPrefix} ERROR DE GENERACIÓN: Paso 1.1 indicó refactor para '{archivo_sel}' pero misión '{nombre_clave_generado}' (archivo: {nombre_archivo_mision_generada}) NO TIENE TAREAS PENDIENTES.")
                 manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
                     manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO1.2_ERROR_MISION_SIN_TAREAS", decision=decision_ia_1_1,
-                                                                 error_message=f"Misión '{nombre_clave_generado}' generada sin tareas.")
+                                                                 error_message=f"Misión '{nombre_clave_generado}' generada sin tareas (archivo: {nombre_archivo_mision_generada}).")
                 ])
                 manejadorGit.cambiar_a_rama_existente(
                     settings.RUTACLON, settings.RAMATRABAJO)
@@ -901,7 +911,7 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
 
             guardar_estado_mision_activa(nombre_clave_generado)
             logging.info(
-                f"{logPrefix} Nueva misión estándar '{nombre_clave_generado}' creada y estado guardado. Script se detendrá para procesarla.")
+                f"{logPrefix} Nueva misión estándar '{nombre_clave_generado}' creada (archivo: {nombre_archivo_mision_generada}) y estado guardado. Script se detendrá para procesarla.")
             if modo_automatico:
                 manejadorGit.hacerPush(
                     settings.RUTACLON, nombre_clave_generado, setUpstream=True)
@@ -1086,8 +1096,9 @@ def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, mo
         # El cambio a RAMATRABAJO se gestionará en el flujo principal de ejecutarFaseDelAgente si es necesario antes de crear una nueva.
         return "PROCEDER_A_CREAR_NUEVA_MISION", True
 
-    # Se está en la rama de la misión activa. Revisar el misionOrion.md local.
-    resultadoPaso0, _, _, _ = paso0_revisar_mision_local(settings.RUTACLON)
+    # Se está en la rama de la misión activa. Revisar el archivo de misión específico.
+    # paso0_revisar_mision_local internamente usa nombreClaveMisionActiva para construir el nombre_archivo_mision.
+    resultadoPaso0, _, _, _ = paso0_revisar_mision_local(settings.RUTACLON, nombreClaveMisionActiva)
 
     if resultadoPaso0 == "procesar_mision_existente":
         logging.info(
@@ -1126,7 +1137,7 @@ def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, mo
 
         elif resultadoPaso2 == "tarea_fallida":
             # Una tarea falló (ej. FALLIDA_TEMPORALMENTE y se actualizaron intentos, o error de la IA).
-            # El estado de la misión se actualizó en misionOrion.md.
+            # El estado de la misión se actualizó en el archivo de misión de la rama.
             logging.error(
                 f"{logPrefix} Una tarea falló en la misión '{nombreClaveMisionActiva}'. El script se detendrá.")
             if modoAutomatico:
@@ -1155,7 +1166,10 @@ def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, mo
         return "PROCEDER_A_CREAR_NUEVA_MISION", True
 
     else:  # Casos de paso0: "no_hay_mision_local", "ignorar_mision_actual_y_crear_nueva"
-        logging.warning(f"{logPrefix} El archivo {MISION_ORION_MD} no fue encontrado o no es válido en la rama de misión activa '{nombreClaveMisionActiva}' (resultado de paso0: {resultadoPaso0}). Limpiando estado y procediendo a crear nueva misión.")
+        nombre_archivo_mision_esperado = f"{nombreClaveMisionActiva}.md"
+        logging.warning(f"{logPrefix} El archivo de misión '{nombre_archivo_mision_esperado}' (esperado para la misión activa '{nombreClaveMisionActiva}') "
+                        f"no fue encontrado o no es válido según paso0_revisar_mision_local (resultado: {resultadoPaso0}). "
+                        f"Limpiando estado y procediendo a crear nueva misión.")
         limpiar_estado_mision_activa()
         manejadorGit.cambiar_a_rama_existente(
             settings.RUTACLON, settings.RAMATRABAJO)

@@ -13,8 +13,6 @@ __pycache__/
 # Logs
 .log
 
-misionStatus.md
-
 # Directorio donde clonaremos temporalmente el proyecto a refactorizar
 clonProyecto/
 
