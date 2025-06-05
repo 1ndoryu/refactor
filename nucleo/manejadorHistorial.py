@@ -48,22 +48,24 @@ def guardarHistorial(historial):
     rutaArchivoHistorial = settings.RUTAHISTORIAL
     try:
         os.makedirs(os.path.dirname(rutaArchivoHistorial), exist_ok=True)
-        entradas_filtradas_paso1 = 0
+        entradas_filtradas_error = 0
         with open(rutaArchivoHistorial, 'w', encoding='utf-8') as f:
-            for entrada in historial:
-                if "[[ERROR_PASO1]]" in entrada:
-                    entradas_filtradas_paso1 += 1
-                    pass
+            for entrada_dict in historial:
+                # Check for the specific error status in the 'outcome' field
+                if entrada_dict.get("outcome") == "[[ERROR_PASO1]]":
+                    entradas_filtradas_error += 1
+                    log.debug(f"{logPrefix} Filtrando entrada con outcome '[[ERROR_PASO1]]'.")
+                    continue # Skip saving this entry
                 else:
-                    f.write(entrada.strip() + "\n")
-                    f.write("--- END ENTRY ---\n")
+                    # If not filtered, serialize the dict back to a JSON string and write it
+                    f.write(json.dumps(entrada_dict, ensure_ascii=False) + "\n")
 
         num_entradas_originales = len(historial)
-        num_entradas_guardadas = num_entradas_originales - entradas_filtradas_paso1
+        num_entradas_guardadas = num_entradas_originales - entradas_filtradas_error
 
-        if entradas_filtradas_paso1 > 0:
+        if entradas_filtradas_error > 0:
             log.warning(
-                f"{logPrefix} **TEMPORALMENTE** se filtraron y NO se guardaron {entradas_filtradas_paso1} entradas con '[[ERROR_PASO1]]'.")
+                f"{logPrefix} Se filtraron y NO se guardaron {entradas_filtradas_error} entradas con '[[ERROR_PASO1]]' en el campo 'outcome'.")
 
         log.info(
             f"{logPrefix} Historial guardado en {rutaArchivoHistorial} ({num_entradas_guardadas} entradas escritas de {num_entradas_originales} originales).")
