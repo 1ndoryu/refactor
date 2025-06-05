@@ -319,3 +319,227 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
     log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido)}.")
 
     return True, None
+
+def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
+    logPrefix = "aplicarCambiosSobrescrituraV2:"
+    log.info(f"{logPrefix} Applying changes for original action '{accionOriginal}' (V2 - no unicode_escape)...")
+    rutaBaseNorm = os.path.normpath(rutaBase)
+
+    if accionOriginal in ["eliminar_archivo", "crear_directorio"]:
+        targetRel = paramsOriginal.get("archivo") or paramsOriginal.get("directorio")
+        if not targetRel:
+            return False, f"Missing target parameter ('archivo' or 'directorio') for {accionOriginal}."
+        targetAbs = _validar_y_normalizar_ruta(targetRel, rutaBaseNorm, asegurar_existencia=False)
+        if targetAbs is None:
+            return False, f"Invalid or unsafe path provided for {accionOriginal}: '{targetRel}'"
+
+        if accionOriginal == "eliminar_archivo":
+            log.info(f"{logPrefix} Executing action '{accionOriginal}': Targeting {targetRel} (Abs: {targetAbs})")
+            if os.path.exists(targetAbs):
+                try:
+                    if os.path.isfile(targetAbs) or os.path.islink(targetAbs):
+                        os.remove(targetAbs)
+                        log.info(f"{logPrefix} File/Link '{targetRel}' deleted.")
+                    elif os.path.isdir(targetAbs):
+                        try:
+                            os.rmdir(targetAbs)
+                            log.info(f"{logPrefix} Empty directory '{targetRel}' deleted.")
+                        except OSError:
+                             err = f"Directory '{targetRel}' is not empty. Cannot delete."
+                             log.error(f"{logPrefix} {err}")
+                             return False, err
+                    else:
+                        err = f"Target '{targetRel}' exists but is not a file, link, or directory."
+                        log.error(f"{logPrefix} {err}")
+                        return False, err
+                    return True, None
+                except Exception as e:
+                    err = f"Error deleting '{targetRel}': {e}"
+                    log.error(f"{logPrefix} {err}", exc_info=True)
+                    return False, err
+            else:
+                log.warning(f"{logPrefix} Target '{targetRel}' not found for deletion. Considering successful.")
+                return True, None
+
+        elif accionOriginal == "crear_directorio":
+            log.info(f"{logPrefix} Executing action '{accionOriginal}': Creating directory {targetRel} (Abs: {targetAbs})")
+            exito_creacion = False
+            error_creacion = None
+            if os.path.exists(targetAbs):
+                if os.path.isdir(targetAbs):
+                    log.warning(f"{logPrefix} Directory '{targetRel}' already exists.")
+                    exito_creacion = True
+                else:
+                    err = f"Path '{targetRel}' exists but is not a directory. Cannot create directory."
+                    log.error(f"{logPrefix} {err}")
+                    error_creacion = err
+                    exito_creacion = False
+            else:
+                try:
+                    os.makedirs(targetAbs, exist_ok=True)
+                    log.info(f"{logPrefix} Directory '{targetRel}' created.")
+                    exito_creacion = True
+                except Exception as e:
+                    err = f"Error creating directory '{targetRel}': {e}"
+                    log.error(f"{logPrefix} {err}", exc_info=True)
+                    error_creacion = err
+                    exito_creacion = False
+
+            if exito_creacion:
+                gitkeep_path = os.path.join(targetAbs, '.gitkeep')
+                if not os.path.exists(gitkeep_path):
+                    try:
+                        with open(gitkeep_path, 'w', encoding='utf-8') as gk:
+                            pass
+                        log.info(f"{logPrefix} Archivo .gitkeep creado en '{targetRel}' para rastreo de Git.")
+                    except Exception as e_gk:
+                        log.warning(f"{logPrefix} No se pudo crear .gitkeep en '{targetRel}': {e_gk}")
+                else:
+                    log.debug(f"{logPrefix} Archivo .gitkeep ya existe en '{targetRel}'.")
+
+            return exito_creacion, error_creacion
+
+    if not isinstance(archivos_con_contenido, list):
+         err = f"Argument 'archivos_con_contenido' is not a list. Type received: {type(archivos_con_contenido)}"
+         log.error(f"{logPrefix} {err}")
+         return False, err
+
+    if not archivos_con_contenido and accionOriginal not in ["eliminar_archivo", "crear_directorio"]:
+        log.info(f"{logPrefix} 'archivos_con_contenido' está vacío para la acción '{accionOriginal}'. No se escribirán archivos.")
+        return True, None
+
+    log.info(f"{logPrefix} Processing {len(archivos_con_contenido)} file entry/entries for writing/modification...")
+    archivosProcesadosConCambio = 0
+    archivosProcesadosSinCambio = 0
+    errores = []
+
+    for item_archivo in archivos_con_contenido:
+        if not isinstance(item_archivo, dict) or "nombre" not in item_archivo or "contenido" not in item_archivo:
+            msg = f"Invalid item in 'archivos_con_contenido' list. Expected dict with 'nombre' and 'contenido'. Got: {item_archivo!r}"
+            log.error(f"{logPrefix} {msg}")
+            errores.append(msg)
+            continue
+
+        rutaRel = item_archivo["nombre"]
+        contenido_ia_original = item_archivo["contenido"]
+
+        archivoAbs = _validar_y_normalizar_ruta(rutaRel, rutaBaseNorm, asegurar_existencia=False)
+        if archivoAbs is None:
+            msg = f"Invalid or unsafe path ('{rutaRel}') received. File skipped."
+            log.error(f"{logPrefix} {msg}")
+            errores.append(msg)
+            continue
+
+        if not isinstance(contenido_ia_original, str):
+             log.warning(f"{logPrefix} Content for '{rutaRel}' is not string (type {type(contenido_ia_original)}). Converting to JSON string.")
+             try:
+                 contenido_ia_str = json.dumps(contenido_ia_original, indent=2, ensure_ascii=False)
+             except Exception as e_conv:
+                  log.error(f"{logPrefix} Could not convert non-string content to string for '{rutaRel}': {e_conv}. Skipping file.")
+                  errores.append(f"Invalid non-string content for {rutaRel}")
+                  continue
+        else:
+             contenido_ia_str = contenido_ia_original
+
+        dirPadre = os.path.dirname(archivoAbs)
+        try:
+            if dirPadre and not os.path.exists(dirPadre):
+                log.info(f"{logPrefix} Creating necessary parent directory: {dirPadre}")
+                os.makedirs(dirPadre, exist_ok=True)
+            elif dirPadre and not os.path.isdir(dirPadre):
+                 raise ValueError(f"Parent path '{dirPadre}' for file '{rutaRel}' exists but is NOT a directory.")
+        except Exception as e_dir:
+            msg = f"Error creating/validating parent directory '{dirPadre}' for '{rutaRel}': {e_dir}. File skipped."
+            log.error(f"{logPrefix} {msg}", exc_info=True)
+            errores.append(msg)
+            continue
+
+        contenido_nuevo_procesado = contenido_ia_str
+        log.debug(f"{logPrefix} Content FROM IA for '{rutaRel}' (raw, repr): {repr(contenido_nuevo_procesado[:200])}...")
+
+        # Bloque de codecs.decode(..., 'unicode_escape') ELIMINADO para V2
+
+        log.debug(f"{logPrefix} Content for IA (V2 - before mojibake) para '{rutaRel}' (repr): {repr(contenido_nuevo_procesado[:200])}...")
+
+        contenido_final_ia = contenido_nuevo_procesado
+        replacements_made_mojibake = False
+        temp_contenido_mojibake = contenido_nuevo_procesado
+
+        for mojibake, correct in MOJIBAKE_REPLACEMENTS.items():
+            if isinstance(temp_contenido_mojibake, str):
+                mojibake_str = str(mojibake) if not isinstance(mojibake, str) else mojibake
+                new_temp_contenido_mojibake = temp_contenido_mojibake.replace(mojibake_str, correct)
+                if new_temp_contenido_mojibake != temp_contenido_mojibake:
+                    if not replacements_made_mojibake:
+                        log.info(f"{logPrefix} CORRECCIÓN (Mojibake Replace): Se reemplazarán secuencias Mojibake para '{rutaRel}'.")
+                    log.debug(f"{logPrefix}   Reemplazado Mojibake: {repr(mojibake_str)} -> {repr(correct)}")
+                    replacements_made_mojibake = True
+                    temp_contenido_mojibake = new_temp_contenido_mojibake
+
+        if replacements_made_mojibake:
+            contenido_final_ia = temp_contenido_mojibake
+
+        log.debug(f"{logPrefix} FINAL PROCESSED content from IA for '{rutaRel}' (V2) (repr): {repr(contenido_final_ia[:200])}...")
+
+        contenido_original_disco = None
+        es_archivo_nuevo = not os.path.exists(archivoAbs)
+
+        if not es_archivo_nuevo:
+            try:
+                with open(archivoAbs, 'r', encoding='utf-8') as f_orig:
+                    contenido_original_disco = f_orig.read()
+            except Exception as e_read_orig:
+                msg = f"Error leyendo archivo original '{rutaRel}' para comparación: {e_read_orig}. Se tratará como creación."
+                log.warning(f"{logPrefix} {msg}", exc_info=True)
+                es_archivo_nuevo = True
+
+        escribir_archivo = False
+        if es_archivo_nuevo:
+            log.info(f"{logPrefix} Archivo '{rutaRel}' es NUEVO. Se escribirá.")
+            escribir_archivo = True
+        elif contenido_original_disco is None:
+            log.warning(f"{logPrefix} No se pudo leer el contenido original de '{rutaRel}' (existente). Se procederá a escribir el contenido de la IA.")
+            escribir_archivo = True
+        elif contenido_original_disco == contenido_final_ia:
+            log.info(f"{logPrefix} Archivo '{rutaRel}' no ha cambiado. No se sobrescribirá.")
+            archivosProcesadosSinCambio += 1
+        else:
+            log.info(f"{logPrefix} Archivo '{rutaRel}' HA CAMBIADO. Se sobrescribirá.")
+            escribir_archivo = True
+            if contenido_original_disco is not None:
+                diff_output = unified_diff(
+                    contenido_original_disco.splitlines(keepends=True),
+                    contenido_final_ia.splitlines(keepends=True),
+                    fromfile=f"a/{rutaRel}",
+                    tofile=f"b/{rutaRel}",
+                    lineterm=""
+                )
+                log.debug(f"{logPrefix} Diff para '{rutaRel}':\n" + "".join(diff_output))
+
+        if escribir_archivo:
+            try:
+                with open(archivoAbs, 'w', encoding='utf-8') as f_write:
+                    if isinstance(contenido_final_ia, str):
+                        f_write.write(contenido_final_ia)
+                    else:
+                        f_write.write(repr(contenido_final_ia))
+                        log.warning(f"{logPrefix} Contenido para '{rutaRel}' no era string al escribir (después de procesamiento IA), se usó repr().")
+
+                log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito exitosamente.")
+                archivosProcesadosConCambio += 1
+            except Exception as e_process_write:
+                 msg = f"Error final escribiendo archivo '{rutaRel}': {e_process_write}"
+                 log.error(f"{logPrefix} {msg}", exc_info=True)
+                 errores.append(msg)
+
+    if errores:
+        error_summary = f"Proceso completado con {len(errores)} error(es): {'; '.join(errores[:3])}{'...' if len(errores) > 3 else ''}"
+        log.error(f"{logPrefix} {error_summary}")
+        return False, error_summary
+
+    total_procesados_efectivamente = archivosProcesadosConCambio + archivosProcesadosSinCambio
+    log.info(f"{logPrefix} Procesamiento finalizado. {archivosProcesadosConCambio} archivos escritos/modificados.")
+    log.info(f"{logPrefix} {archivosProcesadosSinCambio} archivos no necesitaron cambios.")
+    log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido)}.")
+
+    return True, None
