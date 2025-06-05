@@ -4,6 +4,7 @@ import logging
 import json
 import random
 import re
+import datetime
 import google.generativeai as genai
 import google.generativeai.types as types
 import google.api_core.exceptions
@@ -269,6 +270,133 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
             f"{logPrefix} Error inesperado generando estructura: {e}", exc_info=True)
         return None
 
+
+def generar_contenido_mision_desde_texto_guia(ruta_repo: str, contenido_texto_guia: str, nombre_archivo_guia: str, api_provider: str):
+    """
+    Paso Alternativo 1.2: IA genera el contenido para misionOrion.md a partir de un texto guía (ej. TODO.md).
+    """
+    logPrefix = f"generar_contenido_mision_desde_texto_guia ({nombre_archivo_guia}/{api_provider.upper()}):"
+    logging.info(
+        f"{logPrefix} Generando misión a partir del contenido de '{nombre_archivo_guia}'.")
+
+    timestamp_actual = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    promptPartes = [
+        f"Eres un asistente de IA que planifica misiones de refactorización de código. Tu tarea es analizar el siguiente texto guía (proveniente del archivo '{nombre_archivo_guia}') y generar una misión de refactorización completa.",
+        "El texto guía NO tiene una estructura fija, debes interpretarlo para extraer tareas de desarrollo o refactorización.",
+        "\n--- CONTENIDO DEL TEXTO GUÍA A ANALIZAR ---",
+        contenido_texto_guia,
+        "\n--- TU TAREA: GENERAR LA MISIÓN ---",
+        "Debes generar ÚNICAMENTE un objeto JSON con la siguiente estructura:",
+        """
+```json
+{
+  "nombre_clave_mision": "UnNombreCortoYUnicoParaLaMision",
+  "contenido_markdown_mision": "Contenido completo en formato Markdown para el archivo misionOrion.md"
+}
+```""",
+        "REGLAS PARA EL JSON:",
+        f"1. `nombre_clave_mision`: String. Debe ser corto (máx 30-40 chars), descriptivo, usar CamelCase o snake_case (preferiblemente con guiones bajos, ej. `Mision_Desde_TODO_{timestamp_actual}`), y ser adecuado para un nombre de rama Git. Intenta que sea único. Considera usar '{timestamp_actual}' como parte del nombre si es genérico.",
+        "2. `contenido_markdown_mision`: String. Este es el contenido completo del archivo `misionOrion.md`. Debe seguir ESTRICTAMENTE el siguiente formato:",
+        "   ```markdown",
+        "   # Misión: [nombre_clave_mision] (Debe coincidir con el JSON y la clave 'Nombre Clave' abajo)",
+        "",
+        "   **Metadatos de la Misión:**",
+        "   - **Nombre Clave:** [nombre_clave_mision] (Debe coincidir con el JSON y el título)",
+        f"   - **Archivo Principal:** Basado en {nombre_archivo_guia}",
+        f"   - **Archivos de Contexto (Generación):** Ninguno (ya que la misión se basa en '{nombre_archivo_guia}')",
+        f"   - **Archivos de Contexto (Ejecución):** [lista_de_rutas_sin_corchetes_individuales] (Si el texto guía menciona archivos específicos que deberían ser contexto para ejecutar las tareas, lístalos aquí, separados por coma. Si no, escribe: `Ninguno`. IMPORTANTE: cada ruta NO DEBE contener corchetes `[` o `]` ni caracteres especiales. Deben ser rutas relativas limpias. Ejemplo: `app/utils.py, core/helper.php`.)",
+        f"   - **Razón (Paso 1.1):** Misión generada a partir del análisis de '{nombre_archivo_guia}'.",
+        "   - **Estado:** PENDIENTE",
+        "",
+        "   ## Tareas de Refactorización (Genera entre 1 y 5 tareas pequeñas y atómicas basadas en el texto guía. DEBES generar al menos UNA tarea si el texto guía tiene contenido accionable.):",
+        "   ---",
+        "   ### Tarea [ID_TAREA_EJEMPLO_1]: [Título Corto y Descriptivo de la Tarea 1]",
+        "   - **ID:** [ID_TAREA_EJEMPLO_1] (Debe ser único en la misión, ej: TSK-TODO-001. DEBE COINCIDIR con el ID en el encabezado '### Tarea ...'.)",
+        "   - **Estado:** PENDIENTE",
+        "   - **Descripción:** [Descripción detallada, clara y accionable de la primera tarea derivada del texto guía. ¿Qué se debe hacer? ¿En qué archivo(s) específicamente si el texto lo sugiere? ¿Cuál es el objetivo? Sé explícito.]",
+        "   - **Archivos Implicados Específicos (Opcional):** [ruta/al/archivo1.py, otra/ruta/archivo2.php] (Si la tarea se enfoca en archivos específicos mencionados en el texto guía. Lista separada por comas. IMPORTANTE: cada ruta aquí NO DEBE contener corchetes `[` o `]` ni otros caracteres inválidos para rutas. Si no, escribe textualmente: `Ninguno`.)",
+        "   - **Intentos:** 0",
+        "   ---",
+        "   (Si se necesitan más tareas, usa el mismo formato exacto, separadas por ---. Recuerda: genera entre 1 y 5 tareas. Es OBLIGATORIO generar al menos UNA tarea si el texto guía contiene directrices.)",
+        "   ```",
+        "   Consideraciones ADICIONALES para `contenido_markdown_mision`:",
+        "   - **OBLIGATORIO:** Debes generar al menos una tarea si el texto guía parece contener alguna directriz, por vaga que sea. Si el texto guía está completamente vacío o es incomprensible, puedes generar una sola tarea como 'Revisar y clarificar contenido de TODO.md'.",
+        "   - Las tareas deben ser PEQUEÑAS, ESPECÍFICAS y REALIZABLES por otra IA en un solo paso.",
+        "   - Los IDs de las tareas deben ser únicos dentro de la misión.",
+        "   - **RUTAS DE ARCHIVO:** Para CUALQUIER ruta de archivo que generes (en 'Archivos de Contexto (Ejecución)' o en 'Archivos Implicados Específicos' de una tarea), ASEGÚRATE de que sean rutas relativas válidas. NO uses corchetes `[` o `]` DENTRO de las rutas individuales. Usa `/` como separador de directorios.",
+        "No añadas explicaciones fuera del JSON. El `nombre_clave_mision` en el JSON y en el Markdown (título y metadato) DEBEN COINCIDIR."
+    ]
+    promptCompleto = "\n".join(promptPartes)
+
+    textoRespuesta = None
+    respuestaJson = None
+
+    try:
+        if api_provider == 'google':
+            if not configurarGemini():
+                return None
+            modelo = genai.GenerativeModel(settings.MODELO_GOOGLE_GEMINI)
+            respuesta = modelo.generate_content(
+                promptCompleto,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.6, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS),
+                safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
+                                 'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
+            )
+            textoRespuesta = _extraerTextoRespuesta(respuesta, logPrefix)
+        elif api_provider == 'openrouter':
+            if not settings.OPENROUTER_API_KEY:
+                logging.error(f"{logPrefix} Falta OPENROUTER_API_KEY.")
+                return None
+            client = OpenAI(base_url=settings.OPENROUTER_BASE_URL,
+                            api_key=settings.OPENROUTER_API_KEY)
+            mensajes = [{"role": "user", "content": promptCompleto}]
+            completion = client.chat.completions.create(
+                extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
+                               "X-Title": settings.OPENROUTER_TITLE},
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS, timeout=API_TIMEOUT_SECONDS
+            )
+            if completion.choices:
+                textoRespuesta = completion.choices[0].message.content
+        else:
+            logging.error(
+                f"{logPrefix} Proveedor API '{api_provider}' no soportado.")
+            return None
+
+        if not textoRespuesta:
+            logging.error(f"{logPrefix} No se obtuvo texto de la IA.")
+            return None
+
+        respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
+
+        if not respuestaJson:
+            return None
+        if not all(k in respuestaJson for k in ["nombre_clave_mision", "contenido_markdown_mision"]):
+            logging.error(
+                f"{logPrefix} Respuesta JSON no tiene la estructura esperada. Recibido: {respuestaJson}")
+            return None
+
+        nombre_clave_json = respuestaJson["nombre_clave_mision"]
+        contenido_md = respuestaJson["contenido_markdown_mision"]
+        
+        if f"# Misión: {nombre_clave_json}" not in contenido_md:
+            logging.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide exactamente con el título '# Misión: ...' en el contenido_markdown_mision.")
+        if f"- **Nombre Clave:** {nombre_clave_json}" not in contenido_md:
+            logging.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide con el metadato '- **Nombre Clave:** ...' en el contenido_markdown_mision.")
+        if "### Tarea" not in contenido_md:
+             logging.warning(f"{logPrefix} El contenido_markdown_mision generado parece NO TENER TAREAS DEFINIDAS (no se encontró '### Tarea'). Esto podría ser un problema. Fuente: '{nombre_archivo_guia}'.")
+
+        logging.info(
+            f"{logPrefix} Contenido de misión generado desde '{nombre_archivo_guia}'. Nombre clave: {nombre_clave_json}")
+        return respuestaJson
+
+    except Exception as e:
+        logging.error(
+            f"{logPrefix} Error en generación de contenido de misión desde '{nombre_archivo_guia}': {e}", exc_info=True)
+        _manejar_excepcion_api(e, api_provider, logPrefix,
+                               locals().get('respuesta'))
+        return None
 
 def obtenerDecisionRefactor(contextoCodigoCompleto, historialCambiosTexto=None, estructura_proyecto_texto=None, api_provider='google'):
     # Esta función es la del "Paso 1" original, se mantiene por si se usa, pero el nuevo flujo usa funciones más específicas.
