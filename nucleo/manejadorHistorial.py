@@ -17,21 +17,28 @@ def cargarHistorial():
         return historial
     try:
         with open(rutaArchivoHistorial, 'r', encoding='utf-8') as f:
-            buffer = ""
-            for line in f:
-                if line.strip() == "--- END ENTRY ---":
-                    if buffer:
-                        historial.append(buffer.strip())
-                        buffer = ""
-                else:
-                    buffer += line
-            if buffer:
-                historial.append(buffer.strip())
+            for line_num, line in enumerate(f, 1):
+                stripped_line = line.strip()
+                if not stripped_line:
+                    continue
+                # Ignorar el antiguo delimitador si todavía existe en el archivo
+                if stripped_line == "--- END ENTRY ---":
+                    log.debug(f"{logPrefix} Saltando delimitador de entrada antiguo en línea {line_num}.")
+                    continue
+                try:
+                    entry = json.loads(stripped_line)
+                    historial.append(entry)
+                except json.JSONDecodeError as e:
+                    log.warning(
+                        f"{logPrefix} Error parseando línea {line_num} como JSON en {rutaArchivoHistorial}: {e}. Línea: '{stripped_line[:100]}...' (Esta línea será ignorada).")
+                    continue
         log.info(
-            f"{logPrefix} Historial cargado desde {rutaArchivoHistorial} ({len(historial)} entradas).")
+            f"{logPrefix} Historial cargado desde {rutaArchivoHistorial} ({len(historial)} entradas JSON)."
+        )
     except Exception as e:
         log.error(
-            f"{logPrefix} Error crítico cargando historial desde {rutaArchivoHistorial}: {e}. Se procederá con historial vacío.")
+            f"{logPrefix} Error crítico cargando historial desde {rutaArchivoHistorial}: {e}. Se procederá con historial vacío."
+        )
         historial = []
     return historial
 
