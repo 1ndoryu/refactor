@@ -429,6 +429,7 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
 
     nombre_clave_mision = contenido_mision_generado_dict["nombre_clave_mision"]
     contenido_markdown_mision = contenido_mision_generado_dict["contenido_markdown_mision"]
+    nombre_archivo_mision = f"{nombre_clave_mision}.md"
 
     rama_base = manejadorGit.obtener_rama_actual(
         ruta_repo) or settings.RAMATRABAJO
@@ -440,29 +441,29 @@ def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_conte
         f"{logPrefix} En rama de misión: '{nombre_clave_mision}' (desde '{rama_base}')")
 
     try:
-        with open(os.path.join(ruta_repo, MISION_ORION_MD), 'w', encoding='utf-8') as f:
+        with open(os.path.join(ruta_repo, nombre_archivo_mision), 'w', encoding='utf-8') as f:
             f.write(contenido_markdown_mision)
         logging.info(
-            f"{logPrefix} {MISION_ORION_MD} guardado en rama '{nombre_clave_mision}'")
+            f"{logPrefix} Archivo de misión '{nombre_archivo_mision}' guardado en rama '{nombre_clave_mision}'")
     except Exception as e:
         logging.error(
-            f"{logPrefix} Error guardando {MISION_ORION_MD}: {e}", exc_info=True)
+            f"{logPrefix} Error guardando '{nombre_archivo_mision}': {e}", exc_info=True)
         manejadorGit.cambiar_a_rama_existente(ruta_repo, rama_base)
         manejadorGit.eliminarRama(ruta_repo, nombre_clave_mision, local=True)
         return "error_generando_mision", None, None
 
-    if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Crear misión: {nombre_clave_mision}", [MISION_ORION_MD]):
+    if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Crear misión: {nombre_clave_mision}", [nombre_archivo_mision]):
         logging.error(
-            f"{logPrefix} No se pudo hacer commit de {MISION_ORION_MD} en '{nombre_clave_mision}'.")
+            f"{logPrefix} No se pudo hacer commit de '{nombre_archivo_mision}' en '{nombre_clave_mision}'.")
         # No eliminar la rama si el commit falló pero el archivo se creó, podría ser útil para debug manual
         # manejadorGit.cambiar_a_rama_existente(ruta_repo, rama_base); manejadorGit.eliminarRama(ruta_repo, nombre_clave_mision, local=True)
         return "error_generando_mision", None, None  # Error si el commit del MD falla
 
     logging.info(
-        f"{logPrefix} Misión '{nombre_clave_mision}' generada y commiteada.")
+        f"{logPrefix} Misión '{nombre_clave_mision}' generada y commiteada (archivo: {nombre_archivo_mision}).")
     manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
         manejadorHistorial.formatearEntradaHistorial(
-            outcome=f"PASO1.2_MISION_GENERADA:{nombre_clave_mision}", result_details=f"Archivo: {MISION_ORION_MD}")
+            outcome=f"PASO1.2_MISION_GENERADA:{nombre_clave_mision}", result_details=f"Archivo: {nombre_archivo_mision}")
     ])
     return "mision_generada_ok", contenido_markdown_mision, nombre_clave_mision
 
