@@ -7,7 +7,7 @@ import logging
 from nucleo.aplicadorCambios import aplicarCambiosSobrescrituraV1, aplicarCambiosSobrescrituraV2
 
 # Configura un logger básico para ver los logs de la función durante las pruebas
-logging.basicConfig(level=logging.INFO,  # Cambiado a INFO para reducir verbosidad, DEBUG si es necesario
+logging.basicConfig(level=logging.INFO,  # Cambiado a INFO para reducir verbosidad
                     format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s: %(message)s')
 log_test = logging.getLogger(__name__)
 
@@ -29,14 +29,12 @@ class TestAplicadorCambios(unittest.TestCase):
         """Función helper para ejecutar una prueba individual."""
         log_test.info(f"--- Ejecutando Test: {test_name} para {funcion_a_probar.__name__} ---")
 
-        # Asegurar que el directorio de prueba esté limpio para esta ejecución específica si es necesario,
-        # aunque setUp/tearDown por método de test debería manejarlo.
-        # Por seguridad, creamos la ruta completa al archivo esperado para limpiarlo si existe.
+        # Elimina cualquier archivo previo en esa ruta, por si existe
         ruta_absoluta_a_escribir = os.path.join(self.test_dir, ruta_relativa)
         if os.path.exists(ruta_absoluta_a_escribir):
             os.remove(ruta_absoluta_a_escribir)
 
-        # El formato correcto para archivos_con_contenido es una lista de dicts
+        # Construye la lista que espera la función (una lista de diccionarios)
         archivos_para_aplicar = [{"nombre": ruta_relativa, "contenido": input_content}]
 
         if params_original is None:
@@ -50,12 +48,15 @@ class TestAplicadorCambios(unittest.TestCase):
             params_original
         )
 
+        # Comprueba que devolvió success=True y error_msg=None
         self.assertTrue(success, f"{funcion_a_probar.__name__} falló para '{test_name}': {error_msg}")
         self.assertIsNone(error_msg, f"Se esperaba error_msg None para '{test_name}', pero fue: {error_msg}")
 
+        # Verifica que el archivo se haya creado
         self.assertTrue(os.path.exists(ruta_absoluta_a_escribir),
                         f"El archivo {ruta_relativa} no fue creado por {funcion_a_probar.__name__} para '{test_name}'.")
 
+        # Lee el contenido y lo compara con lo esperado
         with open(ruta_absoluta_a_escribir, 'r', encoding='utf-8') as f:
             contenido_real = f.read()
 
@@ -74,11 +75,11 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # V1: codecs.decode(..., 'unicode_escape') convierte '\\n' a '\n' y '\\\\n' a '\\n' (literal).
         salida_esperada_v1 = "Primera línea\nSegunda línea con \\n literal."
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1)
 
         # V2: No hay unicode_escape, se mantiene la entrada.
         salida_esperada_v2 = "Primera línea\\nSegunda línea con \\\\n literal."
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2)
 
     def test_02_unicode_escapes(self):
         test_name = "Escapes Unicode (\\uXXXX y \\\\uXXXX)"
@@ -86,27 +87,27 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # V1: '\\u00f3' -> 'ó', '\\\\u00e1' -> '\\u00e1' (literal)
         salida_esperada_v1 = "Función con carácter especial \\u00e1 (debería ser literal)."
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1)
 
         # V2: Se mantiene la entrada.
         salida_esperada_v2 = "Funci\\u00f3n con car\\u00e1cter especial \\\\u00e1 (debería ser literal)."
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2)
 
     def test_03_mojibake_simple(self):
         test_name = "Mojibake Simple (Ã¡, Ã±)"
         entrada_gemini = "Este texto usarÃ¡ acentos y eÃ±es."
         salida_esperada = "Este texto usará acentos y eñes."  # Ambas versiones deben corregir Mojibake
 
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
 
     def test_04_mojibake_complejo(self):
         test_name = "Mojibake Complejo (¡, ¿, ú)"
         entrada_gemini = "Â¡Hola, MÃºndo! Â¿QuÃ© tal?"
         salida_esperada = "¡Hola, Múndo! ¿Qué tal?"  # Ambas versiones
 
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
 
     def test_05_mixto_mojibake_y_escapes(self):
         test_name = "Mixto Mojibake y Escapes"
@@ -114,19 +115,19 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # V1: unicode_escape primero, luego mojibake.
         salida_esperada_v1 = "Descripción: El código fallará si no se corrige.\nLínea nueva."
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1)
 
         # V2: solo mojibake.
         salida_esperada_v2 = "Descripci\\u00f3n: El c\\u00f3digo fallará si no se corrige.\\nL\\u00ednea nueva."
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2)
 
     def test_06_texto_utf8_correcto(self):
         test_name = "Texto UTF-8 Correcto"
         entrada_gemini = "Texto ya correcto: áéíóúñ ¿?"
         salida_esperada = "Texto ya correcto: áéíóúñ ¿?"  # Ambas versiones
 
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
 
     def test_07_caso_barra_n_literal_gemini(self):
         test_name = "Barra N literal (//n)"
@@ -134,8 +135,8 @@ class TestAplicadorCambios(unittest.TestCase):
         # '//n' no es una secuencia de escape estándar, unicode_escape no lo toca.
         salida_esperada = "log.info('Procesando...//nNueva línea en log');"  # Ambas versiones
 
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
 
     def test_08_comillas_y_barras_escapadas_json(self):
         test_name = "Comillas y Barras Escapadas (JSON style \\\\ y \\\"")"
@@ -146,11 +147,11 @@ class TestAplicadorCambios(unittest.TestCase):
         # '\\\\' se convierte en '\\' (una barra literal)
         # '\\"' se convierte en '\"' (barra y comilla literales)
         salida_esperada_v1 = 'print("Hola \\ \\"mundo\\"")'  # Corregido: una barra, espacio, barra-comilla
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_post_json_loads, salida_esperada_v1)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_post_json_loads, salida_esperada_v1)
 
         # V2: No hay unicode_escape, se mantiene la entrada.
         salida_esperada_v2 = 'print("Hola \\\\ \\"mundo\\"")'
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_post_json_loads, salida_esperada_v2)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_post_json_loads, salida_esperada_v2)
 
     def test_09_ruta_con_subdirectorio(self):
         test_name = "Ruta con Subdirectorio"
@@ -158,8 +159,10 @@ class TestAplicadorCambios(unittest.TestCase):
         salida_esperada = "Contenido en subdirectorio."  # Ambas versiones
         ruta_rel = "subdir/archivo.js"
 
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada, ruta_relativa=ruta_rel)
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada, ruta_relativa=ruta_rel)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada,
+                       ruta_relativa=ruta_rel)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada,
+                       ruta_relativa=ruta_rel)
 
     def test_10_contenido_no_string(self):
         test_name = "Contenido No String (Dict)"
@@ -167,8 +170,8 @@ class TestAplicadorCambios(unittest.TestCase):
         # Ambas versiones deben convertir a JSON string si no es string
         salida_esperada = json.dumps(entrada_gemini, indent=2, ensure_ascii=False)
 
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada)
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
 
     def test_11_php_string_literal_con_barra_n(self):
         test_name = "PHP String Literal con \\n (queremos \\n literal en archivo)"
@@ -178,13 +181,12 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # V1: aplica unicode_escape, por lo que '\\n' se convierte en '\n' (newline real).
         salida_esperada_v1 = '$log_message = "Detalles de scriptsOrdenados:\n" . implode("\n", $error_log) . "\n";'
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1,
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1,
                        ruta_relativa="test_script_v1.php")
 
         # V2: no aplica unicode_escape, por lo que '\\n' permanece como '\\n' (literal).
-        # ESTE ES EL COMPORTAMIENTO DESEADO SEGÚN EL NOMBRE DEL TEST ORIGINAL.
         salida_esperada_v2 = '$log_message = "Detalles de scriptsOrdenados:\\n" . implode("\\n", $error_log) . "\\n";'
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2,
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2,
                        ruta_relativa="test_script_v2.php")
 
     def test_12_php_multilinea_echo_con_escapes(self):
@@ -206,14 +208,14 @@ class TestAplicadorCambios(unittest.TestCase):
         salida_esperada_v1 = (
             'function loadingBar()\n'
             '{\n'
-            '    echo \'<style>\\n'  # Esto es lo que la V1 produce y es el objetivo del test\n'
-            '        #loadingBar {\\n'\n'
-            '            /* ...css... */\\n'\n'
-            '        }\\n'\n'
+            '    echo \'<style>\\n\'\n'
+            '        #loadingBar {\\n\'\n'
+            '            /* ...css... */\\n\'\n'
+            '        }\\n\'\n'
             '    </style>\';\n'
             '}'
         )
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1,
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, entrada_gemini, salida_esperada_v1,
                        ruta_relativa="loading_bar_v1.php")
 
         # V2: no aplica unicode_escape.
@@ -226,10 +228,10 @@ class TestAplicadorCambios(unittest.TestCase):
             '        #loadingBar {\\\\n\'\n'
             '            /* ...css... */\\\\n\'\n'
             '        }\\\\n\'\n'
-            '    </style>\';\\n'\n
+            '    </style>\';\\n'
             '}'
         )
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2,
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2,
                        ruta_relativa="loading_bar_v2.php")
 
     def test_13_entrada_ia_con_doble_barra_n(self):
@@ -239,11 +241,11 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # V1: codecs.decode convierte '\\n' a '\n' (newline real)
         expected_v1 = "codigo_con_doble_barra_n = \"print(\\\"Linea1\\nLinea2\\\")\""
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test13_v1.py")
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test13_v1.py")
 
         # V2: Sin unicode_escape, '\\n' se mantiene como '\\n'
         expected_v2 = "codigo_con_doble_barra_n = \"print(\\\"Linea1\\\\nLinea2\\\")\""
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test13_v2.py")
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test13_v2.py")
 
     def test_14_entrada_ia_con_newline_real(self):
         test_name = "Entrada IA con \\n real (esperando preservación)"
@@ -252,40 +254,37 @@ class TestAplicadorCambios(unittest.TestCase):
 
         # V1: unicode_escape no debería afectar un newline ya real
         expected_v1 = "codigo_con_newline_real = \"print(\\\"Linea1\nLinea2\\\")\""
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test14_v1.py")
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test14_v1.py")
 
         # V2: Sin unicode_escape, obviamente preserva el newline real
         expected_v2 = "codigo_con_newline_real = \"print(\\\"Linea1\nLinea2\\\")\""
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test14_v2.py")
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test14_v2.py")
 
     def test_15_control_chars_como_literales_escapados(self):
         test_name = "Secuencias como \\a, \\f (queremos literales o caracteres de control)"
-        # La IA quiere escribir \a y \f literalmente, por lo que envía '\\a' y '\\f'
-        # En el literal de Python usamos '\\\\a' y '\\\\f' para que en memoria la función vea '\\a' y '\\f'
+        # La IA quiere escribir \a y \f literalmente, por lo que enviamos '\\\\a' y '\\\\f' en el literal
         input_content = "# Ruta problemática: C:\\\\app\\\\file.py"
 
         # V1: unicode_escape convierte '\\a' a BEL (0x07), '\\f' a FF (0x0C)
         expected_v1 = "# Ruta problemática: C:\x07pp\x0cile.py"
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test15_v1.txt")
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test15_v1.txt")
 
         # V2: Sin unicode_escape, '\\a' y '\\f' se escriben como están (secuencias de dos caracteres)
         expected_v2 = "# Ruta problemática: C:\\app\\file.py"
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test15_v2.txt")
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test15_v2.txt")
 
     def test_16_php_backslash_en_array_literal(self):
         test_name = "PHP: \\\\ literal en string dentro de array ['\\\\', '/']"
-        # Objetivo en archivo PHP: $arr = ['\\\\', '/'];
-        # Para eso, en el literal de Python usamos '\\\\\\\\' para que en memoria la función vea '\\\\'
+        # Para que en memoria la función reciba '\\\\' (dos barras invertidas), escribimos '\\\\\\\\' en el literal:
         input_content = "$arr = ['\\\\\\\\', '/'];"
 
-        # V1: unicode_escape convierte '\\\\' en '\\'
-        # El archivo contendrá: $arr = ['\\', '/'];
+        # V1: unicode_escape convierte '\\\\\\\\' en '\\\\' real (una sola barra en el resultado)
         expected_v1 = "$arr = ['\\', '/'];"
-        self._run_test(test_name, aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test16_v1.php")
+        self._run_test(test_name + " [V1]", aplicarCambiosSobrescrituraV1, input_content, expected_v1, "test16_v1.php")
 
-        # V2: Sin unicode_escape, se escribe tal cual. El archivo contendrá: $arr = ['\\\\', '/'];
+        # V2: Sin unicode_escape, '\\\\\\\\' se mantiene como '\\\\\\\\' (dos barras en el resultado)
         expected_v2 = "$arr = ['\\\\', '/'];"
-        self._run_test(test_name, aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test16_v2.php")
+        self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, input_content, expected_v2, "test16_v2.php")
 
     # --- Tests Propuestos: Comparación directa Gemini vs. Test Corregido ---
 
@@ -366,12 +365,12 @@ class TestAplicadorCambios(unittest.TestCase):
         # Literal corregido para que la función reciba '\\\\' (dos barras invertidas) como texto
         entrada_corregida = "$arr = ['\\\\\\\\', '/'];"
 
-        # V1 corregido: '\\\\\\\\' -> '\\\\' real (una barra invertida) en el archivo
+        # V1 corregido: '\\\\\\\\' -> '\\\\' real (una sola barra)
         expected_v1 = "$arr = ['\\', '/'];"
         self._run_test(test_name + " [Corregido V1]", aplicarCambiosSobrescrituraV1, entrada_corregida,
                        expected_v1, "fixed_test16_v1.php")
 
-        # V2 corregido: '\\\\\\\\' se mantiene como '\\\\\\\\' (dos barras invertidas)
+        # V2 corregido: '\\\\\\\\' se mantiene como '\\\\\\\\' (dos barras)
         expected_v2 = "$arr = ['\\\\', '/'];"
         self._run_test(test_name + " [Corregido V2]", aplicarCambiosSobrescrituraV2, entrada_corregida,
                        expected_v2, "fixed_test16_v2.php")
