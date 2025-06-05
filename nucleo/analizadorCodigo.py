@@ -1144,29 +1144,34 @@ def _extraerTextoRespuesta(respuesta, logPrefix):
 
 
 def _limpiarYParsearJson(textoRespuesta, logPrefix):
+    # Para asegurar que 'log' exista si no está definido globalmente, 
+    # podrías pasarlo como argumento o instanciar uno básico aquí.
+    # Por simplicidad, se asume que 'log' ya está configurado y disponible.
+    # Ejemplo de fallback si no estuviera disponible:
+    # log_temp = logging.getLogger(f"{__name__}._limpiarYParsearJson")
+    # if not hasattr(log_temp, 'debug'): # Una forma simple de chequear si ya está configurado
+    #     logging.basicConfig(level=logging.INFO) # Configuración básica
+    # log = log_temp # Usar log local si no hay uno global
+
     textoLimpio = textoRespuesta.strip()
 
     # Quitar ```json ... ``` o ``` ... ``` si existen
     if textoLimpio.startswith("```"):
         first_newline = textoLimpio.find('\n')
-        # Asegurarse de que la primera línea sea solo el marcador de bloque de código
         if first_newline != -1:
             first_line_marker = textoLimpio[:first_newline].strip()
             if first_line_marker == "```json" or first_line_marker == "```":
                 textoLimpio = textoLimpio[first_newline + 1:]
-        # Quitar el ``` final
         if textoLimpio.endswith("```"):
             textoLimpio = textoLimpio[:-3].strip()
 
-    # A veces la IA puede añadir texto antes del JSON. Intentar encontrar el primer '{'
     start_brace = textoLimpio.find('{')
-    # Y el último '}' para asegurar que tomamos el objeto JSON completo
     end_brace = textoLimpio.rfind('}')
 
     if start_brace == -1 or end_brace == -1 or start_brace >= end_brace:
         log.error(
             f"{logPrefix} Respuesta de IA no parece contener un bloque JSON válido {{...}}. Respuesta (limpia inicial): {textoLimpio[:500]}...")
-        log.debug(f"{logPrefix} Respuesta Original Completa Pre-Limpieza:\n{textoRespuesta}") # Log completo antes de JSON
+        log.debug(f"{logPrefix} Respuesta IA original completa recibida (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
         return None
 
     json_candidate = textoLimpio[start_brace: end_brace + 1]
@@ -1179,11 +1184,9 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
             f"{logPrefix} JSON parseado correctamente (previo a validación de contenido).")
         return resultadoJson
     except json.JSONDecodeError as e:
-        # Mejorar log de error de JSON
         contexto_inicio_error = max(0, e.pos - 150)
         contexto_fin_error = min(len(json_candidate), e.pos + 150)
         contexto_error_str = json_candidate[contexto_inicio_error:contexto_fin_error]
-        # Usar repr() para ver caracteres problemáticos
         contexto_error_repr = repr(contexto_error_str)
 
         log.error(
@@ -1191,27 +1194,25 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         log.error(
             f"{logPrefix} Contexto alrededor del error ({contexto_inicio_error}-{contexto_fin_error}):\n{contexto_error_repr}")
 
-        # Loguear una porción más grande o todo el candidato si es razonable
-        if len(json_candidate) > 2000: # Si es muy largo, loguear inicio y fin
+        if len(json_candidate) > 2000:
             log.debug(
                 f"{logPrefix} JSON Candidato que falló (Inicio - 1000 chars):\n{json_candidate[:1000]}...")
             log.debug(
                 f"{logPrefix} JSON Candidato que falló (Fin - 1000 chars):...{json_candidate[-1000:]}")
-        else: # Si es más corto, loguear completo
+        else:
             log.debug(
                 f"{logPrefix} JSON Candidato Completo que falló:\n{json_candidate}")
 
-        log.debug(
-            f"{logPrefix} Respuesta Original Completa Pre-Limpieza (la que generó el JSON candidato):\n{textoRespuesta}")
+        log.debug(f"{logPrefix} Respuesta IA original completa recibida (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
         return None
-    except Exception as e_general_parse:  # Otros errores inesperados durante el parseo
+    except Exception as e_general_parse:
         log.error(
             f"{logPrefix} Error inesperado durante json.loads: {e_general_parse}", exc_info=True)
         log.debug(f"{logPrefix} JSON Candidato que falló (por error general):\n{json_candidate}")
-        log.debug(
-            f"{logPrefix} Respuesta Original Completa Pre-Limpieza (la que generó el JSON candidato):\n{textoRespuesta}")
+        log.debug(f"{logPrefix} Respuesta IA original completa recibida (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
         return None
-
+    
+    
 def _manejar_excepcion_api(e, api_provider, logPrefix, respuesta_api=None):
     """Función helper centralizada para manejar excepciones de API."""
     if api_provider == 'google':
