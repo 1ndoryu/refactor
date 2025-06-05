@@ -150,8 +150,7 @@ REPOSITORIOURL = os.getenv("REPOSITORIOURL", "git@github.com:1ndoryu/refactor.gi
 # --- Configuracion de Rutas ---
 RUTA_BASE_PROYECTO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUTACLON = os.getenv("RUTACLON", os.path.join(RUTA_BASE_PROYECTO, 'clonProyecto'))
-RUTAHISTORIAL = os.getenv("RUTAHISTORIAL", os.path.join(RUTA_BASE_PROYECTO, 'historial_refactor_adaptativo.log')) # Nombre de log adaptado
-
+RUTAHISTORIAL = os.path.join(RUTACLON, ".orion_meta", "historial_acciones_mision.log")
 # --- Configuracion de Git ---
 RAMATRABAJO = os.getenv("RAMATRABAJO", "Orion")
 

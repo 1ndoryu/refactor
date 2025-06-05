@@ -18,15 +18,13 @@ from nucleo import manejadorHistorial
 from nucleo import manejadorMision
 
 # --- Nuevas Constantes y Variables Globales ---
-REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(
-    settings.RUTA_BASE_PROYECTO, "registro_archivos_analizados.json")
+REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(settings.RUTACLON, ".orion_meta", "registro_archivos_analizados.json")
 TOKEN_LIMIT_PER_MINUTE = getattr(
     settings, 'TOKEN_LIMIT_PER_MINUTE', 250000)
 token_usage_window = []
 
 # --- Archivo para persistir el estado de la misión activa ---
-ACTIVE_MISSION_STATE_FILE = os.path.join(settings._CONFIG_DIR if hasattr(
-    settings, '_CONFIG_DIR') else os.path.join(settings.RUTA_BASE_PROYECTO, 'config'), '.active_mission')
+ACTIVE_MISSION_STATE_FILE = os.path.join(settings.RUTACLON, ".orion_meta", ".active_mission")
 
 # --- Fin Nuevas Constantes ---
 
@@ -94,9 +92,14 @@ def cargar_registro_archivos():
 
 def guardar_registro_archivos(registro):
     try:
+        # Asegura que el directorio .orion_meta exista ANTES de intentar abrir el archivo.
+        # REGISTRO_ARCHIVOS_ANALIZADOS_PATH se asume que ya apunta a la nueva ubicación
+        # (settings.RUTACLON/.orion_meta/registro_archivos_analizados.json).
+        os.makedirs(os.path.dirname(REGISTRO_ARCHIVOS_ANALIZADOS_PATH), exist_ok=True)
         with open(REGISTRO_ARCHIVOS_ANALIZADOS_PATH, 'w', encoding='utf-8') as f:
             json.dump(registro, f, indent=4)
     except Exception as e:
+        # El mensaje de error utilizará el valor actualizado de REGISTRO_ARCHIVOS_ANALIZADOS_PATH
         logging.error(
             f"Error guardando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}: {e}")
 
@@ -1068,20 +1071,25 @@ def realizarReseteoAgente():
 
     limpiar_estado_mision_activa()  # Esto borra .active_mission
 
-    # Opcional: Limpiar registro de archivos analizados. Por ahora, nos limitamos a lo solicitado.
-    # if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
-    #     try:
-    #         os.remove(REGISTRO_ARCHIVOS_ANALIZADOS_PATH)
-    #         logging.info(f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
-    #     except Exception as e:
-    #         logging.error(f"{logPrefix} Error eliminando '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}")
+    # Limpiar registro de archivos analizados en su nueva ubicación
+    # Esta acción depende de que REGISTRO_ARCHIVOS_ANALIZADOS_PATH esté correctamente definido
+    # para apuntar a settings.RUTACLON/.orion_meta/registro_archivos_analizados.json
+    if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
+        try:
+            os.remove(REGISTRO_ARCHIVOS_ANALIZADOS_PATH)
+            logging.info(f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
+        except Exception as e:
+            logging.error(f"{logPrefix} Error eliminando '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}", exc_info=True)
+    else:
+        logging.info(f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' no encontrado, no se requiere eliminación.")
 
-    # Opcional: Limpiar el archivo de logging. El FileHandler actual en modo 'w' ya lo trunca/sobrescribe.
-    # logging.info(f"{logPrefix} El archivo de log principal se truncará/sobrescribirá en la próxima ejecución normal debido al modo 'w' del FileHandler.")
+    # El archivo de logging principal (`historial_refactor_adaptativo.log`) se trunca/sobrescribe
+    # en cada ejecución normal debido al modo 'w' del FileHandler en configurarLogging.
+    # No se necesita limpiar explícitamente aquí a menos que la política cambie.
 
     logging.info(
-        f"{logPrefix} Reseteo del estado del agente (archivo .active_mission y rama de misión local asociada si existía) completado.")
-    return True  # Indicar éxito
+        f"{logPrefix} Reseteo del estado del agente (archivo .active_mission, registro_archivos_analizados.json y rama de misión local asociada si existía) completado.")
+    return True
 
 
 def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, modoAutomatico: bool):
