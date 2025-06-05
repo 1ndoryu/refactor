@@ -322,7 +322,7 @@ def paso0_revisar_mision_local(ruta_repo):
             with open(ruta_mision_orion, 'r', encoding='utf-8') as f:
                 contenido_mision = f.read()
             
-            metadatos, lista_tareas, hay_tareas_pendientes = parsear_mision_orion(contenido_mision)
+            metadatos, lista_tareas, hay_tareas_pendientes = manejadorMision.parsear_mision_orion(contenido_mision)
 
             if not metadatos or not metadatos.get("nombre_clave"):
                 logging.warning(f"{logPrefix} {MISION_ORION_MD} existe pero no se pudo extraer metadatos/nombre clave. Se tratará como para crear nueva misión.")
@@ -607,7 +607,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
 
     if resultado_ejecucion_tarea.get("advertencia_ejecucion") and not resultado_ejecucion_tarea.get("archivos_modificados"):
         logging.warning(f"{logPrefix} IA advirtió: {resultado_ejecucion_tarea['advertencia_ejecucion']}. Tarea no resultó en cambios. Marcando como SALTADA.")
-        contenido_mision_post_tarea = marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "SALTADA")
+        contenido_mision_post_tarea = manejadorMision.marcar_tarea_como_completada(contenido_mision_actual_md, tarea_id, "SALTADA")
         if not contenido_mision_post_tarea: return "error_critico_actualizando_mision", contenido_mision_actual_md 
         try: 
             with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f: f.write(contenido_mision_post_tarea)
