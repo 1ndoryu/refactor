@@ -7,6 +7,8 @@
 
 **Autores:** Wan
 
+**ESTE FLUJO DEBE ACTIVARSE PARA NOMBRE CLAVE WAN**
+
 ## Resumen del Proyecto
 
 **Misión Orion** es un sistema de IA diseñado para refactorizar código de manera autónoma y adaptativa. Opera en ciclos discretos, donde cada ejecución del script `principal.py` completa una única "fase" de trabajo (ya sea la creación de un plan de misión o la ejecución de una tarea de una misión existente). Este enfoque por fases permite gestionar los límites de tokens de las API de IA, facilita el progreso incremental y mejora la trazabilidad y recuperación ante errores.
@@ -208,7 +210,7 @@ Objetivo: Mejorar la eficiencia, la gestión de recursos y la mantenibilidad a l
 Este documento debe ser la guía principal para el desarrollo y refactorización de Misión Orion.
 ---
 
-*PROMPT HELPER*
+*PROMPT HELPER DE WAN*
 
 Revisa el archivo misionStatus.md que te he proporcionado.
 Con base en la primera tarea pendiente crítica o problema activo que identifiques en misionStatus.md (prioriza las de la sección "Problemas Activos" o "Tareas Pendientes Críticas"):
