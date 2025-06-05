@@ -975,14 +975,16 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
             logging.error(f"{logPrefix} No se pudo cambiar a '{settings.RAMATRABAJO}'. Abortando creación.")
             return False
 
-    # Estrategia 1: Intentar crear misión desde TODO.md
-    mision_creada_desde_todo = _intentarCrearMisionDesdeTodoMD(api_provider, modo_automatico)
-    if mision_creada_desde_todo:
-        logging.info(f"{logPrefix} Misión creada exitosamente desde TODO.md. Fase completada.")
-        return True # Misión creada, se detiene el script para la siguiente fase
+    # Estrategia 1: Intentar crear misión desde TODO.md. Si tiene éxito, la fase termina.
+    if _intentarCrearMisionDesdeTodoMD(api_provider, modo_automatico):
+        logging.info(f"{logPrefix} Misión creada exitosamente desde TODO.md. La fase de creación ha concluido.")
+        return True # Misión creada, se detiene el script para la siguiente fase.
 
-    # Estrategia 2: Si no se creó desde TODO.md, intentar por selección de archivo
+    # Estrategia 2: Si la estrategia 1 no creó una misión, proceder con la selección de archivo.
     logging.info(f"{logPrefix} No se creó misión desde TODO.md. Procediendo con selección de archivo estándar.")
+    # La función de selección de archivo ya maneja su propia lógica de fase (intentos, etc.)
+    # y devuelve True si la fase se completa, con o sin una misión creada.
+    # Su valor de retorno es el resultado final de nuestra fase de creación.
     return _intentarCrearMisionDesdeSeleccionArchivo(api_provider, modo_automatico, registro_archivos_analizados)
 
 def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
