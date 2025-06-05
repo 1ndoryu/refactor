@@ -188,20 +188,19 @@ class TestAplicadorCambios(unittest.TestCase):
         salida_esperada_v2 = '$log_message = "Detalles de scriptsOrdenados:\\n" . implode("\\n", $error_log) . "\\n";'
         self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada_v2,
                        ruta_relativa="test_script_v2.php")
-
+    
     def test_12_php_multilinea_echo_con_escapes(self):
         test_name = "PHP Multilinea Echo con \\n (queremos newline real en archivo)"
         entrada_gemini = (
             'function loadingBar()\\n'
             '{\\n'
-            '    echo \'<style>\\\\n\'  # IA quiere \\n aquí, envía \\\\n\n'
-            '        #loadingBar {\\\\n\'  # Ídem\n'
+            '    echo \'<style>\\\\n\'\n'
+            '        #loadingBar {\\\\n\'\n'
             '            /* ...css... */\\\\n\'\n'
             '        }\\\\n\'\n'
-            '    </style>\';\\n'\n
+            '    </style>\';\\n'
             '}'
         )
-
         # V1: aplica unicode_escape.
         # '\\n' (formato de código) -> '\n'
         # '\\\\n' (dentro de string PHP) -> '\\n' (literal \n)
