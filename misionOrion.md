@@ -30,7 +30,7 @@ Se necesita contexto adicional para entender cómo se generan y consumen estas e
 ---
 ### Tarea RH-JSON-001: Convertir formatearEntradaHistorial a JSON
 - **ID:** RH-JSON-001
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Modificar la función `formatearEntradaHistorial` en `nucleo/manejadorHistorial.py` para que devuelva un objeto JSON serializado como string. La estructura JSON debe incluir campos como `timestamp`, `outcome`, `decision` (objeto), `result_details` (objeto), `verification_details` (objeto), y `error_message`. Si `result_details` es un diccionario, debe ser incluido completo.
 - **Archivos Implicados Específicos (Opcional):** nucleo/manejadorHistorial.py
 - **Intentos:** 0
