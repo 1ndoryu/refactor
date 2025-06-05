@@ -44,7 +44,7 @@ Se necesita contexto adicional para entender cómo se generan y consumen estas e
 ---
 ### Tarea RH-SAVE-001: Adaptar guardarHistorial para JSON y filtrado robusto
 - **ID:** RH-SAVE-001
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Modificar la función `guardarHistorial` en `nucleo/manejadorHistorial.py` para que serialice y guarde las entradas del historial como objetos JSON (uno por línea). Reemplazar el filtrado de la 'cadena mágica' `[[ERROR_PASO1]]` por un campo JSON específico, por ejemplo, `"status": "ERROR_PASO1"`, y realizar el filtrado basándose en este campo.
 - **Archivos Implicados Específicos (Opcional):** nucleo/manejadorHistorial.py
 - **Intentos:** 0
