@@ -88,65 +88,69 @@ MOJIBAKE_REPLACEMENTS = {
 # Informacion importante: esta funcion funciona con unicode escape a diferencia de la futura V2, agregar informacion de diferencias aca
 def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     logPrefix = "aplicarCambiosSobrescrituraV1:"
-    log.info(f"{logPrefix} Applying changes for original action '{accionOriginal}'...")
+    log.info(f"{logPrefix} Iniciando para acción original '{accionOriginal}'...")
     rutaBaseNorm = os.path.normpath(rutaBase)
 
     if accionOriginal in ["eliminar_archivo", "crear_directorio"]:
         targetRel = paramsOriginal.get("archivo") or paramsOriginal.get("directorio")
         if not targetRel:
-            return False, f"Missing target parameter ('archivo' or 'directorio') for {accionOriginal}."
+            msg = f"Parámetro objetivo ('archivo' o 'directorio') faltante para {accionOriginal}."
+            log.error(f"{logPrefix} {msg}")
+            return False, msg
         targetAbs = _validar_y_normalizar_ruta(targetRel, rutaBaseNorm, asegurar_existencia=False)
         if targetAbs is None:
-            return False, f"Invalid or unsafe path provided for {accionOriginal}: '{targetRel}'"
+            msg = f"Ruta inválida o insegura proporcionada para {accionOriginal}: '{targetRel}'"
+            log.error(f"{logPrefix} {msg}")
+            return False, msg
 
         if accionOriginal == "eliminar_archivo":
-            log.info(f"{logPrefix} Executing action '{accionOriginal}': Targeting {targetRel} (Abs: {targetAbs})")
+            log.info(f"{logPrefix} Ejecutando '{accionOriginal}': Objetivo '{targetRel}' (Abs: {targetAbs})")
             if os.path.exists(targetAbs):
                 try:
                     if os.path.isfile(targetAbs) or os.path.islink(targetAbs):
                         os.remove(targetAbs)
-                        log.info(f"{logPrefix} File/Link '{targetRel}' deleted.")
+                        log.info(f"{logPrefix} Archivo/Enlace '{targetRel}' eliminado.")
                     elif os.path.isdir(targetAbs):
                         try:
                             os.rmdir(targetAbs) 
-                            log.info(f"{logPrefix} Empty directory '{targetRel}' deleted.")
+                            log.info(f"{logPrefix} Directorio vacío '{targetRel}' eliminado.")
                         except OSError:
-                             err = f"Directory '{targetRel}' is not empty. Cannot delete."
+                             err = f"Directorio '{targetRel}' no está vacío. No se puede eliminar."
                              log.error(f"{logPrefix} {err}")
                              return False, err
                     else:
-                        err = f"Target '{targetRel}' exists but is not a file, link, or directory."
+                        err = f"Objetivo '{targetRel}' existe pero no es archivo, enlace o directorio."
                         log.error(f"{logPrefix} {err}")
                         return False, err
                     return True, None
                 except Exception as e:
-                    err = f"Error deleting '{targetRel}': {e}"
+                    err = f"Error eliminando '{targetRel}': {e}"
                     log.error(f"{logPrefix} {err}", exc_info=True)
                     return False, err
             else:
-                log.warning(f"{logPrefix} Target '{targetRel}' not found for deletion. Considering successful.")
+                log.warning(f"{logPrefix} Objetivo '{targetRel}' no encontrado para eliminación. Se considera exitoso.")
                 return True, None
 
         elif accionOriginal == "crear_directorio":
-            log.info(f"{logPrefix} Executing action '{accionOriginal}': Creating directory {targetRel} (Abs: {targetAbs})")
+            log.info(f"{logPrefix} Ejecutando '{accionOriginal}': Creando directorio '{targetRel}' (Abs: {targetAbs})")
             exito_creacion = False
             error_creacion = None
             if os.path.exists(targetAbs):
                 if os.path.isdir(targetAbs):
-                    log.warning(f"{logPrefix} Directory '{targetRel}' already exists.")
+                    log.warning(f"{logPrefix} Directorio '{targetRel}' ya existe.")
                     exito_creacion = True 
                 else:
-                    err = f"Path '{targetRel}' exists but is not a directory. Cannot create directory."
+                    err = f"Ruta '{targetRel}' existe pero no es un directorio. No se puede crear directorio."
                     log.error(f"{logPrefix} {err}")
                     error_creacion = err
                     exito_creacion = False
             else:
                 try:
                     os.makedirs(targetAbs, exist_ok=True)
-                    log.info(f"{logPrefix} Directory '{targetRel}' created.")
+                    log.info(f"{logPrefix} Directorio '{targetRel}' creado.")
                     exito_creacion = True
                 except Exception as e:
-                    err = f"Error creating directory '{targetRel}': {e}"
+                    err = f"Error creando directorio '{targetRel}': {e}"
                     log.error(f"{logPrefix} {err}", exc_info=True)
                     error_creacion = err
                     exito_creacion = False
@@ -157,7 +161,7 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
                     try:
                         with open(gitkeep_path, 'w', encoding='utf-8') as gk:
                             pass 
-                        log.info(f"{logPrefix} Archivo .gitkeep creado en '{targetRel}' para rastreo de Git.")
+                        log.info(f"{logPrefix} Archivo .gitkeep creado en '{targetRel}'.")
                     except Exception as e_gk:
                         log.warning(f"{logPrefix} No se pudo crear .gitkeep en '{targetRel}': {e_gk}")
                 else:
@@ -166,7 +170,7 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
             return exito_creacion, error_creacion 
     
     if not isinstance(archivos_con_contenido, list):
-         err = f"Argument 'archivos_con_contenido' is not a list. Type received: {type(archivos_con_contenido)}"
+         err = f"Argumento 'archivos_con_contenido' no es una lista. Tipo recibido: {type(archivos_con_contenido)}"
          log.error(f"{logPrefix} {err}")
          return False, err
     
@@ -174,14 +178,14 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
         log.info(f"{logPrefix} 'archivos_con_contenido' está vacío para la acción '{accionOriginal}'. No se escribirán archivos.")
         return True, None 
 
-    log.info(f"{logPrefix} Processing {len(archivos_con_contenido)} file entry/entries for writing/modification...")
+    log.info(f"{logPrefix} Procesando {len(archivos_con_contenido)} entradas de archivo para escritura/modificación...")
     archivosProcesadosConCambio = 0
     archivosProcesadosSinCambio = 0
     errores = []
 
     for item_archivo in archivos_con_contenido:
         if not isinstance(item_archivo, dict) or "nombre" not in item_archivo or "contenido" not in item_archivo:
-            msg = f"Invalid item in 'archivos_con_contenido' list. Expected dict with 'nombre' and 'contenido'. Got: {item_archivo!r}"
+            msg = f"Item inválido en 'archivos_con_contenido'. Esperado dict con 'nombre' y 'contenido'. Recibido: {item_archivo!r}"
             log.error(f"{logPrefix} {msg}")
             errores.append(msg)
             continue
@@ -191,18 +195,18 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
 
         archivoAbs = _validar_y_normalizar_ruta(rutaRel, rutaBaseNorm, asegurar_existencia=False)
         if archivoAbs is None:
-            msg = f"Invalid or unsafe path ('{rutaRel}') received. File skipped."
+            msg = f"Ruta inválida o insegura ('{rutaRel}') recibida. Archivo omitido."
             log.error(f"{logPrefix} {msg}")
             errores.append(msg)
             continue
 
         if not isinstance(contenido_ia_original, str):
-             log.warning(f"{logPrefix} Content for '{rutaRel}' is not string (type {type(contenido_ia_original)}). Converting to JSON string.")
+             log.warning(f"{logPrefix} Contenido para '{rutaRel}' no es string (tipo {type(contenido_ia_original)}). Convirtiendo a JSON string.")
              try:
                  contenido_ia_str = json.dumps(contenido_ia_original, indent=2, ensure_ascii=False)
              except Exception as e_conv:
-                  log.error(f"{logPrefix} Could not convert non-string content to string for '{rutaRel}': {e_conv}. Skipping file.")
-                  errores.append(f"Invalid non-string content for {rutaRel}")
+                  log.error(f"{logPrefix} No se pudo convertir contenido no-string a string para '{rutaRel}': {e_conv}. Omitiendo archivo.")
+                  errores.append(f"Contenido no-string inválido para {rutaRel}")
                   continue
         else:
              contenido_ia_str = contenido_ia_original
@@ -210,18 +214,18 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
         dirPadre = os.path.dirname(archivoAbs)
         try:
             if dirPadre and not os.path.exists(dirPadre):
-                log.info(f"{logPrefix} Creating necessary parent directory: {dirPadre}")
+                log.info(f"{logPrefix} Creando directorio padre necesario: {dirPadre}")
                 os.makedirs(dirPadre, exist_ok=True)
             elif dirPadre and not os.path.isdir(dirPadre):
-                 raise ValueError(f"Parent path '{dirPadre}' for file '{rutaRel}' exists but is NOT a directory.")
+                 raise ValueError(f"Ruta padre '{dirPadre}' para archivo '{rutaRel}' existe pero NO es un directorio.")
         except Exception as e_dir:
-            msg = f"Error creating/validating parent directory '{dirPadre}' for '{rutaRel}': {e_dir}. File skipped."
+            msg = f"Error creando/validando directorio padre '{dirPadre}' para '{rutaRel}': {e_dir}. Archivo omitido."
             log.error(f"{logPrefix} {msg}", exc_info=True)
             errores.append(msg)
             continue
         
         contenido_nuevo_procesado = contenido_ia_str
-        log.debug(f"{logPrefix} Content FROM IA for '{rutaRel}' (raw, repr): {repr(contenido_nuevo_procesado[:200])}...")
+        log.debug(f"{logPrefix} Contenido IA (raw) para '{rutaRel}': {repr(contenido_nuevo_procesado[:200])}...")
 
         if '\\' in contenido_nuevo_procesado:
             log.debug(f"{logPrefix} Aplicando codecs.decode(..., 'unicode_escape') para '{rutaRel}'")
@@ -235,7 +239,7 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
         else:
             log.debug(f"{logPrefix} No se encontraron barras invertidas; se omite 'unicode_escape' para '{rutaRel}'.")
 
-        log.debug(f"{logPrefix} Content AFTER unicode_escape para '{rutaRel}' (repr): {repr(contenido_nuevo_procesado[:200])}...")
+        log.debug(f"{logPrefix} Contenido post unicode_escape para '{rutaRel}': {repr(contenido_nuevo_procesado[:200])}...")
 
         contenido_final_ia = contenido_nuevo_procesado
         replacements_made_mojibake = False
@@ -248,14 +252,14 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
                 if new_temp_contenido_mojibake != temp_contenido_mojibake:
                     if not replacements_made_mojibake:
                         log.info(f"{logPrefix} CORRECCIÓN (Mojibake Replace): Se reemplazarán secuencias Mojibake para '{rutaRel}'.")
-                    log.debug(f"{logPrefix}   Reemplazado Mojibake: {repr(mojibake_str)} -> {repr(correct)}")
+                    log.debug(f"{logPrefix} Reemplazado Mojibake: {repr(mojibake_str)} -> {repr(correct)} en '{rutaRel}'")
                     replacements_made_mojibake = True
                     temp_contenido_mojibake = new_temp_contenido_mojibake
         
         if replacements_made_mojibake:
             contenido_final_ia = temp_contenido_mojibake
         
-        log.debug(f"{logPrefix} FINAL PROCESSED content from IA for '{rutaRel}' (repr): {repr(contenido_final_ia[:200])}...")
+        log.debug(f"{logPrefix} Contenido final procesado IA para '{rutaRel}': {repr(contenido_final_ia[:200])}...")
 
         contenido_original_disco = None
         es_archivo_nuevo = not os.path.exists(archivoAbs)
@@ -265,7 +269,7 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
                 with open(archivoAbs, 'r', encoding='utf-8') as f_orig:
                     contenido_original_disco = f_orig.read()
             except Exception as e_read_orig:
-                msg = f"Error leyendo archivo original '{rutaRel}' para comparación: {e_read_orig}. Se tratará como creación."
+                msg = f"Error leyendo archivo original '{rutaRel}' para comparación: {e_read_orig}. Se tratará como nuevo."
                 log.warning(f"{logPrefix} {msg}", exc_info=True)
                 es_archivo_nuevo = True
 
@@ -273,16 +277,16 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
         if es_archivo_nuevo:
             log.info(f"{logPrefix} Archivo '{rutaRel}' es NUEVO. Se escribirá.")
             escribir_archivo = True
-        elif contenido_original_disco is None: # Si falló la lectura del original pero existía, mejor escribir.
-            log.warning(f"{logPrefix} No se pudo leer el contenido original de '{rutaRel}' (existente). Se procederá a escribir el contenido de la IA.")
+        elif contenido_original_disco is None: 
+            log.warning(f"{logPrefix} No se pudo leer contenido original de '{rutaRel}' (existente). Se escribirá contenido IA.")
             escribir_archivo = True
         elif contenido_original_disco == contenido_final_ia:
-            log.info(f"{logPrefix} Archivo '{rutaRel}' no ha cambiado. No se sobrescribirá.")
+            log.info(f"{logPrefix} Archivo '{rutaRel}' sin cambios. No se sobrescribirá.")
             archivosProcesadosSinCambio += 1
         else:
-            log.info(f"{logPrefix} Archivo '{rutaRel}' HA CAMBIADO. Se sobrescribirá.")
+            log.info(f"{logPrefix} Archivo '{rutaRel}' CAMBIADO. Se sobrescribirá.")
             escribir_archivo = True
-            if contenido_original_disco is not None: # Solo loguear diff si tenemos original
+            if contenido_original_disco is not None: 
                 diff_output = unified_diff(
                     contenido_original_disco.splitlines(keepends=True),
                     contenido_final_ia.splitlines(keepends=True),
@@ -299,7 +303,7 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
                         f_write.write(contenido_final_ia)
                     else: 
                         f_write.write(repr(contenido_final_ia))
-                        log.warning(f"{logPrefix} Contenido para '{rutaRel}' no era string al escribir (después de procesamiento IA), se usó repr().")
+                        log.warning(f"{logPrefix} Contenido para '{rutaRel}' no era string al escribir (post-IA), se usó repr().")
                 
                 log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito exitosamente.")
                 archivosProcesadosConCambio += 1
@@ -309,78 +313,82 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
                  errores.append(msg)
 
     if errores:
-        error_summary = f"Proceso completado con {len(errores)} error(s): {'; '.join(errores[:3])}{'...' if len(errores) > 3 else ''}"
+        error_summary = f"Proceso completado con {len(errores)} error(es): {'; '.join(errores[:3])}{'...' if len(errores) > 3 else ''}"
         log.error(f"{logPrefix} {error_summary}")
         return False, error_summary
     
     total_procesados_efectivamente = archivosProcesadosConCambio + archivosProcesadosSinCambio
     log.info(f"{logPrefix} Procesamiento finalizado. {archivosProcesadosConCambio} archivos escritos/modificados.")
     log.info(f"{logPrefix} {archivosProcesadosSinCambio} archivos no necesitaron cambios.")
-    log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido)}.")
+    log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido) if archivos_con_contenido else 0}.")
 
     return True, None
 
 def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     logPrefix = "aplicarCambiosSobrescrituraV2:"
-    log.info(f"{logPrefix} Applying changes for original action '{accionOriginal}' (V2 - no unicode_escape)...")
+    log.info(f"{logPrefix} Iniciando para acción original '{accionOriginal}' (V2 - no unicode_escape)...")
     rutaBaseNorm = os.path.normpath(rutaBase)
 
     if accionOriginal in ["eliminar_archivo", "crear_directorio"]:
         targetRel = paramsOriginal.get("archivo") or paramsOriginal.get("directorio")
         if not targetRel:
-            return False, f"Missing target parameter ('archivo' or 'directorio') for {accionOriginal}."
+            msg = f"Parámetro objetivo ('archivo' o 'directorio') faltante para {accionOriginal}."
+            log.error(f"{logPrefix} {msg}")
+            return False, msg
         targetAbs = _validar_y_normalizar_ruta(targetRel, rutaBaseNorm, asegurar_existencia=False)
         if targetAbs is None:
-            return False, f"Invalid or unsafe path provided for {accionOriginal}: '{targetRel}'"
+            msg = f"Ruta inválida o insegura proporcionada para {accionOriginal}: '{targetRel}'"
+            log.error(f"{logPrefix} {msg}")
+            return False, msg
 
         if accionOriginal == "eliminar_archivo":
-            log.info(f"{logPrefix} Executing action '{accionOriginal}': Targeting {targetRel} (Abs: {targetAbs})")
+            log.info(f"{logPrefix} Ejecutando '{accionOriginal}': Objetivo {targetRel} (Abs: {targetAbs})")
             if os.path.exists(targetAbs):
                 try:
                     if os.path.isfile(targetAbs) or os.path.islink(targetAbs):
                         os.remove(targetAbs)
-                        log.info(f"{logPrefix} File/Link '{targetRel}' deleted.")
+                        log.info(f"{logPrefix} Archivo/Enlace '{targetRel}' eliminado.")
                     elif os.path.isdir(targetAbs):
                         try:
                             os.rmdir(targetAbs)
-                            log.info(f"{logPrefix} Empty directory '{targetRel}' deleted.")
+                            log.info(f"{logPrefix} Directorio vacío '{targetRel}' eliminado.")
                         except OSError:
-                             err = f"Directory '{targetRel}' is not empty. Cannot delete."
+                             err = f"Directorio '{targetRel}' no está vacío. No se puede eliminar."
                              log.error(f"{logPrefix} {err}")
                              return False, err
                     else:
-                        err = f"Target '{targetRel}' exists but is not a file, link, or directory."
+                        err = f"Objetivo '{targetRel}' existe pero no es archivo, enlace o directorio."
                         log.error(f"{logPrefix} {err}")
                         return False, err
                     return True, None
                 except Exception as e:
-                    err = f"Error deleting '{targetRel}': {e}"
+                    err = f"Error eliminando '{targetRel}': {e}"
                     log.error(f"{logPrefix} {err}", exc_info=True)
                     return False, err
             else:
-                log.warning(f"{logPrefix} Target '{targetRel}' not found for deletion. Considering successful.")
+                log.warning(f"{logPrefix} Objetivo '{targetRel}' no encontrado para eliminación. Se considera exitoso.")
                 return True, None
 
         elif accionOriginal == "crear_directorio":
-            log.info(f"{logPrefix} Executing action '{accionOriginal}': Creating directory {targetRel} (Abs: {targetAbs})")
+            log.info(f"{logPrefix} Ejecutando '{accionOriginal}': Creando directorio {targetRel} (Abs: {targetAbs})")
             exito_creacion = False
             error_creacion = None
             if os.path.exists(targetAbs):
                 if os.path.isdir(targetAbs):
-                    log.warning(f"{logPrefix} Directory '{targetRel}' already exists.")
+                    log.warning(f"{logPrefix} Directorio '{targetRel}' ya existe.")
                     exito_creacion = True
                 else:
-                    err = f"Path '{targetRel}' exists but is not a directory. Cannot create directory."
+                    err = f"Ruta '{targetRel}' existe pero no es un directorio. No se puede crear directorio."
                     log.error(f"{logPrefix} {err}")
                     error_creacion = err
                     exito_creacion = False
             else:
                 try:
                     os.makedirs(targetAbs, exist_ok=True)
-                    log.info(f"{logPrefix} Directory '{targetRel}' created.")
+                    log.info(f"{logPrefix} Directorio '{targetRel}' creado.")
                     exito_creacion = True
                 except Exception as e:
-                    err = f"Error creating directory '{targetRel}': {e}"
+                    err = f"Error creando directorio '{targetRel}': {e}"
                     log.error(f"{logPrefix} {err}", exc_info=True)
                     error_creacion = err
                     exito_creacion = False
@@ -391,7 +399,7 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
                     try:
                         with open(gitkeep_path, 'w', encoding='utf-8') as gk:
                             pass
-                        log.info(f"{logPrefix} Archivo .gitkeep creado en '{targetRel}' para rastreo de Git.")
+                        log.info(f"{logPrefix} Archivo .gitkeep creado en '{targetRel}'.")
                     except Exception as e_gk:
                         log.warning(f"{logPrefix} No se pudo crear .gitkeep en '{targetRel}': {e_gk}")
                 else:
@@ -400,7 +408,7 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
             return exito_creacion, error_creacion
 
     if not isinstance(archivos_con_contenido, list):
-         err = f"Argument 'archivos_con_contenido' is not a list. Type received: {type(archivos_con_contenido)}"
+         err = f"Argumento 'archivos_con_contenido' no es una lista. Tipo recibido: {type(archivos_con_contenido)}"
          log.error(f"{logPrefix} {err}")
          return False, err
 
@@ -408,14 +416,14 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
         log.info(f"{logPrefix} 'archivos_con_contenido' está vacío para la acción '{accionOriginal}'. No se escribirán archivos.")
         return True, None
 
-    log.info(f"{logPrefix} Processing {len(archivos_con_contenido)} file entry/entries for writing/modification...")
+    log.info(f"{logPrefix} Procesando {len(archivos_con_contenido)} entradas de archivo para escritura/modificación...")
     archivosProcesadosConCambio = 0
     archivosProcesadosSinCambio = 0
     errores = []
 
     for item_archivo in archivos_con_contenido:
         if not isinstance(item_archivo, dict) or "nombre" not in item_archivo or "contenido" not in item_archivo:
-            msg = f"Invalid item in 'archivos_con_contenido' list. Expected dict with 'nombre' and 'contenido'. Got: {item_archivo!r}"
+            msg = f"Item inválido en 'archivos_con_contenido'. Esperado dict con 'nombre' y 'contenido'. Recibido: {item_archivo!r}"
             log.error(f"{logPrefix} {msg}")
             errores.append(msg)
             continue
@@ -425,18 +433,18 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
 
         archivoAbs = _validar_y_normalizar_ruta(rutaRel, rutaBaseNorm, asegurar_existencia=False)
         if archivoAbs is None:
-            msg = f"Invalid or unsafe path ('{rutaRel}') received. File skipped."
+            msg = f"Ruta inválida o insegura ('{rutaRel}') recibida. Archivo omitido."
             log.error(f"{logPrefix} {msg}")
             errores.append(msg)
             continue
 
         if not isinstance(contenido_ia_original, str):
-             log.warning(f"{logPrefix} Content for '{rutaRel}' is not string (type {type(contenido_ia_original)}). Converting to JSON string.")
+             log.warning(f"{logPrefix} Contenido para '{rutaRel}' no es string (tipo {type(contenido_ia_original)}). Convirtiendo a JSON string.")
              try:
                  contenido_ia_str = json.dumps(contenido_ia_original, indent=2, ensure_ascii=False)
              except Exception as e_conv:
-                  log.error(f"{logPrefix} Could not convert non-string content to string for '{rutaRel}': {e_conv}. Skipping file.")
-                  errores.append(f"Invalid non-string content for {rutaRel}")
+                  log.error(f"{logPrefix} No se pudo convertir contenido no-string a string para '{rutaRel}': {e_conv}. Omitiendo archivo.")
+                  errores.append(f"Contenido no-string inválido para {rutaRel}")
                   continue
         else:
              contenido_ia_str = contenido_ia_original
@@ -444,22 +452,22 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
         dirPadre = os.path.dirname(archivoAbs)
         try:
             if dirPadre and not os.path.exists(dirPadre):
-                log.info(f"{logPrefix} Creating necessary parent directory: {dirPadre}")
+                log.info(f"{logPrefix} Creando directorio padre necesario: {dirPadre}")
                 os.makedirs(dirPadre, exist_ok=True)
             elif dirPadre and not os.path.isdir(dirPadre):
-                 raise ValueError(f"Parent path '{dirPadre}' for file '{rutaRel}' exists but is NOT a directory.")
+                 raise ValueError(f"Ruta padre '{dirPadre}' para archivo '{rutaRel}' existe pero NO es un directorio.")
         except Exception as e_dir:
-            msg = f"Error creating/validating parent directory '{dirPadre}' for '{rutaRel}': {e_dir}. File skipped."
+            msg = f"Error creando/validando directorio padre '{dirPadre}' para '{rutaRel}': {e_dir}. Archivo omitido."
             log.error(f"{logPrefix} {msg}", exc_info=True)
             errores.append(msg)
             continue
 
         contenido_nuevo_procesado = contenido_ia_str
-        log.debug(f"{logPrefix} Content FROM IA for '{rutaRel}' (raw, repr): {repr(contenido_nuevo_procesado[:200])}...")
+        log.debug(f"{logPrefix} Contenido IA (raw) para '{rutaRel}': {repr(contenido_nuevo_procesado[:200])}...")
 
         # Bloque de codecs.decode(..., 'unicode_escape') ELIMINADO para V2
 
-        log.debug(f"{logPrefix} Content for IA (V2 - before mojibake) para '{rutaRel}' (repr): {repr(contenido_nuevo_procesado[:200])}...")
+        log.debug(f"{logPrefix} Contenido IA (V2 - pre-mojibake) para '{rutaRel}': {repr(contenido_nuevo_procesado[:200])}...")
 
         contenido_final_ia = contenido_nuevo_procesado
         replacements_made_mojibake = False
@@ -472,14 +480,14 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
                 if new_temp_contenido_mojibake != temp_contenido_mojibake:
                     if not replacements_made_mojibake:
                         log.info(f"{logPrefix} CORRECCIÓN (Mojibake Replace): Se reemplazarán secuencias Mojibake para '{rutaRel}'.")
-                    log.debug(f"{logPrefix}   Reemplazado Mojibake: {repr(mojibake_str)} -> {repr(correct)}")
+                    log.debug(f"{logPrefix} Reemplazado Mojibake: {repr(mojibake_str)} -> {repr(correct)} en '{rutaRel}'")
                     replacements_made_mojibake = True
                     temp_contenido_mojibake = new_temp_contenido_mojibake
 
         if replacements_made_mojibake:
             contenido_final_ia = temp_contenido_mojibake
 
-        log.debug(f"{logPrefix} FINAL PROCESSED content from IA for '{rutaRel}' (V2) (repr): {repr(contenido_final_ia[:200])}...")
+        log.debug(f"{logPrefix} Contenido final procesado IA (V2) para '{rutaRel}': {repr(contenido_final_ia[:200])}...")
 
         contenido_original_disco = None
         es_archivo_nuevo = not os.path.exists(archivoAbs)
@@ -489,7 +497,7 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
                 with open(archivoAbs, 'r', encoding='utf-8') as f_orig:
                     contenido_original_disco = f_orig.read()
             except Exception as e_read_orig:
-                msg = f"Error leyendo archivo original '{rutaRel}' para comparación: {e_read_orig}. Se tratará como creación."
+                msg = f"Error leyendo archivo original '{rutaRel}' para comparación: {e_read_orig}. Se tratará como nuevo."
                 log.warning(f"{logPrefix} {msg}", exc_info=True)
                 es_archivo_nuevo = True
 
@@ -498,13 +506,13 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
             log.info(f"{logPrefix} Archivo '{rutaRel}' es NUEVO. Se escribirá.")
             escribir_archivo = True
         elif contenido_original_disco is None:
-            log.warning(f"{logPrefix} No se pudo leer el contenido original de '{rutaRel}' (existente). Se procederá a escribir el contenido de la IA.")
+            log.warning(f"{logPrefix} No se pudo leer contenido original de '{rutaRel}' (existente). Se escribirá contenido IA.")
             escribir_archivo = True
         elif contenido_original_disco == contenido_final_ia:
-            log.info(f"{logPrefix} Archivo '{rutaRel}' no ha cambiado. No se sobrescribirá.")
+            log.info(f"{logPrefix} Archivo '{rutaRel}' sin cambios. No se sobrescribirá.")
             archivosProcesadosSinCambio += 1
         else:
-            log.info(f"{logPrefix} Archivo '{rutaRel}' HA CAMBIADO. Se sobrescribirá.")
+            log.info(f"{logPrefix} Archivo '{rutaRel}' CAMBIADO. Se sobrescribirá.")
             escribir_archivo = True
             if contenido_original_disco is not None:
                 diff_output = unified_diff(
@@ -523,7 +531,7 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
                         f_write.write(contenido_final_ia)
                     else:
                         f_write.write(repr(contenido_final_ia))
-                        log.warning(f"{logPrefix} Contenido para '{rutaRel}' no era string al escribir (después de procesamiento IA), se usó repr().")
+                        log.warning(f"{logPrefix} Contenido para '{rutaRel}' no era string al escribir (post-IA), se usó repr().")
 
                 log.info(f"{logPrefix} Archivo '{rutaRel}' escrito/sobrescrito exitosamente.")
                 archivosProcesadosConCambio += 1
@@ -540,6 +548,6 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
     total_procesados_efectivamente = archivosProcesadosConCambio + archivosProcesadosSinCambio
     log.info(f"{logPrefix} Procesamiento finalizado. {archivosProcesadosConCambio} archivos escritos/modificados.")
     log.info(f"{logPrefix} {archivosProcesadosSinCambio} archivos no necesitaron cambios.")
-    log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido)}.")
+    log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido) if archivos_con_contenido else 0}.")
 
     return True, None
