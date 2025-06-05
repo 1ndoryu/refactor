@@ -303,9 +303,12 @@ def configurarLogging():
     consolaHandler.setFormatter(logging.Formatter(formatoLog, fechaFormato))
     log_raiz.addHandler(consolaHandler)
     try:
+        # Tarea: Mover el log principal (`historial_refactor_adaptativo.log`)
+        # al directorio del repositorio clonado (settings.RUTACLON),
+        # dentro de una subcarpeta dedicada (ej. .orion_meta/).
         rutaLogArchivo = os.path.join(
-            settings.RUTA_BASE_PROYECTO, "refactor_adaptativo.log")
-        os.makedirs(os.path.dirname(rutaLogArchivo), exist_ok=True)
+            settings.RUTACLON, ".orion_meta", "historial_refactor_adaptativo.log") # MODIFICADO para nueva ruta y nombre según tarea
+        os.makedirs(os.path.dirname(rutaLogArchivo), exist_ok=True) # Crea .orion_meta/ si no existe
         archivoHandler = logging.FileHandler(
             rutaLogArchivo, mode='w', encoding='utf-8')
         archivoHandler.setFormatter(

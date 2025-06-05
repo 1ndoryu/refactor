@@ -13,6 +13,8 @@ __pycache__/
 # Logs
 .log
 
+.orion_meta/
+
 # Directorio donde clonaremos temporalmente el proyecto a refactorizar
 clonProyecto/
 

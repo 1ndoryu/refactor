@@ -273,7 +273,7 @@ def generarEstructuraDirectorio(ruta_base, directorios_ignorados=None, max_depth
 
 def generar_contenido_mision_desde_texto_guia(ruta_repo: str, contenido_texto_guia: str, nombre_archivo_guia: str, api_provider: str):
     """
-    Paso Alternativo 1.2: IA genera el contenido para misionOrion.md a partir de un texto guía (ej. TODO.md).
+    Paso Alternativo 1.2: IA genera el contenido para md de la mision a partir de un texto guía (ej. TODO.md).
     """
     logPrefix = f"generar_contenido_mision_desde_texto_guia ({nombre_archivo_guia}/{api_provider.upper()}):"
     logging.info(
@@ -756,7 +756,7 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
 
 def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_archivos_leidos: str, razonamiento_paso1_1: str, api_provider: str, archivos_contexto_generacion_rel_list: list):
     """
-    Paso 1.2: IA genera el contenido para misionOrion.md (nombre clave y tareas).
+    Paso 1.2: IA genera el contenido para md de la mision (nombre clave y tareas).
     """
     logPrefix = f"generar_contenido_mision_orion (Paso 1.2/{api_provider.upper()}):"
     log.info(
@@ -901,7 +901,7 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
     """
     Paso 2: IA ejecuta una tarea específica de la misión.
     `tarea_info` es un dict como: {"descripcion": "Tarea a realizar...", "archivo_principal_implicito": "ruta/archivo.py"}
-    `mision_markdown_completa` es todo el contenido de misionOrion.md para contexto general de la misión.
+    `mision_markdown_completa` es todo el contenido de md de la mision para contexto general de la misión.
     `contexto_archivos_tarea` es el contenido concatenado de los archivos relevantes para ESTA tarea.
     """
     logPrefix = f"ejecutar_tarea_especifica_mision (Paso 2/{api_provider.upper()}):"
