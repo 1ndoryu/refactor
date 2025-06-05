@@ -12,7 +12,7 @@
 ---
 ### Tarea SRP-001: Extraer Gestión de Tokens a Módulo Dedicado
 - **ID:** SRP-001
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Mover las funciones 'gestionar_limite_tokens' y 'registrar_tokens_usados', junto con la variable global 'token_usage_window', a un nuevo módulo 'nucleo/token_manager.py'. Asegurar que todas las llamadas y referencias en 'principal.py' sean actualizadas para usar el nuevo módulo. El objetivo es centralizar la lógica de control de límite de tokens.
 - **Archivos Implicados Específicos (Opcional):** principal.py, nucleo/token_manager.py
 - **Intentos:** 0
