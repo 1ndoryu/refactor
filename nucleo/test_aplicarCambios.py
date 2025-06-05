@@ -139,7 +139,7 @@ class TestAplicadorCambios(unittest.TestCase):
         self._run_test(test_name + " [V2]", aplicarCambiosSobrescrituraV2, entrada_gemini, salida_esperada)
 
     def test_08_comillas_y_barras_escapadas_json(self):
-        test_name = "Comillas y Barras Escapadas (JSON style \\\\ y \\\"")"
+        test_name = 'Comillas y Barras Escapadas (JSON style \\\\ y \\\"")'
         # Cadena Python que simula lo que llega después de json.loads de: "print(\"Hola \\\\ \\\"mundo\\\"\")"
         entrada_post_json_loads = 'print("Hola \\\\ \\"mundo\\"")'
 
