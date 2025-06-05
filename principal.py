@@ -721,7 +721,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         return "mision_completada" if not hay_pendientes_despues_salto else "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
 
     if resultado_ejecucion_tarea.get("archivos_modificados"):
-        exito_aplicar, msg_err_aplicar = aplicadorCambios.aplicarCambiosSobrescrituraV1(
+        exito_aplicar, msg_err_aplicar = aplicadorCambios.aplicarCambiosSobrescrituraV2(
             resultado_ejecucion_tarea["archivos_modificados"], ruta_repo,
             accionOriginal=f"modificar_segun_tarea_mision:{nombre_rama_mision}", paramsOriginal=tarea_actual_info
         )

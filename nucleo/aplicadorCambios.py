@@ -86,7 +86,7 @@ MOJIBAKE_REPLACEMENTS = {
 }
 
 # Informacion importante: esta funcion funciona con unicode escape a diferencia de la futura V2, agregar informacion de diferencias aca
-def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
+def aplicarCambiosSobrescrituraV1noUse(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     logPrefix = "aplicarCambiosSobrescrituraV1:"
     log.info(f"{logPrefix} Iniciando para acción original '{accionOriginal}'...")
     rutaBaseNorm = os.path.normpath(rutaBase)
@@ -324,6 +324,7 @@ def aplicarCambiosSobrescrituraV1(archivos_con_contenido, rutaBase, accionOrigin
 
     return True, None
 
+###Este parece mejor
 def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     logPrefix = "aplicarCambiosSobrescrituraV2:"
     log.info(f"{logPrefix} Iniciando para acción original '{accionOriginal}' (V2 - no unicode_escape)...")
