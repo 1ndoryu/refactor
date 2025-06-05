@@ -166,7 +166,7 @@ DELAY_ENTRE_CICLOS_AGENTE = int(os.getenv("DELAY_ENTRE_CICLOS_AGENTE", 3)) # Seg
 SCRIPT_EXECUTION_TIMEOUT_SECONDS = int(os.getenv("SCRIPT_EXECUTION_TIMEOUT_SECONDS", 30 * 60)) # Default 30 minutos
 
 # --- Configuracion de Analisis de Código ---
-EXTENSIONESPERMITIDAS = os.getenv("EXTENSIONESPERMITIDAS", ".php,.js,.py,.md,.json,.css,.html").split(',')
+EXTENSIONESPERMITIDAS = os.getenv("EXTENSIONESPERMITIDAS", ".php,.js,.py,").split(',')
 DIRECTORIOS_IGNORADOS = os.getenv("DIRECTORIOS_IGNORADOS", "vendor,node_modules,.git,.github,docs,assets,Tests,languages,cache,logs,uploads,tmp,temp").split(',')
 
 # --- Logging de Configuracion ---
