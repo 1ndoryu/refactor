@@ -1,6 +1,6 @@
 # principal.py
 
-import logging 
+import logging
 import sys
 import os
 import json
@@ -18,13 +18,15 @@ from nucleo import manejadorHistorial
 from nucleo import manejadorMision
 
 # --- Nuevas Constantes y Variables Globales ---
-REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(settings.RUTACLON, ".orion_meta", "registro_archivos_analizados.json")
+REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(
+    settings.RUTACLON, ".orion_meta", "registro_archivos_analizados.json")
 TOKEN_LIMIT_PER_MINUTE = getattr(
     settings, 'TOKEN_LIMIT_PER_MINUTE', 250000)
 token_usage_window = []
 
 # --- Archivo para persistir el estado de la misión activa ---
-ACTIVE_MISSION_STATE_FILE = os.path.join(settings.RUTACLON, ".orion_meta", ".active_mission")
+ACTIVE_MISSION_STATE_FILE = os.path.join(
+    settings.RUTACLON, ".orion_meta", ".active_mission")
 
 # --- Fin Nuevas Constantes ---
 
@@ -95,7 +97,8 @@ def guardar_registro_archivos(registro):
         # Asegura que el directorio .orion_meta exista ANTES de intentar abrir el archivo.
         # REGISTRO_ARCHIVOS_ANALIZADOS_PATH se asume que ya apunta a la nueva ubicación
         # (settings.RUTACLON/.orion_meta/registro_archivos_analizados.json).
-        os.makedirs(os.path.dirname(REGISTRO_ARCHIVOS_ANALIZADOS_PATH), exist_ok=True)
+        os.makedirs(os.path.dirname(
+            REGISTRO_ARCHIVOS_ANALIZADOS_PATH), exist_ok=True)
         with open(REGISTRO_ARCHIVOS_ANALIZADOS_PATH, 'w', encoding='utf-8') as f:
             json.dump(registro, f, indent=4)
     except Exception as e:
@@ -310,8 +313,10 @@ def configurarLogging():
         # al directorio del repositorio clonado (settings.RUTACLON),
         # dentro de una subcarpeta dedicada (ej. .orion_meta/).
         rutaLogArchivo = os.path.join(
-            settings.RUTACLON, ".orion_meta", "historial_refactor_adaptativo.log") # MODIFICADO para nueva ruta y nombre según tarea
-        os.makedirs(os.path.dirname(rutaLogArchivo), exist_ok=True) # Crea .orion_meta/ si no existe
+            # MODIFICADO para nueva ruta y nombre según tarea
+            settings.RUTACLON, ".orion_meta", "historial_refactor_adaptativo.log")
+        # Crea .orion_meta/ si no existe
+        os.makedirs(os.path.dirname(rutaLogArchivo), exist_ok=True)
         archivoHandler = logging.FileHandler(
             rutaLogArchivo, mode='w', encoding='utf-8')
         archivoHandler.setFormatter(
@@ -336,9 +341,10 @@ def paso0_revisar_mision_local(ruta_repo: str, nombre_clave_mision_activa: str):
     El nombre_clave_mision_activa se usa para determinar el nombre del archivo a buscar.
     """
     logPrefix = "paso0_revisar_mision_local:"
-    
-    if not nombre_clave_mision_activa: # Validación de seguridad
-        logging.error(f"{logPrefix} Se requiere nombre_clave_mision_activa. No se puede buscar archivo de misión.")
+
+    if not nombre_clave_mision_activa:  # Validación de seguridad
+        logging.error(
+            f"{logPrefix} Se requiere nombre_clave_mision_activa. No se puede buscar archivo de misión.")
         return "ignorar_mision_actual_y_crear_nueva", None, None, None
 
     nombre_archivo_mision = f"{nombre_clave_mision_activa}.md"
@@ -346,7 +352,7 @@ def paso0_revisar_mision_local(ruta_repo: str, nombre_clave_mision_activa: str):
     rama_actual = manejadorGit.obtener_rama_actual(ruta_repo)
     logging.info(
         f"{logPrefix} Revisando archivo de misión '{nombre_archivo_mision}' en rama actual: '{rama_actual}'")
-    
+
     ruta_mision_especifica = os.path.join(ruta_repo, nombre_archivo_mision)
 
     if os.path.exists(ruta_mision_especifica):
@@ -365,7 +371,7 @@ def paso0_revisar_mision_local(ruta_repo: str, nombre_clave_mision_activa: str):
                 return "ignorar_mision_actual_y_crear_nueva", None, None, None
 
             nombre_clave_parseado_del_contenido = metadatos["nombre_clave"]
-            
+
             if nombre_clave_parseado_del_contenido != nombre_clave_mision_activa:
                 logging.warning(
                     f"{logPrefix} ¡INCONSISTENCIA! El nombre clave en el contenido de '{nombre_archivo_mision}' ('{nombre_clave_parseado_del_contenido}') "
@@ -392,6 +398,93 @@ def paso0_revisar_mision_local(ruta_repo: str, nombre_clave_mision_activa: str):
         logging.info(
             f"{logPrefix} No se encontró archivo de misión '{nombre_archivo_mision}' en rama '{rama_actual}'.")
         return "no_hay_mision_local", None, None, None
+
+
+def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archivos):
+    logPrefix = "paso1_1_seleccion_y_decision_inicial:"
+    archivo_seleccionado_rel = seleccionar_archivo_mas_antiguo(
+        ruta_repo, registro_archivos)
+    # No es estrictamente necesario guardar aquí, ya que se guarda al final del script,
+    # pero no causa daño. Lo mantenemos por ahora.
+    guardar_registro_archivos(registro_archivos)
+
+    if not archivo_seleccionado_rel:
+        logging.warning(f"{logPrefix} No se pudo seleccionar ningún archivo.")
+        return "ciclo_terminado_sin_accion", None, None, None
+
+    ruta_archivo_seleccionado_abs = os.path.join(
+        ruta_repo, archivo_seleccionado_rel)
+    if not os.path.exists(ruta_archivo_seleccionado_abs):
+        logging.error(
+            f"{logPrefix} Archivo seleccionado '{archivo_seleccionado_rel}' no existe. Reintentando.")
+        # Marcar en el registro para evitar reintentos infinitos si el archivo fue eliminado
+        registro_archivos[archivo_seleccionado_rel] = datetime.now(
+        ).isoformat() + "_NOT_FOUND"
+        guardar_registro_archivos(registro_archivos)
+        return "reintentar_seleccion", None, None, None
+
+    estructura_proyecto = analizadorCodigo.generarEstructuraDirectorio(
+        ruta_repo, directorios_ignorados=settings.DIRECTORIOS_IGNORADOS, max_depth=5, incluir_archivos=True)
+
+    resultado_lectura = analizadorCodigo.leerArchivos(
+        [ruta_archivo_seleccionado_abs], ruta_repo, api_provider=api_provider)
+    contenido_archivo = resultado_lectura['contenido']
+
+    # --- MEJORA INTEGRADA: Chequeo de archivo vacío ---
+    if not contenido_archivo.strip():
+        logging.info(
+            f"{logPrefix} El archivo '{archivo_seleccionado_rel}' está vacío o no se pudo leer. Se saltará y reintentará en la próxima ejecución.")
+        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+            manejadorHistorial.formatearEntradaHistorial(
+                outcome=f"PASO1.1_NO_REFACTOR_VACIO:{archivo_seleccionado_rel}", decision={"necesita_refactor": False, "razonamiento": "Archivo vacío o no legible."})
+        ])
+        # Se devuelve 'reintentar' para que el registro (actualizado al seleccionar) persista y no se elija de nuevo inmediatamente.
+        return "reintentar_seleccion", None, None, None
+    # --- FIN MEJORA ---
+
+    tokens_contenido = resultado_lectura['tokens']
+    tokens_estructura = analizadorCodigo.contarTokensTexto(
+        estructura_proyecto or "", api_provider)
+    tokens_estimados = 500 + tokens_contenido + \
+        tokens_estructura
+
+    gestionar_limite_tokens(tokens_estimados, api_provider)
+
+    decision_IA_paso1_1 = analizadorCodigo.solicitar_evaluacion_archivo(
+        archivo_seleccionado_rel, contenido_archivo, estructura_proyecto, api_provider, ""
+    )
+    registrar_tokens_usados(decision_IA_paso1_1.get(
+        "tokens_consumidos_api", tokens_estimados) if decision_IA_paso1_1 else tokens_estimados)
+
+    if not decision_IA_paso1_1 or not decision_IA_paso1_1.get("necesita_refactor"):
+        logging.info(f"{logPrefix} IA decidió que '{archivo_seleccionado_rel}' no necesita refactor. Razón: {decision_IA_paso1_1.get('razonamiento', 'N/A') if decision_IA_paso1_1 else 'Error IA'}")
+        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+            manejadorHistorial.formatearEntradaHistorial(
+                outcome=f"PASO1.1_NO_REFACTOR:{archivo_seleccionado_rel}", decision=decision_IA_paso1_1)
+        ])
+        return "reintentar_seleccion", None, None, None
+
+    logging.info(
+        f"{logPrefix} IA decidió SÍ refactorizar '{archivo_seleccionado_rel}'. Razón: {decision_IA_paso1_1.get('razonamiento')}")
+    archivos_ctx_sugeridos_rel = decision_IA_paso1_1.get(
+        "archivos_contexto_sugeridos", [])
+    archivos_ctx_validados_rel = []
+    if decision_IA_paso1_1.get("necesita_contexto_adicional"):
+        for f_rel in archivos_ctx_sugeridos_rel:
+            if not f_rel or f_rel == archivo_seleccionado_rel:
+                continue
+            if os.path.exists(os.path.join(ruta_repo, f_rel)) and os.path.isfile(os.path.join(ruta_repo, f_rel)):
+                archivos_ctx_validados_rel.append(f_rel)
+            else:
+                logging.warning(
+                    f"{logPrefix} Archivo de contexto sugerido '{f_rel}' no existe. Descartado.")
+
+    manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+        manejadorHistorial.formatearEntradaHistorial(
+            outcome=f"PASO1.1_REFACTOR_APROBADO:{archivo_seleccionado_rel}", decision=decision_IA_paso1_1, archivos_contexto=archivos_ctx_validados_rel)
+    ])
+
+    return "generar_mision", archivo_seleccionado_rel, archivos_ctx_validados_rel, decision_IA_paso1_1
 
 
 def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_contexto_para_crear_mision_rel, decision_paso1_1, api_provider):
@@ -725,7 +818,8 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f:
             f.write(contenido_mision_post_tarea)
     except Exception as e:
-        logging.error(f"{logPrefix} Error guardando {nombre_archivo_mision}: {e}")
+        logging.error(
+            f"{logPrefix} Error guardando {nombre_archivo_mision}: {e}")
         return "error_critico_actualizando_mision", contenido_mision_actual_md
 
     if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Actualizar Misión '{nombre_rama_mision}', Tarea '{tarea_id}' completada", [nombre_archivo_mision]):
@@ -794,7 +888,8 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                             "nombre_clave_mision"]
                         contenido_markdown_mision_todo = contenido_mision_generado_dict_todo[
                             "contenido_markdown_mision"]
-                        nombre_archivo_mision_todo = f"{nombre_clave_mision_todo}.md" # Nombre dinámico
+                        # Nombre dinámico
+                        nombre_archivo_mision_todo = f"{nombre_clave_mision_todo}.md"
                         rama_base_todo = manejadorGit.obtener_rama_actual(
                             settings.RUTACLON) or settings.RAMATRABAJO
 
@@ -805,11 +900,13 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                             logging.info(
                                 f"{logPrefix} En rama de misión (desde TODO.md): '{nombre_clave_mision_todo}' (desde '{rama_base_todo}')")
                             try:
-                                with open(os.path.join(settings.RUTACLON, nombre_archivo_mision_todo), 'w', encoding='utf-8') as f_mision_todo: # Usar nombre dinámico
+                                # Usar nombre dinámico
+                                with open(os.path.join(settings.RUTACLON, nombre_archivo_mision_todo), 'w', encoding='utf-8') as f_mision_todo:
                                     f_mision_todo.write(
                                         contenido_markdown_mision_todo)
                                 logging.info(
-                                    f"{logPrefix} {nombre_archivo_mision_todo} (desde TODO.md) guardado en rama '{nombre_clave_mision_todo}'") # Log con nombre dinámico
+                                    # Log con nombre dinámico
+                                    f"{logPrefix} {nombre_archivo_mision_todo} (desde TODO.md) guardado en rama '{nombre_clave_mision_todo}'")
 
                                 _, tareas_gen_todo, hay_pendientes_gen_todo = manejadorMision.parsear_mision_orion(
                                     contenido_markdown_mision_todo)
@@ -826,9 +923,11 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                                     logging.info(
                                         f"{logPrefix} Rama de misión (desde TODO.md) '{nombre_clave_mision_todo}' eliminada. Procediendo con flujo normal.")
                                 else:
-                                    if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave_mision_todo}", [nombre_archivo_mision_todo]): # Usar nombre dinámico
+                                    # Usar nombre dinámico
+                                    if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave_mision_todo}", [nombre_archivo_mision_todo]):
                                         logging.error(
-                                            f"{logPrefix} No se pudo hacer commit de {nombre_archivo_mision_todo} (desde TODO.md) en '{nombre_clave_mision_todo}'.") # Log con nombre dinámico
+                                            # Log con nombre dinámico
+                                            f"{logPrefix} No se pudo hacer commit de {nombre_archivo_mision_todo} (desde TODO.md) en '{nombre_clave_mision_todo}'.")
                                     else:
                                         logging.info(
                                             f"{logPrefix} Misión (desde TODO.md) '{nombre_clave_mision_todo}' generada y commiteada.")
@@ -842,7 +941,8 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
                                         mision_desde_todo_creada_ok = True
                             except Exception as e_write_todo_mision:
                                 logging.error(
-                                    f"{logPrefix} Error guardando {nombre_archivo_mision_todo} (desde TODO.md): {e_write_todo_mision}", exc_info=True) # Log con nombre dinámico
+                                    # Log con nombre dinámico
+                                    f"{logPrefix} Error guardando {nombre_archivo_mision_todo} (desde TODO.md): {e_write_todo_mision}", exc_info=True)
                                 manejadorGit.cambiar_a_rama_existente(
                                     settings.RUTACLON, rama_base_todo)
                                 manejadorGit.eliminarRama(
@@ -881,18 +981,20 @@ def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivo
             settings.RUTACLON, archivo_sel, ctx_sel, decision_ia_1_1, api_provider)
 
         if res_paso1_2 == "mision_generada_ok" and nombre_clave_generado:
-            nombre_archivo_mision_generada = f"{nombre_clave_generado}.md" # Nombre dinámico
+            # Nombre dinámico
+            nombre_archivo_mision_generada = f"{nombre_clave_generado}.md"
             ruta_mision_generada_md = os.path.join(
-                settings.RUTACLON, nombre_archivo_mision_generada) # Usar nombre dinámico
+                settings.RUTACLON, nombre_archivo_mision_generada)  # Usar nombre dinámico
             contenido_mision_generada_md = ""
             if os.path.exists(ruta_mision_generada_md):
                 try:
                     with open(ruta_mision_generada_md, 'r', encoding='utf-8') as f:
                         contenido_mision_generada_md = f.read()
                 except Exception as e_read_gen_mision:
-                     logging.error(f"{logPrefix} Error leyendo el archivo de misión recién generado '{nombre_archivo_mision_generada}': {e_read_gen_mision}", exc_info=True)
-                     # Podríamos decidir fallar aquí o continuar sin la validación de tareas.
-                     # Por ahora, continuaremos, pero el log de error es importante.
+                    logging.error(
+                        f"{logPrefix} Error leyendo el archivo de misión recién generado '{nombre_archivo_mision_generada}': {e_read_gen_mision}", exc_info=True)
+                    # Podríamos decidir fallar aquí o continuar sin la validación de tareas.
+                    # Por ahora, continuaremos, pero el log de error es importante.
 
             _, tareas_gen, hay_pendientes_gen = manejadorMision.parsear_mision_orion(
                 contenido_mision_generada_md)
@@ -1077,11 +1179,14 @@ def realizarReseteoAgente():
     if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
         try:
             os.remove(REGISTRO_ARCHIVOS_ANALIZADOS_PATH)
-            logging.info(f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
+            logging.info(
+                f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
         except Exception as e:
-            logging.error(f"{logPrefix} Error eliminando '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}", exc_info=True)
+            logging.error(
+                f"{logPrefix} Error eliminando '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}", exc_info=True)
     else:
-        logging.info(f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' no encontrado, no se requiere eliminación.")
+        logging.info(
+            f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' no encontrado, no se requiere eliminación.")
 
     # El archivo de logging principal (`historial_refactor_adaptativo.log`) se trunca/sobrescribe
     # en cada ejecución normal debido al modo 'w' del FileHandler en configurarLogging.
@@ -1108,7 +1213,8 @@ def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, mo
 
     # Se está en la rama de la misión activa. Revisar el archivo de misión específico.
     # paso0_revisar_mision_local internamente usa nombreClaveMisionActiva para construir el nombre_archivo_mision.
-    resultadoPaso0, _, _, _ = paso0_revisar_mision_local(settings.RUTACLON, nombreClaveMisionActiva)
+    resultadoPaso0, _, _, _ = paso0_revisar_mision_local(
+        settings.RUTACLON, nombreClaveMisionActiva)
 
     if resultadoPaso0 == "procesar_mision_existente":
         logging.info(
