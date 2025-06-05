@@ -323,23 +323,32 @@ def configurarLogging():
 
 # --- Funciones específicas para los nuevos pasos ---
 
-def paso0_revisar_mision_local(ruta_repo):
+def paso0_revisar_mision_local(ruta_repo: str, nombre_clave_mision_activa: str):
     """
-    Paso 0: Revisa si existe misionOrion.md EN LA RAMA ACTUAL.
+    Paso 0: Revisa si existe un archivo de misión específico (ej. <nombre_clave_mision_activa>.md) EN LA RAMA ACTUAL.
     Se espera que esta función sea llamada cuando el agente ya está en una rama de misión
     potencial, o en la rama de trabajo principal si no hay misión activa.
+    El nombre_clave_mision_activa se usa para determinar el nombre del archivo a buscar.
     """
     logPrefix = "paso0_revisar_mision_local:"
+    
+    if not nombre_clave_mision_activa: # Validación de seguridad
+        logging.error(f"{logPrefix} Se requiere nombre_clave_mision_activa. No se puede buscar archivo de misión.")
+        return "ignorar_mision_actual_y_crear_nueva", None, None, None
+
+    nombre_archivo_mision = f"{nombre_clave_mision_activa}.md"
+
     rama_actual = manejadorGit.obtener_rama_actual(ruta_repo)
     logging.info(
-        f"{logPrefix} Revisando {MISION_ORION_MD} en rama actual: '{rama_actual}'")
-    ruta_mision_orion = os.path.join(ruta_repo, MISION_ORION_MD)
+        f"{logPrefix} Revisando archivo de misión '{nombre_archivo_mision}' en rama actual: '{rama_actual}'")
+    
+    ruta_mision_especifica = os.path.join(ruta_repo, nombre_archivo_mision)
 
-    if os.path.exists(ruta_mision_orion):
+    if os.path.exists(ruta_mision_especifica):
         logging.info(
-            f"{logPrefix} Se encontró {MISION_ORION_MD} en '{rama_actual}'.")
+            f"{logPrefix} Se encontró archivo de misión '{nombre_archivo_mision}' en '{rama_actual}'.")
         try:
-            with open(ruta_mision_orion, 'r', encoding='utf-8') as f:
+            with open(ruta_mision_especifica, 'r', encoding='utf-8') as f:
                 contenido_mision = f.read()
 
             metadatos, lista_tareas, hay_tareas_pendientes = manejadorMision.parsear_mision_orion(
@@ -347,100 +356,37 @@ def paso0_revisar_mision_local(ruta_repo):
 
             if not metadatos or not metadatos.get("nombre_clave"):
                 logging.warning(
-                    f"{logPrefix} {MISION_ORION_MD} existe pero no se pudo extraer metadatos/nombre clave. Se tratará como para crear nueva misión.")
-                # metadatos, lista_tareas, nombre_clave
+                    f"{logPrefix} Archivo '{nombre_archivo_mision}' existe pero no se pudo extraer metadatos/nombre clave. Se tratará como para crear nueva misión.")
                 return "ignorar_mision_actual_y_crear_nueva", None, None, None
 
-            nombre_clave_parseado = metadatos["nombre_clave"]
+            nombre_clave_parseado_del_contenido = metadatos["nombre_clave"]
+            
+            if nombre_clave_parseado_del_contenido != nombre_clave_mision_activa:
+                logging.warning(
+                    f"{logPrefix} ¡INCONSISTENCIA! El nombre clave en el contenido de '{nombre_archivo_mision}' ('{nombre_clave_parseado_del_contenido}') "
+                    f"no coincide con el nombre clave esperado del archivo ('{nombre_clave_mision_activa}'). "
+                    f"Se procederá con el nombre clave del contenido, pero esto podría indicar un problema."
+                )
+
             estado_general_mision = metadatos.get(
                 "estado_general", "PENDIENTE")
 
-            # Validar si el nombre clave en el archivo coincide con el esperado de la rama activa (si aplica)
-            # Esta validación es más para consistencia.
-
             if hay_tareas_pendientes and estado_general_mision not in ["COMPLETADA", "FALLIDA"]:
                 logging.info(
-                    f"{logPrefix} Misión '{nombre_clave_parseado}' con tareas pendientes y estado '{estado_general_mision}'. Lista para procesar.")
-                return "procesar_mision_existente", metadatos, lista_tareas, nombre_clave_parseado
+                    f"{logPrefix} Misión '{nombre_clave_parseado_del_contenido}' (del archivo '{nombre_archivo_mision}') con tareas pendientes y estado '{estado_general_mision}'. Lista para procesar.")
+                return "procesar_mision_existente", metadatos, lista_tareas, nombre_clave_parseado_del_contenido
             else:
                 logging.info(
-                    f"{logPrefix} Misión '{nombre_clave_parseado}' sin tareas pendientes o en estado '{estado_general_mision}'. Se considera completada o fallida.")
-                return "mision_existente_finalizada", metadatos, lista_tareas, nombre_clave_parseado
+                    f"{logPrefix} Misión '{nombre_clave_parseado_del_contenido}' (del archivo '{nombre_archivo_mision}') sin tareas pendientes o en estado '{estado_general_mision}'. Se considera completada o fallida.")
+                return "mision_existente_finalizada", metadatos, lista_tareas, nombre_clave_parseado_del_contenido
         except Exception as e:
             logging.error(
-                f"{logPrefix} Error leyendo o parseando {MISION_ORION_MD}: {e}. Se intentará crear una nueva.", exc_info=True)
+                f"{logPrefix} Error leyendo o parseando '{nombre_archivo_mision}': {e}. Se intentará crear una nueva.", exc_info=True)
             return "ignorar_mision_actual_y_crear_nueva", None, None, None
     else:
         logging.info(
-            f"{logPrefix} No se encontró {MISION_ORION_MD} en rama '{rama_actual}'.")
+            f"{logPrefix} No se encontró archivo de misión '{nombre_archivo_mision}' en rama '{rama_actual}'.")
         return "no_hay_mision_local", None, None, None
-
-
-def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archivos):
-    logPrefix = "paso1_1_seleccion_y_decision_inicial:"
-    archivo_seleccionado_rel = seleccionar_archivo_mas_antiguo(
-        ruta_repo, registro_archivos)
-    guardar_registro_archivos(registro_archivos)
-
-    if not archivo_seleccionado_rel:
-        logging.warning(f"{logPrefix} No se pudo seleccionar ningún archivo.")
-        return "ciclo_terminado_sin_accion", None, None, None
-
-    ruta_archivo_seleccionado_abs = os.path.join(
-        ruta_repo, archivo_seleccionado_rel)
-    if not os.path.exists(ruta_archivo_seleccionado_abs):
-        logging.error(
-            f"{logPrefix} Archivo seleccionado '{archivo_seleccionado_rel}' no existe. Reintentando.")
-        registro_archivos[archivo_seleccionado_rel] = datetime.now(
-        ).isoformat() + "_NOT_FOUND"
-        guardar_registro_archivos(registro_archivos)
-        return "reintentar_seleccion", None, None, None
-
-    estructura_proyecto = analizadorCodigo.generarEstructuraDirectorio(
-        ruta_repo, directorios_ignorados=settings.DIRECTORIOS_IGNORADOS, max_depth=5, incluir_archivos=True)
-
-    resultado_lectura = analizadorCodigo.leerArchivos(
-        [ruta_archivo_seleccionado_abs], ruta_repo, api_provider=api_provider)
-    contenido_archivo = resultado_lectura['contenido']
-    tokens_contenido = resultado_lectura['tokens']
-    tokens_estructura = analizadorCodigo.contarTokensTexto(
-        estructura_proyecto or "", api_provider)
-    tokens_estimados = 500 + tokens_contenido + \
-        tokens_estructura  # 500 para prompt base
-
-    gestionar_limite_tokens(tokens_estimados, api_provider)
-
-    decision_IA_paso1_1 = analizadorCodigo.solicitar_evaluacion_archivo(
-        # reglas_refactor vacío por ahora
-        archivo_seleccionado_rel, contenido_archivo, estructura_proyecto, api_provider, ""
-    )
-    registrar_tokens_usados(decision_IA_paso1_1.get(
-        "tokens_consumidos_api", tokens_estimados) if decision_IA_paso1_1 else tokens_estimados)
-
-    if not decision_IA_paso1_1 or not decision_IA_paso1_1.get("necesita_refactor"):
-        logging.info(f"{logPrefix} IA decidió que '{archivo_seleccionado_rel}' no necesita refactor. Razón: {decision_IA_paso1_1.get('razonamiento', 'N/A') if decision_IA_paso1_1 else 'Error IA'}")
-        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-            manejadorHistorial.formatearEntradaHistorial(
-                outcome=f"PASO1.1_NO_REFACTOR:{archivo_seleccionado_rel}", decision=decision_IA_paso1_1)
-        ])
-        return "reintentar_seleccion", None, None, None
-
-    logging.info(
-        f"{logPrefix} IA decidió SÍ refactorizar '{archivo_seleccionado_rel}'. Razón: {decision_IA_paso1_1.get('razonamiento')}")
-    archivos_ctx_sugeridos_rel = decision_IA_paso1_1.get(
-        "archivos_contexto_sugeridos", [])
-    archivos_ctx_validados_rel = []
-    if decision_IA_paso1_1.get("necesita_contexto_adicional"):
-        for f_rel in archivos_ctx_sugeridos_rel:
-            if not f_rel or f_rel == archivo_seleccionado_rel:
-                continue
-            if os.path.exists(os.path.join(ruta_repo, f_rel)) and os.path.isfile(os.path.join(ruta_repo, f_rel)):
-                archivos_ctx_validados_rel.append(f_rel)
-            else:
-                logging.warning(
-                    f"{logPrefix} Archivo de contexto sugerido '{f_rel}' no existe. Descartado.")
-
-    return "generar_mision", archivo_seleccionado_rel, archivos_ctx_validados_rel, decision_IA_paso1_1
 
 
 def paso1_2_generar_mision(ruta_repo, archivo_a_refactorizar_rel, archivos_contexto_para_crear_mision_rel, decision_paso1_1, api_provider):
