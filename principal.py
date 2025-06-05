@@ -20,7 +20,6 @@ from nucleo import manejadorMision
 # --- Nuevas Constantes y Variables Globales ---
 REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(
     settings.RUTA_BASE_PROYECTO, "registro_archivos_analizados.json")
-MISION_ORION_MD = "misionOrion.md"
 TOKEN_LIMIT_PER_MINUTE = getattr(
     settings, 'TOKEN_LIMIT_PER_MINUTE', 250000)
 token_usage_window = []

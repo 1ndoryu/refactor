@@ -77,9 +77,6 @@ El agente se ejecuta en fases. Cada invocación de `principal.py` intenta comple
 
 ##  Siguientes pasos segun la ultima ejecución #EXCLUSIVO PARA WAN (puede aqui se agregen cosas que no estan en las tareas pero al completarse agregarlas e indicar como agregarse)
 
-Verificar la función generar_contenido_mision_desde_texto_guia en analizadorCodigo.py para asegurar que su prompt ya indica correctamente que el nombre del archivo de misión es dinámico (esta es la tarea que estaba pendiente según tu hoja de ruta).
-Una vez que ambas funciones en analizadorCodigo.py estén actualizadas y verificadas, buscaremos cualquier otro uso del string "misionOrion.md" en principal.py y otros archivos del proyecto que pueda implicar un nombre de archivo fijo.
-Si no hay más usos problemáticos, procederemos a eliminar la constante MISION_ORION_MD de principal.py.
 
 ## Hoja de Ruta de Refactorización y Desarrollo
 
@@ -89,7 +86,7 @@ A continuación, se presenta la lista de tareas priorizadas para la evolución d
 
 Objetivo: Asegurar la robustez del núcleo del sistema y corregir problemas fundamentales.
 
-1.  [ ] **(CRÍTICO)** **Nombre de Archivo de Misión Dinámico:**
+1.  [x] **(CRÍTICO)** **Nombre de Archivo de Misión Dinámico:**
     *   Modificar el sistema para que el archivo de misión (actualmente `misionOrion.md`) se nombre dinámicamente usando el `nombre_clave_mision` (ej. `<nombre_clave_mision>.md`).
     *   **Subtareas:**
         *   [X] Eliminar/modificar la constante `MISION_ORION_MD` en `principal.py`. (Parcialmente hecho al hacer que `paso0_revisar_mision_local` no la use).
@@ -101,7 +98,8 @@ Objetivo: Asegurar la robustez del núcleo del sistema y corregir problemas fund
         *   [x] Asegurar que los commits y la lógica de Git manejen correctamente este nombre dinámico.
             *   [x] Modificada `analizadorCodigo.generar_contenido_mision_desde_texto_guia` para que el prompt refleje el nombre dinámico del archivo de misión. (creo que debo comprobar si se hizo bien)
             *   [x] analizadorCodigo.generar_contenido_mision_orion para que el prompt refleje el nombre dinámico del archivo de misión. 
-        *   [ ] (Considerar último) Eliminar la constante global `MISION_ORION_MD` de `principal.py` cuando ya no sea utilizada por ninguna función.
+            *   [x] Verificar la función generar_contenido_mision_desde_texto_guia en analizadorCodigo.py para asegurar que su prompt ya indica correctamente que el nombre del archivo de misión es dinámico.
+        *   [x] (Considerar último) Eliminar la constante global `MISION_ORION_MD` de `principal.py` cuando ya no sea utilizada por ninguna función.
 2.  [ ] **(CRÍTICO)** **Centralización de Archivos de Estado y Logs en el Repositorio Clonado:**
     *   Mover los archivos de estado del agente (`.active_mission`, `registro_archivos_analizados.json`) y el log principal (`historial_refactor_adaptativo.log`, y otros como `mapaArchivos`, `historial_misiones`) al directorio del repositorio clonado (`settings.RUTACLON`), dentro de una subcarpeta dedicada (ej. `.orion_meta/`).
     *   **Subtareas:**
