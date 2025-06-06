@@ -10,11 +10,11 @@
 
     El objetivo es modificar `analizadorCodigo.generar_contenido_mision_orion` para que la misión generada contenga un mapa exacto de los bloques de código que se pretenden modificar.
 
-    1.  **[ ] Pre-procesamiento del Contexto con Números de Línea:**
+    1.  **[COMPLETADA] Pre-procesamiento del Contexto con Números de Línea:**
         *   Crear una nueva función de ayuda, por ejemplo `_inyectar_numeros_linea(contenido_codigo)`, que tome el texto de un archivo y le anteponga un número de línea a cada línea (ej. `1: <?php\n2: function miFuncion()...`).
         *   Antes de pasar el contexto de los archivos a `generar_contenido_mision_orion`, aplicarles esta función.
 
-    2.  **[ ] Modificar el Prompt de `generar_contenido_mision_orion`:**
+    2.  **[COMPLETADA] Modificar el Prompt de `generar_contenido_mision_orion`:**
         *   Instruir a la IA para que, al definir una tarea, identifique los bloques de código específicos (funciones, métodos) que deben ser modificados.
         *   Exigir a la IA que, utilizando el código con números de línea que se le proporciona, extraiga la siguiente información para cada bloque objetivo y la formatee en una nueva sección dentro de la tarea en el Markdown.
 

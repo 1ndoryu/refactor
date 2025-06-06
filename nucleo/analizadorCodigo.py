@@ -757,30 +757,27 @@ def solicitar_evaluacion_archivo(ruta_archivo_seleccionado_rel: str, contenido_a
 def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_archivos_leidos: str, razonamiento_paso1_1: str, api_provider: str, archivos_contexto_generacion_rel_list: list):
     """
     Paso 1.2: IA genera el contenido para md de la mision (nombre clave y tareas).
+    El contexto_archivos_leidos SE ESPERA que ya venga con números de línea inyectados por _inyectar_numeros_linea.
     """
     logPrefix = f"generar_contenido_mision_orion (Paso 1.2/{api_provider.upper()}):"
     log.info(
         f"{logPrefix} Generando misión para archivo: {archivo_a_refactorizar_rel}")
 
-    # Preparar la lista de archivos de contexto para el prompt, asegurando que no tengan corchetes
     archivos_contexto_generacion_str_parts = []
     if archivos_contexto_generacion_rel_list:
         for ruta_ctx_gen in archivos_contexto_generacion_rel_list:
-            # Limpieza básica por si acaso, aunque parsear_mision_orion ya lo hace al leer.
-            # El objetivo principal es que la IA no los genere con corchetes en primer lugar.
             ruta_limpia_prompt = str(ruta_ctx_gen).replace('[', '').replace(']', '').strip()
             if ruta_limpia_prompt:
                 archivos_contexto_generacion_str_parts.append(ruta_limpia_prompt)
     
     archivos_contexto_generacion_str = ", ".join(archivos_contexto_generacion_str_parts) if archivos_contexto_generacion_str_parts else "Ninguno"
 
-
     promptPartes = [
-        "Eres un asistente de IA que planifica misiones de refactorización de código. Basado en el archivo principal, su contexto y un razonamiento previo, debes generar una misión.",
+        "Eres un asistente de IA que planifica misiones de refactorización de código. Basado en el archivo principal, su contexto (QUE AHORA INCLUYE NÚMEROS DE LÍNEA PREFIJADOS A CADA LÍNEA, ej: `1: codigo...`), y un razonamiento previo, debes generar una misión.",
         f"El archivo principal a refactorizar es: '{archivo_a_refactorizar_rel}'.",
         f"El razonamiento del paso anterior (Paso 1.1) para refactorizar fue: '{razonamiento_paso1_1 if razonamiento_paso1_1 else 'No se proporcionó razonamiento previo específico. Si este razonamiento indica que se necesita refactorizar, DEBES generar al menos una tarea.'}'",
         f"Los archivos que se leyeron para proporcionar contexto para esta generación de misión son: {archivos_contexto_generacion_str}.",
-        "\n--- CONTENIDO DE LOS ARCHIVOS RELEVANTES (Incluye el archivo principal y los de contexto adicional si se leyeron) ---",
+        "\n--- CONTENIDO DE LOS ARCHIVOS RELEVANTES (Incluye el archivo principal y los de contexto. CADA LÍNEA ESTÁ PREFIJADA CON SU NÚMERO DE LÍNEA seguido de ': ', ej: '1: <?php') ---",
         contexto_archivos_leidos,
         "\n--- TU TAREA: GENERAR LA MISIÓN ---",
         "Debes generar ÚNICAMENTE un objeto JSON con la siguiente estructura:",
@@ -793,7 +790,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
 ```""",
         "REGLAS PARA EL JSON:",
         "1. `nombre_clave_mision`: String. Debe ser corto (máx 30-40 chars), descriptivo, usar CamelCase o snake_case (preferiblemente con guiones bajos si es snake_case, ej. `Refactor_Login_Handler`), y ser adecuado para un nombre de rama Git (ej: `RefactorLoginHandler`, `OptimizarQueriesDB_123`). Intenta que sea único añadiendo un identificador numérico corto si es una tarea común.",
-        "2. `contenido_markdown_mision`: String. Este es el contenido completo para el archivo de misión (cuyo nombre será `[nombre_clave_mision].md`, donde `[nombre_clave_mision]` es el valor que generes para la clave `nombre_clave_mision` en este mismo JSON). Debe seguir ESTRICTAMENTE el siguiente formato:",
+        "2. `contenido_markdown_mision`: String. Este es el contenido completo para el archivo de misión (cuyo nombre será `[nombre_clave_mision].md`). Debe seguir ESTRICTAMENTE el siguiente formato:",
         "   ```markdown",
         "   # Misión: [nombre_clave_mision] (Debe coincidir con el JSON y la clave 'Nombre Clave' abajo)",
         "",
@@ -811,8 +808,14 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         "   - **ID:** [ID_TAREA_EJEMPLO_1] (Debe ser único en la misión, ej: TSK-001, RF-FuncX. DEBE COINCIDIR con el ID en el encabezado '### Tarea ...'.)",
         "   - **Estado:** PENDIENTE",
         "   - **Descripción:** [Descripción detallada, clara y accionable de la primera tarea. ¿Qué se debe hacer? ¿En qué archivo(s) específicamente? ¿Cuál es el objetivo? Sé explícito. Por ejemplo: \"Refactorizar la función `getUserDetails` en `user_module.py` para usar el nuevo servicio `AuthService` en lugar de acceso directo a DB. Actualizar llamadas en `profile_view.py`.\"]",
-        "   - **Archivos Implicados Específicos (Opcional):** [ruta/al/archivo1.py, otra/ruta/archivo2.php] (Si la tarea se enfoca en archivos específicos ADICIONALES al principal o al contexto general. Lista separada por comas. IMPORTANTE: cada ruta aquí NO DEBE contener corchetes `[` o `]` ni otros caracteres inválidos para rutas. Si no, escribe textualmente: `Ninguno`.)",
+        "   - **Archivos Implicados Específicos:** [ruta/al/archivo1.py, otra/ruta/archivo2.php] (Si la tarea se enfoca en archivos específicos ADICIONALES al principal o al contexto general, o si la tarea es CREAR un nuevo archivo, incluye su ruta aquí. Lista separada por comas. IMPORTANTE: cada ruta aquí NO DEBE contener corchetes `[` o `]` ni otros caracteres inválidos para rutas. Si no, escribe textualmente: `Ninguno`.)",
         "   - **Intentos:** 0",
+        "   - **Bloques de Código Objetivo:** (OBLIGATORIO para cada tarea. Describe los fragmentos de código específicos que la tarea modificará, creará o eliminará.)",
+        "     - **Archivo:** `ruta/relativa/al/archivo_afectado.ext` (Ruta relativa al archivo afectado. DEBE coincidir con una ruta en 'Archivo Principal', 'Archivos de Contexto (Ejecución)' o 'Archivos Implicados Específicos').",
+        "       - **Nombre Bloque:** `nombreFuncionMetodoClase` (Nombre de la función, método o clase a modificar/crear/eliminar. Si crea un archivo nuevo, puede ser nombre de clase principal o 'ContenidoInicial').",
+        "       - **Línea Inicio:** NNN (USA LOS NÚMEROS DE LÍNEA DEL CONTEXTO PROVISTO CON NÚMEROS DE LÍNEA. Para un bloque existente, su línea de inicio. Si el archivo es NUEVO y se va a crear, usa `1`. Si se añade un bloque nuevo a un archivo existente, esta es la línea donde el nuevo bloque comenzará a insertarse, o la línea de inicio del bloque contenedor, ej. la clase).",
+        "       - **Línea Fin:** MMM (USA LOS NÚMEROS DE LÍNEA DEL CONTEXTO. Para un bloque existente, su línea final. Si el archivo es NUEVO, ESTIMA la línea final del contenido a generar. Si se añade un bloque nuevo, esta es la línea final del nuevo bloque a insertar).",
+        "     - (Puedes añadir más bloques bajo el mismo '- Archivo:' si la tarea afecta múltiples funciones/métodos en él, o más entradas de '- Archivo:' si la tarea afecta múltiples archivos).",
         "   ---",
         "   (Si se necesitan más tareas, usa el mismo formato exacto, separadas por ---. Recuerda: genera entre 1 y 5 tareas. Si el razonamiento del Paso 1.1 indicó refactorizar, ES OBLIGATORIO generar al menos UNA tarea.)",
         "   ```",
@@ -820,7 +823,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         "   - **OBLIGATORIO:** Si el `razonamiento_paso1_1` sugiere una refactorización, DEBES generar al menos una tarea. Si no hay nada que hacer, el flujo no debería haber llegado aquí, pero si lo hace, genera una tarea del tipo 'Revisar archivo X en busca de mejoras menores.'",
         "   - Las tareas deben ser PEQUEÑAS, ESPECÍFICAS y REALIZABLES por otra IA en un solo paso (Paso 2 del refactorizador).",
         "   - Los IDs de las tareas deben ser únicos dentro de la misión.",
-        "   - **RUTAS DE ARCHIVO:** Para CUALQUIER ruta de archivo que generes (en 'Archivos de Contexto (Ejecución)' o en 'Archivos Implicados Específicos' de una tarea), ASEGÚRATE de que sean rutas relativas válidas. NO uses corchetes `[` o `]` DENTRO de las rutas individuales. Usa `/` como separador de directorios. Ejemplos válidos: `src/components/Boton.js`, `app/models/Usuario.php`. Ejemplo inválido: `[app/models/Usuario.php]`. Si la lista de archivos de contexto para ejecución es la misma que la de generación, simplemente repite las rutas limpias.",
+        "   - **RUTAS DE ARCHIVO:** Para CUALQUIER ruta de archivo que generes (en 'Archivos de Contexto (Ejecución)' o en 'Archivos Implicados Específicos' de una tarea, o en 'Bloques de Código Objetivo'), ASEGÚRATE de que sean rutas relativas válidas. NO uses corchetes `[` o `]` DENTRO de las rutas individuales. Usa `/` como separador de directorios. Ejemplos válidos: `src/components/Boton.js`, `app/models/Usuario.php`. Ejemplo inválido: `[app/models/Usuario.php]`.",
         "   - El archivo principal y los de contexto para la generación ya están definidos en los metadatos. Las tareas deben operar sobre estos archivos o los especificados en 'Archivos Implicados Específicos'.",
         "No añadas explicaciones fuera del JSON. El `nombre_clave_mision` en el JSON y en el Markdown (título y metadato) DEBEN COINCIDIR."
     ]
@@ -837,7 +840,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
             respuesta = modelo.generate_content(
                 promptCompleto,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=0.6, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS), # Ajustado para usar variable de settings
+                    temperature=0.6, response_mime_type="application/json", max_output_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS), 
                 safety_settings={'HATE': 'BLOCK_MEDIUM_AND_ABOVE', 'HARASSMENT': 'BLOCK_MEDIUM_AND_ABOVE',
                                  'SEXUAL': 'BLOCK_MEDIUM_AND_ABOVE', 'DANGEROUS': 'BLOCK_MEDIUM_AND_ABOVE'}
             )
@@ -852,7 +855,7 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
             completion = client.chat.completions.create(
                 extra_headers={"HTTP-Referer": settings.OPENROUTER_REFERER,
                                "X-Title": settings.OPENROUTER_TITLE},
-                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS, timeout=API_TIMEOUT_SECONDS # Ajustado para usar variable de settings
+                model=settings.OPENROUTER_MODEL, messages=mensajes, temperature=0.6, max_tokens=settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS, timeout=API_TIMEOUT_SECONDS
             )
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
@@ -877,13 +880,14 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
         nombre_clave_json = respuestaJson["nombre_clave_mision"]
         contenido_md = respuestaJson["contenido_markdown_mision"]
         
-        # Validaciones básicas del contenido generado
         if f"# Misión: {nombre_clave_json}" not in contenido_md:
             log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide exactamente con el título '# Misión: ...' en el contenido_markdown_mision.")
-        if f"- **Nombre Clave:** {nombre_clave_json}" not in contenido_md: # CORREGIDO AQUÍ
+        if f"- **Nombre Clave:** {nombre_clave_json}" not in contenido_md:
             log.warning(f"{logPrefix} El nombre_clave_mision '{nombre_clave_json}' del JSON no coincide con el metadato '- **Nombre Clave:** ...' en el contenido_markdown_mision.")
-        if "### Tarea" not in contenido_md and "Revisar archivo" not in contenido_md : # Chequeo muy básico de si hay tareas
+        if "### Tarea" not in contenido_md and "Revisar archivo" not in contenido_md :
              log.warning(f"{logPrefix} El contenido_markdown_mision generado parece NO TENER TAREAS DEFINIDAS (no se encontró '### Tarea'). Esto podría ser un problema para el parser. Razonamiento original: {razonamiento_paso1_1}")
+        if "Bloques de Código Objetivo" not in contenido_md and "### Tarea" in contenido_md: # Si hay tareas, debería haber bloques
+             log.warning(f"{logPrefix} El contenido_markdown_mision generado TIENE TAREAS pero parece NO TENER LA SECCIÓN 'Bloques de Código Objetivo'. Esto es un problema para el nuevo flujo.")
 
 
         log.info(
@@ -1295,3 +1299,15 @@ def _manejarExcepcionGemini(e, logPrefix, respuesta=None):
                     f"{logPrefix} Prompt Feedback (si disponible): {respuesta.prompt_feedback}")
             except Exception:
                 pass
+
+def _inyectar_numeros_linea(contenido_codigo: str) -> str:
+    """
+    Toma el contenido de un archivo de código y le antepone un número de línea a cada línea.
+    Ejemplo: 'def func():\\n    pass' -> '1: def func():\\n2:     pass'
+    """
+    if not contenido_codigo:
+        return ""
+    
+    lineas = contenido_codigo.splitlines()
+    lineas_numeradas = [f"{i+1}: {linea}" for i, linea in enumerate(lineas)]
+    return "\n".join(lineas_numeradas)
