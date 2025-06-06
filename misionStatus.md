@@ -101,6 +101,19 @@ Objetivo: Asegurar la robustez del núcleo del sistema, corregir problemas funda
 
 Objetivo: Hacer que la creación y ejecución de misiones sea más inteligente, consciente de los riesgos y adaptable en términos de la información que maneja.
 
+
+4.  [ ] **(ALTO)** **Mecanismo de Validación Post-Cambio y Auto-Corrección/Reversión:**
+    *   Implementar un paso de validación después de que `aplicadorCambios` aplique los cambios de una tarea.
+    *   **Subtareas:**
+        *   [ ] Diseñar un prompt para que la IA revise el `git diff` de los cambios o el contenido del bloque modificado, comparándolo con la intención original de la tarea.
+        *   [ ] Si la validación de la IA indica un problema, intentar una corrección (otro prompt pidiendo que corrija su salida anterior).
+        *   [ ] Si la corrección falla, revertir automáticamente los cambios de ESA tarea (ej. `git reset HEAD^` si la tarea ya se commiteó).
+5.  [ ] **(ALTO)** **Verificación de Archivos Vacíos Antes de Lectura por IA:**
+    *   En `analizadorCodigo.leerArchivos` (o antes de llamarlo), verificar si un archivo está vacío. Si lo está, no incluir su contenido en el prompt y registrar este hecho para ahorrar tokens.
+6.  [ ] **(ALTO)** **Robustez en `manejadorGit.clonarOActualizarRepo`:**
+    *   Mejorar la detección de la rama principal remota. Antes de cualquier `checkout` o `reset`, verificar explícitamente que la rama exista en `origin` (`manejadorGit.existe_rama(..., remote_only=True)`). Manejar el error si no existe.
+7.  [ ] **(MEDIO)** **Timeout por Tarea de IA:**
+    *   Implementar un timeout específico (ej. 4-5 minutos) para las llamadas a la IA que son propensas a tardar mucho, como `ejecutar_tarea_especifica_mision`. Si se excede el timeout, la tarea debe marcarse como `FALLIDA_TEMPORALMENTE` para que se pueda reintentar o investigar.
 8.  [ ] **(ALTO)** **Mejorar Estrategia de Selección de Archivo Inicial:**
     *   En lugar de tomar solo el archivo más antiguo, seleccionar N (ej. 3) candidatos. Usar la IA (con un prompt ligero) para elegir cuál de los N es el más prometedor para refactorización.
 9.  [ ] **(ALTO)** **Gestión de Contexto y Riesgo Dinámica y Adaptativa:**

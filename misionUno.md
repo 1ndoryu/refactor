@@ -1,4 +1,5 @@
 ### 3. [ ] (CRÍTICO) Implementación de Cambios Atómicos (Nivel Función/Método) con Mapeo de Líneas, esta tarea de total relevancia.
+### PUEDES AÑADIR MAS TAREAS SI ES NECESARIO PARA QUE TODO FUNCIONE BIEN
 
 *   **Problema:** El método actual de devolver el contenido completo de un archivo para aplicar un cambio es propenso a errores, como la eliminación accidental de código no relacionado. Los intentos anteriores de cambios granulares fallaron porque la IA no lograba identificar con precisión el bloque de código a modificar (ej. por diferencias mínimas en el nombre de la función).
 
@@ -18,7 +19,7 @@
         *   Instruir a la IA para que, al definir una tarea, identifique los bloques de código específicos (funciones, métodos) que deben ser modificados.
         *   Exigir a la IA que, utilizando el código con números de línea que se le proporciona, extraiga la siguiente información para cada bloque objetivo y la formatee en una nueva sección dentro de la tarea en el Markdown.
 
-    3.  **[ ] Evolucionar el Formato de Tarea en el Archivo de Misión (`.md`):**
+    3.  **[COMPLETADA] Evolucionar el Formato de Tarea en el Archivo de Misión (`.md`):**
         *   Añadir una nueva sección obligatoria a la estructura de cada tarea llamada `Bloques de Código Objetivo`.
 
         ```markdown
@@ -45,13 +46,13 @@
 
     El objetivo es modificar `analizadorCodigo.ejecutar_tarea_especifica_mision` para que trabaje de forma atómica.
 
-    1.  **[ ] Modificar el Input de la Función:**
+    1.  **[x] Modificar el Input de la Función:**
         *   La función ya no recibirá el contenido completo de todos los archivos de contexto. En su lugar, `principal.py` deberá usar el mapa de `Bloques de Código Objetivo` para extraer y pasar a la IA únicamente los fragmentos de código relevantes para la tarea. Esto reduce drásticamente el uso de tokens.
 
-    2.  **[ ] Modificar el Prompt de `ejecutar_tarea_especifica_mision`:**
+    2.  **[x] Modificar el Prompt de `ejecutar_tarea_especifica_mision`:**
         *   El prompt instruirá a la IA para que devuelva un JSON que describa una lista de *operaciones de modificación*, en lugar del contenido de archivos completos.
 
-    3.  **[ ] Definir el Nuevo Formato de Respuesta JSON de la IA:**
+    3.  **[x] Definir el Nuevo Formato de Respuesta JSON de la IA:**
         *   La IA deberá generar una estructura como la siguiente:
 
         ```json
@@ -89,7 +90,7 @@
             *   **Para `ELIMINAR_BLOQUE`:** Idéntico a `REEMPLAZAR_BLOQUE` pero con `nuevo_contenido` vacío.
             *   Finalmente, unirá la lista de líneas modificada y sobrescribirá el archivo.
 
-    2.  **[ ] Preservar `aplicadorCambios.aplicarCambiosSobrescrituraV2`:**
+    2.  **[x] Preservar `aplicadorCambios.aplicarCambiosSobrescrituraV2`:**
         *   Esta función se mantendrá intacta. Será útil para tareas que legítimamente necesiten crear o reescribir archivos pequeños desde cero.
 
     3.  **[ ] Actualizar `principal.py` para Enrutamiento Inteligente:**
@@ -97,19 +98,6 @@
         *   Si la respuesta contiene la clave `"modificaciones"`, llamará a `aplicarCambiosGranulares`.
         *   Si contiene la clave `"archivos_modificados"`, llamará a `aplicarCambiosSobrescrituraV2` (manteniendo la compatibilidad con el flujo antiguo o tareas que lo requieran).
 
-
-4.  [ ] **(ALTO)** **Mecanismo de Validación Post-Cambio y Auto-Corrección/Reversión:**
-    *   Implementar un paso de validación después de que `aplicadorCambios` aplique los cambios de una tarea.
-    *   **Subtareas:**
-        *   [ ] Diseñar un prompt para que la IA revise el `git diff` de los cambios o el contenido del bloque modificado, comparándolo con la intención original de la tarea.
-        *   [ ] Si la validación de la IA indica un problema, intentar una corrección (otro prompt pidiendo que corrija su salida anterior).
-        *   [ ] Si la corrección falla, revertir automáticamente los cambios de ESA tarea (ej. `git reset HEAD^` si la tarea ya se commiteó).
-5.  [ ] **(ALTO)** **Verificación de Archivos Vacíos Antes de Lectura por IA:**
-    *   En `analizadorCodigo.leerArchivos` (o antes de llamarlo), verificar si un archivo está vacío. Si lo está, no incluir su contenido en el prompt y registrar este hecho para ahorrar tokens.
-6.  [ ] **(ALTO)** **Robustez en `manejadorGit.clonarOActualizarRepo`:**
-    *   Mejorar la detección de la rama principal remota. Antes de cualquier `checkout` o `reset`, verificar explícitamente que la rama exista en `origin` (`manejadorGit.existe_rama(..., remote_only=True)`). Manejar el error si no existe.
-7.  [ ] **(MEDIO)** **Timeout por Tarea de IA:**
-    *   Implementar un timeout específico (ej. 4-5 minutos) para las llamadas a la IA que son propensas a tardar mucho, como `ejecutar_tarea_especifica_mision`. Si se excede el timeout, la tarea debe marcarse como `FALLIDA_TEMPORALMENTE` para que se pueda reintentar o investigar.
 
 
 ### Lluvias de ideas

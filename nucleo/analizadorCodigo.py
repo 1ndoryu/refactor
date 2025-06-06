@@ -901,98 +901,145 @@ def generar_contenido_mision_orion(archivo_a_refactorizar_rel: str, contexto_arc
                                locals().get('respuesta'))
         return None
 
-def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa: str, contexto_archivos_tarea: str, api_provider: str):
+def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa: str, bloques_codigo_input: list, api_provider: str):
     """
-    Paso 2: IA ejecuta una tarea específica de la misión.
-    `tarea_info` es un dict como: {"descripcion": "Tarea a realizar...", "archivo_principal_implicito": "ruta/archivo.py"}
-    `mision_markdown_completa` es todo el contenido de md de la mision para contexto general de la misión.
-    `contexto_archivos_tarea` es el contenido concatenado de los archivos relevantes para ESTA tarea.
+    Paso 2 (Modo Granular): IA ejecuta una tarea específica de la misión, operando sobre bloques de código.
+    Devuelve un JSON con una lista de operaciones de modificación.
+
+    Args:
+        tarea_info (dict): Diccionario con la información de la tarea actual (descripción, ID, etc.).
+        mision_markdown_completa (str): Contenido completo del archivo Markdown de la misión, para contexto general.
+        bloques_codigo_input (list): Lista de diccionarios, donde cada diccionario representa un bloque de código objetivo:
+            [
+                {
+                    "ruta_archivo": "app/controlador.php",
+                    "nombre_bloque": "procesarFormulario",
+                    "linea_inicio_original": 45, 
+                    "linea_fin_original": 82,   
+                    "contenido_actual_bloque": "código actual del bloque..." 
+                },
+                # ... más bloques
+            ]
+        api_provider (str): Proveedor de API a utilizar ('google' o 'openrouter').
+
+    Returns:
+        dict: Un diccionario parseado desde el JSON de respuesta de la IA, con la estructura de operaciones de modificación,
+              o None si hay un error.
     """
-    logPrefix = f"ejecutar_tarea_especifica_mision (Paso 2/{api_provider.upper()}):"
+    logPrefix = f"ejecutar_tarea_especifica_mision (Paso 2 Granular/{api_provider.upper()}):"
     descripcion_tarea = tarea_info.get("descripcion", "Tarea no especificada")
-    log.info(f"{logPrefix} Ejecutando tarea: '{descripcion_tarea}'")
+    tarea_id = tarea_info.get("id", "ID_TAREA_DESCONOCIDO")
+    log.info(f"{logPrefix} Ejecutando Tarea ID '{tarea_id}': '{descripcion_tarea}'")
+
+    # Serializar los bloques de código para el prompt
+    bloques_input_str_parts = ["\n--- BLOQUES DE CÓDIGO OBJETIVO (CON SU CONTENIDO ACTUAL Y LÍNEAS ORIGINALES) ---"]
+    if bloques_codigo_input:
+        for i, bloque in enumerate(bloques_codigo_input):
+            bloques_input_str_parts.append(f"\n-- Bloque de Código #{i+1} --")
+            bloques_input_str_parts.append(f"  Ruta Archivo: {bloque.get('ruta_archivo', 'N/A')}")
+            bloques_input_str_parts.append(f"  Nombre Bloque: {bloque.get('nombre_bloque', 'N/A')}")
+            bloques_input_str_parts.append(f"  Línea Inicio Original (en archivo completo): {bloque.get('linea_inicio_original', 'N/A')}")
+            bloques_input_str_parts.append(f"  Línea Fin Original (en archivo completo): {bloque.get('linea_fin_original', 'N/A')}")
+            bloques_input_str_parts.append(f"  Contenido Actual del Bloque:\n```\n{bloque.get('contenido_actual_bloque', '')}\n```")
+    else:
+        bloques_input_str_parts.append("(No se proporcionaron bloques de código específicos. La tarea podría ser crear un archivo nuevo o la información del bloque está implícita en la descripción de la tarea.)")
+    bloques_input_serializados_str = "\n".join(bloques_input_str_parts)
 
     promptPartes = [
-        "Eres un asistente de IA que ejecuta tareas de refactorización de código definidas en una misión. Debes aplicar los cambios solicitados en la tarea actual.",
-        "--- MISIÓN GENERAL (Contexto Global) ---",
+        "Eres un asistente de IA avanzado especializado en refactorización de código y ejecución de tareas de desarrollo precisas. Tu objetivo es aplicar los cambios solicitados en la tarea actual, operando sobre los bloques de código proporcionados o creando nuevo código según se especifique.",
+        "Debes analizar la tarea, el contexto general de la misión y los bloques de código objetivo (con su contenido actual y metadatos como ruta y líneas originales en el archivo completo).",
+        "Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON que describa una lista de operaciones de modificación.",
+
+        "\n--- MISIÓN GENERAL (Contexto Global) ---",
         mision_markdown_completa,
-        "\n--- TAREA ESPECÍFICA A EJECUTAR AHORA ---",
-        f"Descripción de la tarea: {descripcion_tarea}",
-        # Podríamos añadir más detalles de tarea_info si los hubiera, ej: archivos específicos mencionados en la tarea.
-        "\n--- CONTENIDO ACTUAL DE ARCHIVOS RELEVANTES PARA ESTA TAREA ---",
-        contexto_archivos_tarea if contexto_archivos_tarea else "(No se proporcionó contenido de archivo específico para esta tarea, usa el contexto de la misión general si es necesario o opera sobre el archivo principal implicado en la tarea)",
-        "\n--- TU RESPUESTA ---",
-        "Realiza la tarea descrita. Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura EXACTA:",
-        # Se define el schema abajo, así que el ejemplo aquí es para claridad.
+
+        f"\n--- TAREA ESPECÍFICA A EJECUTAR (ID: {tarea_id}) ---",
+        f"Descripción de la Tarea: {descripcion_tarea}",
+        # Aquí podrían ir más detalles de tarea_info si fueran relevantes y no están ya en mision_markdown_completa
+
+        bloques_input_serializados_str, # Los bloques de código con su contenido
+
+        "\n--- FORMATO DE RESPUESTA JSON REQUERIDO ---",
+        "Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura:",
         """
-El JSON debe tener una clave principal "archivos_modificados", que es un objeto.
-Dentro de "archivos_modificados", cada clave es una ruta de archivo relativa (string) y su valor es el contenido completo y final del archivo (string).
-Ejemplo:
+```json
 {
-  "archivos_modificados": {
-    "ruta/relativa/al/archivo1.php": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 1...",
+  "modificaciones": [
     {
-    "nombre": "ruta/relativa/al/archivo1.php",
-    "contenido": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 1..."
-  },
-  {
-    "nombre": "ruta/relativa/al/archivo2.js",
-    "contenido": "CONTENIDO COMPLETO Y FINAL DEL ARCHIVO 2..."
-  }
-]
-Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver un array "archivos_modificados" vacío [] Y añadir un campo "advertencia_ejecucion" (string) al nivel raíz del JSON con tu explicación.
-""",
-        "REGLAS PARA `archivos_modificados` Y EL JSON DE RESPUESTA:",
-        "1. El JSON de respuesta DEBE ser un objeto con una clave `archivos_modificados` (que es un array de objetos con `nombre` y `contenido`) y opcionalmente una clave `advertencia_ejecucion` (string).",
-        "2. Dentro de `archivos_modificados`:",
-        "   a. Cada objeto en el array debe tener una clave `nombre` (string, ruta relativa) y una clave `contenido` (string, contenido íntegro y final del archivo).",
-        "   b. Si la tarea implica crear un nuevo archivo, inclúyelo aquí.",
-        "   c. Si la tarea implica eliminar un archivo, NO lo incluyas aquí (la eliminación se maneja externamente si la tarea lo indica explícitamente, tú solo genera el código de los archivos que QUEDAN o CAMBIAN)."
-        "3. **ESCAPADO CRÍTICO DENTRO DEL CONTENIDO DEL ARCHIVO EN JSON (VALORES DE `archivos_modificados`):** Para que el JSON sea parseable, el *contenido del archivo* (que es un string dentro del JSON) debe tener los siguientes caracteres especiales escapados:",
-        "   - Una **comilla doble literal (`\"`):** debe ser `\\\"` (barra invertida, comilla doble).",
-        "   - Una **barra invertida literal (`\\`):** debe ser `\\\\` (doble barra invertida).",
-        "   - Un **salto de línea:** debe ser `\\n` (barra invertida, n).",
-        "   - Una **tabulación:** debe ser `\\t` (barra invertida, t).",
-        "   - Un **retorno de carro:** debe ser `\\r` (barra invertida, r).",
-        "   - Un **avance de página:** debe ser `\\f` (barra invertida, f).",
-        "   - Un **retroceso:** debe ser `\\b` (barra invertida, b).",
-        "   **EJEMPLO CRÍTICO:** Si el código original es `path = \"C:\\new\\file.txt\"\\nprint(\"OK\")` (donde \\n es un salto de línea real),",
-        "              en el JSON, la cadena de contenido (el valor asociado a la ruta del archivo) sería: `\"path = \\\"C:\\\\\\\\new\\\\\\\\file.txt\\\"\\\\nprint(\\\"OK\\\")\"`.",
-        "   **ERROR COMÚN A EVITAR:** El error `Invalid \\escape` ocurre si una barra invertida (`\\`) no está escapada como `\\\\` o si va seguida de un carácter que no forma una secuencia de escape JSON válida (ej. `\\ `). Asegúrate de que TODAS las barras invertidas literales sean `\\\\` y que los caracteres especiales como saltos de línea sean `\\n`, tabulaciones `\\t`, etc. ¡Presta MÁXIMA atención a esto!",
-        "4. Mantén intacto el código no afectado en los archivos modificados. Asegúrate de que el código siga siendo funcional y completo.",
-        "5. Si la tarea es ambigua o no se puede realizar de forma segura con el contexto proporcionado, puedes devolver un objeto `archivos_modificados` vacío `{}` Y añadir un campo `\"advertencia_ejecucion\": \"Tu explicación aquí\"` al JSON principal (al mismo nivel que `archivos_modificados`).",
-        "No añadas explicaciones fuera del JSON a menos que sea en el campo `advertencia_ejecucion`."
+      "tipo_operacion": "REEMPLAZAR_BLOQUE",
+      "ruta_archivo": "ruta/relativa/al/archivo.ext",
+      "linea_inicio": 45,
+      "linea_fin": 82,
+      "nuevo_contenido": "/* ... nuevo código completo para el bloque procesarFormulario ... */"
+    },
+    {
+      "tipo_operacion": "AGREGAR_BLOQUE",
+      "ruta_archivo": "app/modelo.php",
+      "insertar_despues_de_linea": 150,
+      "nuevo_contenido": "  public function validarEmail($email) {\\n    // ... nueva lógica de validación ...\\n  }"
+    },
+    {
+      "tipo_operacion": "ELIMINAR_BLOQUE",
+      "ruta_archivo": "app/viejo_controlador.php",
+      "linea_inicio": 10,
+      "linea_fin": 25
+    }
+  ],
+  "advertencia_ejecucion": null
+}
+```""",
+        "REGLAS DETALLADAS PARA EL JSON DE RESPUESTA:",
+        "1.  **`modificaciones`**: (Array de objetos) Una lista de operaciones. Puede estar vacía si no se realizan cambios y solo hay una `advertencia_ejecucion`.",
+        "2.  **Objeto de Operación (dentro de `modificaciones`)**: Cada objeto debe tener:",
+        "    a.  **`tipo_operacion`**: (String) Uno de: `REEMPLAZAR_BLOQUE`, `AGREGAR_BLOQUE`, `ELIMINAR_BLOQUE`.",
+        "    b.  **`ruta_archivo`**: (String) Ruta relativa al archivo afectado (ej: `src/utils/helpers.js`).",
+        "    c.  **Campos específicos por `tipo_operacion`**:",
+        "        i.  **Si `tipo_operacion` es `REEMPLAZAR_BLOQUE`**: ",
+        "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a reemplazar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron, si estás reemplazando un bloque existente.",
+        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a reemplazar. DEBE CORRESPONDER a `linea_fin_original` del bloque que te pasaron.",
+        "            -   **`nuevo_contenido`**: (String) El código completo que reemplazará el bloque original. Si el bloque es una función, debe ser la función completa.",
+        "               - Si la tarea es crear un archivo NUEVO, puedes usar `REEMPLAZAR_BLOQUE` con `linea_inicio: 1`, `linea_fin: 1` (o 0, pero usa 1) y `nuevo_contenido` siendo el contenido completo del nuevo archivo.",
+        "        ii. **Si `tipo_operacion` es `AGREGAR_BLOQUE`**: ",
+        "            -   **`insertar_despues_de_linea`**: (Integer) Número de línea (1-indexed) en el archivo original DESPUÉS de la cual se insertará el `nuevo_contenido`. Usa `0` para insertar al principio del archivo.",
+        "            -   **`nuevo_contenido`**: (String) El código completo del nuevo bloque a agregar.",
+        "        iii.**Si `tipo_operacion` es `ELIMINAR_BLOQUE`**: ",
+        "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a eliminar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron.",
+        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a eliminar.",
+        "            -   El campo `nuevo_contenido` se ignora o puede ser `null` o `\"\"`.",
+        "3.  **`advertencia_ejecucion`**: (String o Null) Si no puedes realizar la tarea de forma segura o si hay ambigüedades importantes, explica el problema aquí. Si todo está bien, usa `null`.",
+        "4.  **IMPORTANTE SOBRE LÍNEAS**: Todas las referencias a `linea_inicio`, `linea_fin`, e `insertar_despues_de_linea` en TU RESPUESTA JSON deben ser números de línea relativos al ARCHIVO COMPLETO ORIGINAL, no a los fragmentos de `contenido_actual_bloque` que se te proporcionan. Usa los `linea_inicio_original` y `linea_fin_original` de los bloques de entrada como referencia para esto.",
+        "5.  **CONTENIDO DEL CÓDIGO (`nuevo_contenido`)**: Debe ser un string JSON válido. Esto significa que los caracteres especiales DENTRO del código (como comillas dobles, barras invertidas, saltos de línea) DEBEN estar correctamente escapados (ej: `\\\"` para comilla doble, `\\\\` para barra invertida, `\\n` para salto de línea).",
+        "6.  ** atomicidad**: Las operaciones deben ser lo más atómicas posible. Si una tarea implica múltiples cambios pequeños, genera múltiples objetos de operación en la lista `modificaciones`.",
+        "7.  **Archivos Nuevos**: Si la tarea es crear un archivo nuevo, usa `REEMPLAZAR_BLOQUE` con `ruta_archivo` siendo la nueva ruta, `linea_inicio: 1`, `linea_fin: 1`, y `nuevo_contenido` con el contenido completo del archivo.",
+        "No añadas explicaciones fuera del JSON. La única explicación permitida está en el campo `advertencia_ejecucion`."
     ]
     promptCompleto = "\n".join(promptPartes)
 
     textoRespuesta = None
     respuestaJson = None
 
-    # Definición del esquema de respuesta para Gemini
-    # Asumimos que Schema y Type han sido importados como:
-    # import google.generativeai.types as types
-    response_schema_ejecutar_tarea = {
-         'type': 'OBJECT',
+    response_schema_granular = {
+        'type': 'OBJECT',
         'properties': {
-            'archivos_modificados': {
+            'modificaciones': {
                 'type': 'ARRAY',
                 'items': {
                     'type': 'OBJECT',
                     'properties': {
-                        'nombre': {'type': 'STRING'},
-                        'contenido': {'type': 'STRING'}
+                        'tipo_operacion': {'type': 'STRING', 'enum': ['REEMPLAZAR_BLOQUE', 'AGREGAR_BLOQUE', 'ELIMINAR_BLOQUE']},
+                        'ruta_archivo': {'type': 'STRING'},
+                        'linea_inicio': {'type': 'INTEGER', 'nullable': True},
+                        'linea_fin': {'type': 'INTEGER', 'nullable': True},
+                        'insertar_despues_de_linea': {'type': 'INTEGER', 'nullable': True},
+                        'nuevo_contenido': {'type': 'STRING', 'nullable': True}
                     },
-                    'required': ['nombre', 'contenido']
+                    'required': ['tipo_operacion', 'ruta_archivo']
                 }
             },
-            'advertencia_ejecucion': {
-                'type': 'STRING',
-                'nullable': True 
-            }
+            'advertencia_ejecucion': {'type': 'STRING', 'nullable': True}
         },
-        'required': ['archivos_modificados'] 
+        'required': ['modificaciones']
     }
-
 
     try:
         if api_provider == 'google':
@@ -1005,11 +1052,8 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
                 "response_mime_type": "application/json",
                 "max_output_tokens": settings.MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS if hasattr(settings, 'MODELO_GOOGLE_GEMINI_MAX_OUTPUT_TOKENS') else 60000
             }
-            
-            # Se asume que Schema, Type, GenerationConfig están disponibles si api_provider es 'google'
-            # y la configuración de Gemini fue exitosa.
-            generation_config_dict["response_schema"] = response_schema_ejecutar_tarea
-            log.debug(f"{logPrefix} Incluyendo response_schema en GenerationConfig.")
+            generation_config_dict["response_schema"] = response_schema_granular
+            log.debug(f"{logPrefix} Incluyendo response_schema granular en GenerationConfig para Gemini.")
 
             respuesta = modelo.generate_content(
                 promptCompleto,
@@ -1036,8 +1080,7 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
             if completion.choices:
                 textoRespuesta = completion.choices[0].message.content
         else:
-            log.error(
-                f"{logPrefix} Proveedor API '{api_provider}' no soportado.")
+            log.error(f"{logPrefix} Proveedor API '{api_provider}' no soportado.")
             return None
 
         if not textoRespuesta:
@@ -1049,43 +1092,54 @@ Si la tarea es ambigua o no se puede realizar de forma segura, puedes devolver u
         if not respuestaJson:
             return None
 
-        if "archivos_modificados" not in respuestaJson or not isinstance(respuestaJson["archivos_modificados"], list):
-            log.error(
-                f"{logPrefix} Respuesta JSON no tiene 'archivos_modificados' como lista. Recibido: {respuestaJson}")
+        # Validación básica del JSON de respuesta
+        if "modificaciones" not in respuestaJson or not isinstance(respuestaJson["modificaciones"], list):
+            log.error(f"{logPrefix} Respuesta JSON no tiene 'modificaciones' como lista o falta. Recibido: {respuestaJson}")
+            # Si hay advertencia, la devolvemos aunque 'modificaciones' falte o sea inválido
             if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
-                log.warning(
-                    f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
-                return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
+                log.warning(f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
+                return {"modificaciones": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
             return None
 
-        for i, archivo_modificado in enumerate(respuestaJson["archivos_modificados"]):
-            if not isinstance(archivo_modificado, dict):
-                log.error(f"{logPrefix} Elemento {i} en 'archivos_modificados' no es un diccionario. Tipo: {type(archivo_modificado)}. Contenido: {str(archivo_modificado)[:200]}...")
-                if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
-                    return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: elemento {i} no fue diccionario.)"}
-                return None
-            if "nombre" not in archivo_modificado or not isinstance(archivo_modificado["nombre"], str):
-                log.error(f"{logPrefix} Elemento {i} en 'archivos_modificados' no tiene campo 'nombre' o no es string. Contenido: {str(archivo_modificado)[:200]}...")
-                if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
-                    return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: elemento {i} sin nombre válido.)"}
-                return None
-            if "contenido" not in archivo_modificado or not isinstance(archivo_modificado["contenido"], str):
-                log.error(f"{logPrefix} Elemento {i} en 'archivos_modificados' no tiene campo 'contenido' o no es string. Contenido: {str(archivo_modificado)[:200]}...")
-                if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
-                    return {"archivos_modificados": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion'] + f" (Error adicional: elemento {i} sin contenido válido.)"}
-                return None
+        for i, op in enumerate(respuestaJson["modificaciones"]):
+            if not isinstance(op, dict) or "tipo_operacion" not in op or "ruta_archivo" not in op:
+                log.error(f"{logPrefix} Operación de modificación inválida #{i+1}: {op}. Faltan campos clave.")
+                # Podríamos invalidar toda la respuesta o intentar procesar las válidas. Por ahora, invalidamos si una es mala.
+                return {"modificaciones": [], "advertencia_ejecucion": f"Operación de modificación inválida #{i+1}: {op}"}
+            
+            tipo_op = op["tipo_operacion"]
+            if tipo_op == "REEMPLAZAR_BLOQUE":
+                if not all(k in op for k in ["linea_inicio", "linea_fin", "nuevo_contenido"]):
+                    log.error(f"{logPrefix} Operación REEMPLAZAR_BLOQUE inválida #{i+1}: {op}. Faltan campos.")
+                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación REEMPLAZAR_BLOQUE inválida #{i+1}, faltan campos."}
+            elif tipo_op == "AGREGAR_BLOQUE":
+                if not all(k in op for k in ["insertar_despues_de_linea", "nuevo_contenido"]):
+                    log.error(f"{logPrefix} Operación AGREGAR_BLOQUE inválida #{i+1}: {op}. Faltan campos.")
+                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación AGREGAR_BLOQUE inválida #{i+1}, faltan campos."}
+            elif tipo_op == "ELIMINAR_BLOQUE":
+                if not all(k in op for k in ["linea_inicio", "linea_fin"]):
+                    log.error(f"{logPrefix} Operación ELIMINAR_BLOQUE inválida #{i+1}: {op}. Faltan campos.")
+                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación ELIMINAR_BLOQUE inválida #{i+1}, faltan campos."}
+            # (opcional) `nuevo_contenido` puede ser `None` para ELIMINAR_BLOQUE, la schema ya lo permite.
 
-        log.info(
-            f"{logPrefix} Ejecución de tarea completada por IA. Archivos afectados: {[a['nombre'] for a in respuestaJson['archivos_modificados']] if 'archivos_modificados' in respuestaJson else 'Ninguno (solo advertencia?)'}")
+        num_modificaciones = len(respuestaJson["modificaciones"])
+        adv = respuestaJson.get("advertencia_ejecucion")
+        log.info(f"{logPrefix} Ejecución de tarea completada por IA. Modificaciones: {num_modificaciones}. Advertencia: {adv if adv else 'Ninguna'}")
+        
+        # Añadir tokens consumidos estimado (debería ser calculado por la IA o estimado de otra forma)
+        tokens_prompt = contarTokensTexto(promptCompleto, api_provider)
+        tokens_respuesta_estimados = contarTokensTexto(json.dumps(respuestaJson), api_provider) # Estimación
+        respuestaJson["tokens_consumidos_api"] = tokens_prompt + tokens_respuesta_estimados 
+        
         return respuestaJson
 
     except Exception as e:
-        log.error(
-            f"{logPrefix} Error en ejecución de tarea específica: {e}", exc_info=True)
-        _manejar_excepcion_api(e, api_provider, logPrefix,
-                               locals().get('respuesta'))
-        return None
-
+        log.error(f"{logPrefix} Error en ejecución de tarea específica (granular): {e}", exc_info=True)
+        _manejar_excepcion_api(e, api_provider, logPrefix, locals().get('respuesta'))
+        tokens_prompt = contarTokensTexto(promptCompleto, api_provider)
+        return {"modificaciones": [], 
+                "advertencia_ejecucion": f"Error interno procesando la tarea: {e}",
+                "tokens_consumidos_api": tokens_prompt } # Devuelve al menos los tokens del prompt en error
 
 # --- Funciones de Ayuda Internas (ya existen en el original, asegurarse de que estén completas) ---
 def _extraerTextoRespuesta(respuesta, logPrefix):
