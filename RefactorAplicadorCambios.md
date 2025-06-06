@@ -108,10 +108,10 @@ Se necesita contexto adicional para asegurar que la refactorización no rompa la
 ---
 ### Tarea TSK-AC-004: Descomponer `aplicarCambiosGranulares` en funciones específicas
 - **ID:** TSK-AC-004
-- **Estado:** PENDIENTE
+- **Estado:** FALLIDA_TEMPORALMENTE
 - **Descripción:** Descomponer la función `aplicarCambiosGranulares` en `nucleo/aplicadorCambios.py` extrayendo la lógica para cada tipo de operación (`REEMPLAZAR_BLOQUE`, `AGREGAR_BLOQUE`, `ELIMINAR_BLOQUE`) en funciones privadas dedicadas, por ejemplo: `_aplicar_reemplazo_bloque(lineas_modificadas, operacion)`, `_aplicar_agregar_bloque(lineas_modificadas, operacion)`, `_aplicar_eliminar_bloque(lineas_modificadas, operacion)`. La función principal `aplicarCambiosGranulares` debe simplificarse para orquestar las llamadas a estas nuevas funciones basadas en el `tipo_operacion`.
 - **Archivos Implicados Específicos:** Ninguno
-- **Intentos:** 0
+- **Intentos:** 1
 - **Bloques de Código Objetivo:**
   - **Archivo:** `nucleo/aplicadorCambios.py`
     - **Nombre Bloque:** `REEMPLAZAR_BLOQUE_logic`
