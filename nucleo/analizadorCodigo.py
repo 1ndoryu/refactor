@@ -955,9 +955,8 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
 
         f"\n--- TAREA ESPECÍFICA A EJECUTAR (ID: {tarea_id}) ---",
         f"Descripción de la Tarea: {descripcion_tarea}",
-        # Aquí podrían ir más detalles de tarea_info si fueran relevantes y no están ya en mision_markdown_completa
 
-        bloques_input_serializados_str, # Los bloques de código con su contenido
+        bloques_input_serializados_str, 
 
         "\n--- FORMATO DE RESPUESTA JSON REQUERIDO ---",
         "Responde ÚNICAMENTE con un objeto JSON VÁLIDO que tenga la siguiente estructura:",
@@ -996,7 +995,7 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         "    c.  **Campos específicos por `tipo_operacion`**:",
         "        i.  **Si `tipo_operacion` es `REEMPLAZAR_BLOQUE`**: ",
         "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a reemplazar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron, si estás reemplazando un bloque existente. **ESTE CAMPO ES OBLIGATORIO.**",
-        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a reemplazar. DEBE CORRESPONDER a `linea_fin_original` del bloque que te pasaron. **ESTE CAMPO ES OBLIGATORIO.**",
+        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a reemplazar. DEBE CORRESPONDER a `linea_fin_original` del bloque que te pasaron. **ESTE CAMPO ES ABSOLUTAMENTE OBLIGATORIO. NO LO OMITAS BAJO NINGUNA CIRCUNSTANCIA PARA REEMPLAZAR_BLOQUE.**",
         "            -   **`nuevo_contenido`**: (String) El código completo que reemplazará el bloque original. Si el bloque es una función, debe ser la función completa. **ESTE CAMPO ES OBLIGATORIO.**",
         "               - Si la tarea es crear un archivo NUEVO, usa `REEMPLAZAR_BLOQUE` con `linea_inicio: 1`, `linea_fin: 1` (o 0, pero usa 1) y `nuevo_contenido` siendo el contenido completo del nuevo archivo. **TODOS LOS CAMPOS (`linea_inicio`, `linea_fin`, `nuevo_contenido`) SON OBLIGATORIOS IGUALMENTE.**",
         "        ii. **Si `tipo_operacion` es `AGREGAR_BLOQUE`**: ",
@@ -1004,7 +1003,7 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         "            -   **`nuevo_contenido`**: (String) El código completo del nuevo bloque a agregar. **ESTE CAMPO ES OBLIGATORIO.**",
         "        iii.**Si `tipo_operacion` es `ELIMINAR_BLOQUE`**: ",
         "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a eliminar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron. **ESTE CAMPO ES OBLIGATORIO.**",
-        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a eliminar. **ESTE CAMPO ES OBLIGATORIO.**",
+        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a eliminar. **ESTE CAMPO ES ABSOLUTAMENTE OBLIGATORIO. NO LO OMITAS BAJO NINGUNA CIRCUNSTANCIA PARA ELIMINAR_BLOQUE.**",
         "            -   El campo `nuevo_contenido` se ignora o puede ser `null` o `\"\"`.",
         "3.  **`advertencia_ejecucion`**: (String o Null) Si no puedes realizar la tarea de forma segura o si hay ambigüedades importantes, explica el problema aquí. Si todo está bien, usa `null`.",
         "4.  **IMPORTANTE SOBRE LÍNEAS**: Todas las referencias a `linea_inicio`, `linea_fin`, e `insertar_despues_de_linea` en TU RESPUESTA JSON deben ser números de línea relativos al ARCHIVO COMPLETO ORIGINAL, no a los fragmentos de `contenido_actual_bloque` que se te proporcionan. Usa los `linea_inicio_original` y `linea_fin_original` de los bloques de entrada como referencia para esto.",
