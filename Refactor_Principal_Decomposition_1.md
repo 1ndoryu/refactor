@@ -43,7 +43,7 @@ Se necesita contexto adicional de los archivos sugeridos para comprender las int
 ---
 ### Tarea RF-PRN-002: Extraer Registro de Archivos Analizados a nucleo/registroAnalisis.py
 - **ID:** RF-PRN-002
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Mover la variable global `REGISTRO_ARCHIVOS_ANALIZADOS_PATH` y las funciones `cargar_registro_archivos`, `guardar_registro_archivos`, `seleccionar_archivo_mas_antiguo` a un nuevo módulo `nucleo/registroAnalisis.py`. Actualizar las importaciones y llamadas en `principal.py` para usar este nuevo módulo. El nuevo módulo debe importar `os`, `json`, `datetime`, `analizadorCodigo`, y `settings`.
 - **Archivos Implicados Específicos:** nucleo/registroAnalisis.py
 - **Intentos:** 0
