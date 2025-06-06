@@ -14,101 +14,188 @@ def _parse_tarea_individual(tarea_buffer: dict):
     tarea_dict = {
         "id": None, "titulo": None, "estado": "PENDIENTE", 
         "descripcion": "", "archivos_implicados_especificos": [], "intentos": 0,
+        "bloques_codigo_objetivo": [], # Nueva lista para bloques de código
         "raw_lines": lineas_tarea,
         "line_start_index": tarea_buffer.get("line_start_index", -1),
         "line_end_index": tarea_buffer.get("line_start_index", -1) + len(lineas_tarea) -1 if tarea_buffer.get("line_start_index", -1) != -1 else -1
     }
     descripcion_parts = []
     in_descripcion = False
+    parsing_bloques_codigo = False
+    current_block_info = None
 
     match_titulo_linea = lineas_tarea[0] if lineas_tarea else ""
-    # Regex para extraer ID y Título de la línea de encabezado de la tarea
-    # Ejemplo: ### Tarea MI-ID-123: Implementar nueva funcionalidad
-    match_titulo_encabezado = re.match(r"###\s*Tarea\s*([\w.-]+):\s*(.+)", match_titulo_linea, re.IGNORECASE) # ID puede tener guiones y puntos
+    match_titulo_encabezado = re.match(r"###\s*Tarea\s*([\w.-]+):\s*(.+)", match_titulo_linea, re.IGNORECASE)
     if match_titulo_encabezado:
-        tarea_dict["id_titulo"] = match_titulo_encabezado.group(1).strip() # Guardar temporalmente el ID del título
+        tarea_dict["id_titulo"] = match_titulo_encabezado.group(1).strip()
         tarea_dict["titulo"] = match_titulo_encabezado.group(2).strip()
     else:
         logging.warning(f"{logPrefix} No se pudo parsear ID/Título del encabezado de la tarea: '{match_titulo_linea}'")
 
     id_del_campo_encontrado = None
 
-    for linea_original_tarea in lineas_tarea[1:]: # Empezar desde la segunda línea para los campos
-        linea_strip = linea_original_tarea.strip()
+    for linea_original_tarea in lineas_tarea[1:]:
+        linea_strip_para_campos_std = linea_original_tarea.strip()
+
+        # Primero, verificar si estamos saliendo de la sección de bloques de código
+        # o si es un campo de tarea estándar, lo cual también finaliza la sección de bloques.
+        es_campo_tarea_estandar = (
+            re.match(r"-\s*\*\*ID:\*\*", linea_original_tarea, re.I) or
+            re.match(r"-\s*\*\*Estado:\*\*", linea_original_tarea, re.I) or
+            re.match(r"-\s*\*\*Intentos:\*\*", linea_original_tarea, re.I) or
+            re.match(r"-\s*\*\*Archivos Implicados .*:\*\*", linea_original_tarea, re.I) or
+            re.match(r"-\s*\*\*Descripción:\*\*", linea_original_tarea, re.I)
+        )
+
+        if es_campo_tarea_estandar and parsing_bloques_codigo:
+            if current_block_info:
+                tarea_dict["bloques_codigo_objetivo"].append(current_block_info)
+                current_block_info = None
+            parsing_bloques_codigo = False
         
-        # Regex para extraer el ID de un campo específico "- **ID:** MI-ID-CAMPO"
-        match_id_campo_explicito = re.match(r"-\s*\*\*ID:\*\*\s*([\w.-]+)", linea_original_tarea, re.IGNORECASE)
+        # --- Procesamiento de campos de Bloques de Código Objetivo ---
+        if parsing_bloques_codigo:
+            match_archivo_bloque = re.match(r"\s*-\s*\*\*Archivo:\*\*\s*(.+)", linea_original_tarea, re.I)
+            match_nombre_bloque = re.match(r"\s*-\s*\*\*Nombre Bloque:\*\*\s*(.+)", linea_original_tarea, re.I)
+            match_linea_inicio = re.match(r"\s*-\s*\*\*Línea Inicio:\*\*\s*(\d+)", linea_original_tarea, re.I)
+            match_linea_fin = re.match(r"\s*-\s*\*\*Línea Fin:\*\*\s*(\d+)", linea_original_tarea, re.I)
+
+            if match_archivo_bloque:
+                if current_block_info: # Guardar bloque anterior si existe
+                    # Validar que el bloque anterior tenga los campos esperados antes de guardarlo
+                    if all(k in current_block_info for k in ["archivo", "nombre_bloque", "linea_inicio", "linea_fin"]):
+                        tarea_dict["bloques_codigo_objetivo"].append(current_block_info)
+                    else:
+                        logging.warning(f"{logPrefix} Bloque de código anterior incompleto, no se guardó: {current_block_info} en tarea ID '{tarea_dict.get('id_titulo','??')}'")
+                current_block_info = {"archivo": match_archivo_bloque.group(1).strip().replace('`', '')}
+                in_descripcion = False # Salir de descripción si estábamos
+                continue 
+            elif match_nombre_bloque and current_block_info:
+                current_block_info["nombre_bloque"] = match_nombre_bloque.group(1).strip().replace('`', '')
+                in_descripcion = False
+                continue
+            elif match_linea_inicio and current_block_info:
+                try:
+                    current_block_info["linea_inicio"] = int(match_linea_inicio.group(1).strip())
+                except ValueError:
+                    logging.warning(f"{logPrefix} Valor no entero para Línea Inicio: '{match_linea_inicio.group(1).strip()}' en tarea ID '{tarea_dict.get('id_titulo','??')}'")
+                in_descripcion = False
+                continue
+            elif match_linea_fin and current_block_info:
+                try:
+                    current_block_info["linea_fin"] = int(match_linea_fin.group(1).strip())
+                except ValueError:
+                    logging.warning(f"{logPrefix} Valor no entero para Línea Fin: '{match_linea_fin.group(1).strip()}' en tarea ID '{tarea_dict.get('id_titulo','??')}'")
+                in_descripcion = False
+                continue
+            elif linea_original_tarea.strip() == "": # Ignorar líneas vacías dentro de la sección de bloques
+                continue
+            # Si no es un campo de bloque conocido y no es una línea vacía, podría ser un error de formato o el final.
+            # Si es un campo de tarea estándar, ya se manejó arriba.
+            # Si es cualquier otra cosa, y estamos en parsing_bloques_codigo, es mejor terminar.
+            elif not es_campo_tarea_estandar: 
+                # Podría ser una línea de comentario o texto mal formateado dentro de la sección de bloques.
+                # Por ahora, si no es un campo de bloque reconocido, terminamos la sección de bloques.
+                if current_block_info:
+                    if all(k in current_block_info for k in ["archivo", "nombre_bloque", "linea_inicio", "linea_fin"]):
+                        tarea_dict["bloques_codigo_objetivo"].append(current_block_info)
+                    else:
+                        logging.warning(f"{logPrefix} Bloque de código al finalizar sección por línea no reconocida, incompleto: {current_block_info} en tarea ID '{tarea_dict.get('id_titulo','??')}'")
+                    current_block_info = None
+                parsing_bloques_codigo = False
+                # No hacer 'continue' aquí, la línea podría ser un campo de tarea estándar o el inicio de descripción.
+        
+        # --- Procesamiento de campos de tarea estándar ---
+        match_id_campo_explicito = re.match(r"-\s*\*\*ID:\*\*\s*([\w.-]+)", linea_original_tarea, re.I)
         if match_id_campo_explicito: 
             id_del_campo_encontrado = match_id_campo_explicito.group(1).strip()
-            in_descripcion = False # Salir del modo descripción si se encuentra otro campo
-            continue # Procesar el resto de los campos
+            in_descripcion = False
+            continue
 
-        match_estado = re.match(r"-\s*\*\*Estado:\*\*\s*(PENDIENTE|COMPLETADA|SALTADA|FALLIDA_TEMPORALMENTE)", linea_original_tarea, re.IGNORECASE)
+        match_estado = re.match(r"-\s*\*\*Estado:\*\*\s*(PENDIENTE|COMPLETADA|SALTADA|FALLIDA_TEMPORALMENTE|FALLIDA_PERMANENTEMENTE)", linea_original_tarea, re.I)
         if match_estado: 
             tarea_dict["estado"] = match_estado.group(1).upper().strip()
             in_descripcion = False
             continue
         
-        match_intentos = re.match(r"-\s*\*\*Intentos:\*\*\s*(\d+)", linea_original_tarea, re.IGNORECASE)
+        match_intentos = re.match(r"-\s*\*\*Intentos:\*\*\s*(\d+)", linea_original_tarea, re.I)
         if match_intentos: 
             tarea_dict["intentos"] = int(match_intentos.group(1).strip())
             in_descripcion = False
             continue
 
-        match_aie = re.match(r"-\s*\*\*Archivos Implicados .*:\*\*\s*(.+)", linea_original_tarea, re.IGNORECASE)
+        match_aie = re.match(r"-\s*\*\*Archivos Implicados .*:\*\*\s*(.+)", linea_original_tarea, re.I)
         if match_aie:
             archivos_str = match_aie.group(1).strip()
             if archivos_str and archivos_str.lower() not in ["ninguno", "opcional:", "ninguno."]:
                 tarea_dict["archivos_implicados_especificos"] = [a.strip() for a in archivos_str.split(',') if a.strip()]
             in_descripcion = False
             continue
-            
-        match_desc_start = re.match(r"-\s*\*\*Descripción:\*\*\s*(.*)", linea_original_tarea, re.IGNORECASE)
+        
+        match_bloques_header = re.match(r"-\s*\*\*Bloques de Código Objetivo:\*\*\s*(.*)", linea_original_tarea, re.I)
+        if match_bloques_header:
+            parsing_bloques_codigo = True
+            in_descripcion = False 
+            if current_block_info: # Si por alguna razón ya había un bloque (no debería)
+                 logging.warning(f"{logPrefix} Se encontró encabezado de Bloques de Código con un current_block_info ya existente. Descartando el previo: {current_block_info}")
+                 current_block_info = None
+            continue
+
+        match_desc_start = re.match(r"-\s*\*\*Descripción:\*\*\s*(.*)", linea_original_tarea, re.I)
         if match_desc_start:
             in_descripcion = True
+            # Si estábamos parseando bloques, y encontramos Descripción, finalizamos el bloque actual.
+            if parsing_bloques_codigo:
+                if current_block_info:
+                    if all(k in current_block_info for k in ["archivo", "nombre_bloque", "linea_inicio", "linea_fin"]):
+                        tarea_dict["bloques_codigo_objetivo"].append(current_block_info)
+                    else:
+                        logging.warning(f"{logPrefix} Bloque de código al iniciar descripción, incompleto: {current_block_info} en tarea ID '{tarea_dict.get('id_titulo','??')}'")
+                    current_block_info = None
+                parsing_bloques_codigo = False
+
             desc_first_line = match_desc_start.group(1).strip()
             if desc_first_line: 
                 descripcion_parts.append(desc_first_line)
             continue
 
-        if in_descripcion and not re.match(r"-\s*\*\*\w+:\*\*", linea_original_tarea): # Si estamos en descripción y no es otro campo
-             descripcion_parts.append(linea_original_tarea.strip()) # Mantener indentación original o .strip()? Por ahora .strip()
+        if in_descripcion and not re.match(r"-\s*\*\*\w+:\*\*", linea_original_tarea):
+             descripcion_parts.append(linea_original_tarea.strip())
 
-    # --- Lógica de asignación y validación de ID ---
-    id_del_titulo = tarea_dict.pop("id_titulo", None) # Recuperar y quitar el id_titulo temporal
-
+    # Finalizar el último bloque de código si existe
+    if current_block_info:
+        if all(k in current_block_info for k in ["archivo", "nombre_bloque", "linea_inicio", "linea_fin"]):
+            tarea_dict["bloques_codigo_objetivo"].append(current_block_info)
+        else:
+            logging.warning(f"{logPrefix} Último bloque de código al final de la tarea, incompleto: {current_block_info} en tarea ID '{tarea_dict.get('id_titulo','??')}'")
+    
+    id_del_titulo = tarea_dict.pop("id_titulo", None)
     if id_del_titulo and id_del_campo_encontrado:
-        # Ambos IDs existen, deben coincidir
         if id_del_titulo == id_del_campo_encontrado:
-            tarea_dict["id"] = id_del_titulo # o id_del_campo_encontrado, son iguales
+            tarea_dict["id"] = id_del_titulo
             logging.debug(f"{logPrefix} ID del título y del campo coinciden: '{tarea_dict['id']}'.")
         else:
-            # ¡DISCREPANCIA! -> Error de formato, más estricto.
             logging.error(f"{logPrefix} ¡DISCREPANCIA FATAL DE ID! ID en encabezado de tarea ('{id_del_titulo}') "
                           f"difiere de ID en campo '- **ID:**' ('{id_del_campo_encontrado}'). "
                           f"Formato de misión inválido para la tarea en líneas {tarea_dict['line_start_index']}-{tarea_dict['line_end_index']}. Tarea ignorada.")
-            return None # No se parsea la tarea
+            return None
     elif id_del_titulo:
-        # Solo existe el ID del título
         tarea_dict["id"] = id_del_titulo
         logging.debug(f"{logPrefix} Usando ID del encabezado de tarea: '{id_del_titulo}'.")
     elif id_del_campo_encontrado:
-        # Solo existe el ID del campo (el encabezado no tenía formato ID o no había encabezado de tarea)
         tarea_dict["id"] = id_del_campo_encontrado
         logging.debug(f"{logPrefix} Usando ID del campo '- **ID:**': '{id_del_campo_encontrado}'.")
     else:
-        # No se encontró ID ni en título ni en campo
         logging.error(f"{logPrefix} Tarea parseada SIN ID. No se encontró ID en el encabezado (### Tarea ID: Título) ni en un campo '- **ID:** ID'. Líneas: {tarea_dict['raw_lines']}")
         return None
 
     tarea_dict["descripcion"] = "\n".join(descripcion_parts).strip()
     
-    # Verificación final: ¿Tenemos un ID? (Ya debería estar cubierto por la lógica anterior)
     if not tarea_dict["id"]:
-        logging.error(f"{logPrefix} Error Lógico: Tarea finalizada sin ID a pesar de las validaciones. Esto no debería ocurrir. Líneas: {tarea_dict['raw_lines']}")
+        logging.error(f"{logPrefix} Error Lógico: Tarea finalizada sin ID a pesar de las validaciones. Líneas: {tarea_dict['raw_lines']}")
         return None
         
-    logging.debug(f"{logPrefix} Tarea parseada exitosamente. ID: '{tarea_dict['id']}', Título: '{tarea_dict['titulo']}', Estado: '{tarea_dict['estado']}'")
+    logging.debug(f"{logPrefix} Tarea parseada. ID: '{tarea_dict['id']}', Título: '{tarea_dict['titulo']}', Estado: '{tarea_dict['estado']}', Bloques: {len(tarea_dict['bloques_codigo_objetivo'])}")
     return tarea_dict
 
 def parsear_mision_orion(contenido_mision: str):
