@@ -12,7 +12,7 @@
 ---
 ### Tarea TSK-APL-001: Extract File System Helpers and Consolidate Overwrite Functions
 - **ID:** TSK-APL-001
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Refactorizar `nucleo/aplicadorCambios.py` extrayendo las operaciones comunes de manejo de archivos/directorios (`eliminar_archivo`, `crear_directorio`) de `aplicarCambiosSobrescrituraV1noUse` y `aplicarCambiosSobrescrituraV2` en funciones auxiliares privadas como `_manejar_creacion_directorio` y `_manejar_eliminacion_archivo_o_directorio`. Luego, eliminar `aplicarCambiosSobrescrituraV1noUse` completamente, ya que está marcada como 'noUse' y `aplicarCambiosSobrescrituraV2` se convertirá en la función canónica de sobrescritura. Asegurar que `aplicarCambiosSobrescrituraV2` procese correctamente el contenido generado por la IA (por ejemplo, maneje `\n` para saltos de línea y mojibake) sin reintroducir la decodificación `unicode_escape`, ya que `json.loads` ya maneja los escapes básicos. Actualizar `nucleo/test_aplicarCambios.py` para eliminar las pruebas de V1 y adaptar las pruebas existentes de V2 si es necesario.
 - **Archivos Implicados Específicos:** nucleo/aplicadorCambios.py, nucleo/test_aplicarCambios.py
 - **Intentos:** 0
