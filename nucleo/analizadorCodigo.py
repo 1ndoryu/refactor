@@ -1267,6 +1267,12 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     #     logging.basicConfig(level=logging.INFO) # Configuración básica
     # log = log_temp # Usar log local si no hay uno global
 
+    if not textoRespuesta: # Manejar caso de textoRespuesta vacío o None tempranamente
+        log.error(f"{logPrefix} No se recibió texto de respuesta de la IA (None o vacío).")
+        return None
+
+    log.debug(f"{logPrefix} Respuesta cruda de IA (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
+
     textoLimpio = textoRespuesta.strip()
 
     # Quitar ```json ... ``` o ``` ... ``` si existen
@@ -1285,7 +1291,7 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
     if start_brace == -1 or end_brace == -1 or start_brace >= end_brace:
         log.error(
             f"{logPrefix} Respuesta de IA no parece contener un bloque JSON válido {{...}}. Respuesta (limpia inicial): {textoLimpio[:500]}...")
-        log.debug(f"{logPrefix} Respuesta IA original completa recibida (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
+        # El log de la respuesta original ya se hizo arriba.
         return None
 
     json_candidate = textoLimpio[start_brace: end_brace + 1]
@@ -1316,16 +1322,14 @@ def _limpiarYParsearJson(textoRespuesta, logPrefix):
         else:
             log.debug(
                 f"{logPrefix} JSON Candidato Completo que falló:\n{json_candidate}")
-
-        log.debug(f"{logPrefix} Respuesta IA original completa recibida (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
+        # El log de la respuesta original ya se hizo arriba.
         return None
     except Exception as e_general_parse:
         log.error(
             f"{logPrefix} Error inesperado durante json.loads: {e_general_parse}", exc_info=True)
         log.debug(f"{logPrefix} JSON Candidato que falló (por error general):\n{json_candidate}")
-        log.debug(f"{logPrefix} Respuesta IA original completa recibida (antes de cualquier limpieza/parseo):\n{textoRespuesta}")
+        # El log de la respuesta original ya se hizo arriba.
         return None
-    
     
 def _manejar_excepcion_api(e, api_provider, logPrefix, respuesta_api=None):
     """Función helper centralizada para manejar excepciones de API."""
