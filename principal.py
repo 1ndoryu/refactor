@@ -651,11 +651,9 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         archivos_principal_limpios = limpiar_lista_rutas([archivo_principal_mision_crudo], "metadatos[archivo_principal]")
     
     # --- Preparación de contexto para la IA ---
-    # La variable `bloques_codigo_input_para_ia` contendrá los fragmentos de código específicos.
-    # `contexto_para_tarea_str` se usará para el contexto general de archivos si es necesario (ej. `leerArchivos`).
     bloques_codigo_objetivo_tarea = tarea_actual_info.get("bloques_codigo_objetivo", [])
     bloques_codigo_input_para_ia = []
-    rutas_archivos_para_leer_bloques = set() # Para evitar leer el mismo archivo múltiples veces si varios bloques son del mismo
+    rutas_archivos_para_leer_bloques = set() 
 
     if bloques_codigo_objetivo_tarea:
         logging.info(f"{logPrefix} La tarea tiene {len(bloques_codigo_objetivo_tarea)} bloque(s) de código objetivo definidos.")
@@ -669,90 +667,87 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
                 logging.warning(f"{logPrefix} Bloque de código objetivo en MD para tarea '{tarea_id}' mal formado o incompleto: {bloque_info_md}. Se omite este bloque.")
                 continue
             
-            # Validar y normalizar ruta del bloque
-            ruta_archivo_bloque_abs_validada = analizadorCodigo._validar_y_normalizar_ruta(ruta_archivo_bloque_rel, ruta_repo, asegurar_existencia=True) # asegurar_existencia=True para leerlo
+            ruta_archivo_bloque_abs_validada = analizadorCodigo._validar_y_normalizar_ruta(ruta_archivo_bloque_rel, ruta_repo, asegurar_existencia=False) # No asegurar existencia aquí, se hará al leer
             if not ruta_archivo_bloque_abs_validada:
-                logging.warning(f"{logPrefix} Ruta de archivo para bloque '{nombre_bloque_md}' ('{ruta_archivo_bloque_rel}') no válida o no existe. Se omite este bloque.")
+                logging.warning(f"{logPrefix} Ruta de archivo para bloque '{nombre_bloque_md}' ('{ruta_archivo_bloque_rel}') inválida. Se omite este bloque.")
                 continue
             
             rutas_archivos_para_leer_bloques.add(ruta_archivo_bloque_abs_validada)
-            # El contenido se extraerá después de leer todos los archivos necesarios una sola vez.
 
-    # Leer el contenido de los archivos necesarios para los bloques
-    contenido_archivos_bloques_leidos = {} # ruta_abs -> contenido_con_numeros_linea
+    contenido_archivos_bloques_leidos = {} 
     if rutas_archivos_para_leer_bloques:
-        # Aquí no necesitamos el formato concatenado de leerArchivos, sino el contenido individual
-        # y luego inyectarle números de línea para que coincida con lo que la IA espera del Paso 1.2
         for ruta_abs_leer_bloque in rutas_archivos_para_leer_bloques:
+            if not os.path.exists(ruta_abs_leer_bloque): # Chequeo de existencia antes de leer
+                # Si el archivo no existe, es posible que sea para creación.
+                # Se pasa un contenido vacío (o lista de líneas vacía).
+                logging.info(f"{logPrefix} Archivo '{ruta_abs_leer_bloque}' para bloque no existe. Se asume creación o se pasará vacío.")
+                contenido_archivos_bloques_leidos[ruta_abs_leer_bloque] = [] # Lista de líneas vacía
+                continue
             try:
                 with open(ruta_abs_leer_bloque, 'r', encoding='utf-8') as f_bloque:
                     contenido_crudo = f_bloque.read()
-                # contenido_archivos_bloques_leidos[ruta_abs_leer_bloque] = analizadorCodigo._inyectar_numeros_linea(contenido_crudo)
-                # No, el _inyectar_numeros_linea ya fue aplicado en la fase de generación de misión.
-                # Aquí necesitamos el contenido crudo para extraer los bloques.
-                # El prompt de ejecutar_tarea_especifica_mision espera los bloques de código objetivo YA EXTRAÍDOS.
-                contenido_archivos_bloques_leidos[ruta_abs_leer_bloque] = contenido_crudo.splitlines(keepends=True) # Lista de líneas
+                contenido_archivos_bloques_leidos[ruta_abs_leer_bloque] = contenido_crudo.splitlines(keepends=True) 
             except Exception as e_leer_b:
                 logging.error(f"{logPrefix} Error leyendo archivo '{ruta_abs_leer_bloque}' para extraer bloques: {e_leer_b}")
+                contenido_archivos_bloques_leidos[ruta_abs_leer_bloque] = None # Marcar como no leído
 
-    # Ahora construir `bloques_codigo_input_para_ia` extrayendo el contenido
-    if bloques_codigo_objetivo_tarea and contenido_archivos_bloques_leidos:
+    if bloques_codigo_objetivo_tarea: # No necesita 'and contenido_archivos_bloques_leidos' porque puede ser creación
         for bloque_info_md in bloques_codigo_objetivo_tarea:
             ruta_rel = bloque_info_md.get("archivo")
             nombre_b = bloque_info_md.get("nombre_bloque")
             l_ini = bloque_info_md.get("linea_inicio")
             l_fin = bloque_info_md.get("linea_fin")
             
-            # La ruta ya fue validada para existencia si vamos a extraer de ella
             ruta_abs_correspondiente = os.path.normpath(os.path.join(ruta_repo, ruta_rel))
 
-            if ruta_abs_correspondiente in contenido_archivos_bloques_leidos:
-                lineas_del_archivo = contenido_archivos_bloques_leidos[ruta_abs_correspondiente]
-                # línea_inicio y línea_fin son 1-indexed
-                if not (1 <= l_ini <= l_fin <= len(lineas_del_archivo)):
-                    # Caso de archivo nuevo donde l_ini=1, l_fin=1(o 0) y el archivo no existe aún.
-                    # Esto se maneja en el prompt de la IA; aquí solo pasaríamos "contenido vacío"
-                    # o marcamos que el bloque es para un archivo nuevo.
-                    # El prompt de `ejecutar_tarea_especifica_mision` ya espera que si es para un archivo nuevo,
-                    # linea_inicio_original y linea_fin_original pueden ser 1,1 y contenido_actual_bloque vacío.
-                    if l_ini == 1 and l_fin == 1 and not os.path.exists(ruta_abs_correspondiente): # Creación de archivo nuevo
-                         bloques_codigo_input_para_ia.append({
-                            "ruta_archivo": ruta_rel,
-                            "nombre_bloque": nombre_b,
-                            "linea_inicio_original": l_ini,
-                            "linea_fin_original": l_fin,
-                            "contenido_actual_bloque": "" # Vacío para creación
-                        })
-                         logging.info(f"{logPrefix} Preparado bloque para CREACIÓN: Archivo '{ruta_rel}', Bloque '{nombre_b}' (L{l_ini}-{l_fin}).")
-                    else:
-                        logging.warning(f"{logPrefix} Rango de líneas [{l_ini}-{l_fin}] para bloque '{nombre_b}' en '{ruta_rel}' "
-                                        f"inválido o fuera de los límites (total líneas: {len(lineas_del_archivo)}). Se omite extracción de contenido para este bloque.")
-                        bloques_codigo_input_para_ia.append({
-                            "ruta_archivo": ruta_rel, "nombre_bloque": nombre_b,
-                            "linea_inicio_original": l_ini, "linea_fin_original": l_fin,
-                            "contenido_actual_bloque": f"// ERROR: Rango de líneas [{l_ini}-{l_fin}] inválido para archivo con {len(lineas_del_archivo)} líneas."
-                        })
-                    continue
+            if ruta_abs_correspondiente not in contenido_archivos_bloques_leidos:
+                # Esto puede pasar si _validar_y_normalizar_ruta falló antes para esta ruta_rel.
+                # O si la lectura del archivo falló (contenido_archivos_bloques_leidos[ruta_abs_correspondiente] es None).
+                if ruta_abs_correspondiente in contenido_archivos_bloques_leidos and contenido_archivos_bloques_leidos[ruta_abs_correspondiente] is None:
+                    error_msg_contenido = f"// ERROR: No se pudo leer el archivo '{ruta_rel}' para extraer este bloque."
+                else: # El archivo no estaba en el set para leer o falló validación inicial.
+                    error_msg_contenido = f"// ERROR: Ruta de archivo '{ruta_rel}' no válida o no se pudo acceder para este bloque."
                 
-                contenido_bloque_extraido = "".join(lineas_del_archivo[l_ini-1:l_fin])
-                bloques_codigo_input_para_ia.append({
-                    "ruta_archivo": ruta_rel,
-                    "nombre_bloque": nombre_b,
-                    "linea_inicio_original": l_ini, # Estas son las líneas originales del MD
-                    "linea_fin_original": l_fin,
-                    "contenido_actual_bloque": contenido_bloque_extraido
-                })
-                logging.debug(f"{logPrefix} Preparado bloque: Archivo '{ruta_rel}', Bloque '{nombre_b}' (L{l_ini}-{l_fin}). Contenido extraído.")
-            else:
-                # Si el archivo no se pudo leer, se añade con contenido de error.
                 bloques_codigo_input_para_ia.append({
                     "ruta_archivo": ruta_rel, "nombre_bloque": nombre_b,
                     "linea_inicio_original": l_ini, "linea_fin_original": l_fin,
-                    "contenido_actual_bloque": f"// ERROR: No se pudo leer el archivo '{ruta_rel}' para extraer este bloque."
+                    "contenido_actual_bloque": error_msg_contenido
                 })
-                logging.warning(f"{logPrefix} Archivo '{ruta_rel}' para bloque '{nombre_b}' no estaba en contenido_archivos_bloques_leidos.")
+                logging.warning(f"{logPrefix} Archivo '{ruta_rel}' para bloque '{nombre_b}' no se pudo leer o no fue validado. Se envía con error a IA.")
+                continue
+
+            lineas_del_archivo = contenido_archivos_bloques_leidos[ruta_abs_correspondiente] # Puede ser [] si el archivo no existía
+            
+            if not (1 <= l_ini <= l_fin <= len(lineas_del_archivo) or (l_ini == 1 and l_fin == 1 and not lineas_del_archivo)): # Última condición para creación
+                if l_ini == 1 and (l_fin == 1 or l_fin == 0) and not os.path.exists(ruta_abs_correspondiente): # l_fin 0 también es válido para IA en creación
+                     bloques_codigo_input_para_ia.append({
+                        "ruta_archivo": ruta_rel,
+                        "nombre_bloque": nombre_b,
+                        "linea_inicio_original": l_ini,
+                        "linea_fin_original": l_fin,
+                        "contenido_actual_bloque": "" 
+                    })
+                     logging.info(f"{logPrefix} Preparado bloque para CREACIÓN: Archivo '{ruta_rel}', Bloque '{nombre_b}' (L{l_ini}-{l_fin}).")
+                else:
+                    logging.warning(f"{logPrefix} Rango de líneas [{l_ini}-{l_fin}] para bloque '{nombre_b}' en '{ruta_rel}' "
+                                    f"inválido o fuera de los límites (total líneas: {len(lineas_del_archivo)}). Se envía con error a IA.")
+                    bloques_codigo_input_para_ia.append({
+                        "ruta_archivo": ruta_rel, "nombre_bloque": nombre_b,
+                        "linea_inicio_original": l_ini, "linea_fin_original": l_fin,
+                        "contenido_actual_bloque": f"// ERROR: Rango de líneas [{l_ini}-{l_fin}] inválido para archivo con {len(lineas_del_archivo)} líneas."
+                    })
+                continue
+            
+            contenido_bloque_extraido = "".join(lineas_del_archivo[l_ini-1:l_fin])
+            bloques_codigo_input_para_ia.append({
+                "ruta_archivo": ruta_rel,
+                "nombre_bloque": nombre_b,
+                "linea_inicio_original": l_ini, 
+                "linea_fin_original": l_fin,
+                "contenido_actual_bloque": contenido_bloque_extraido
+            })
+            logging.debug(f"{logPrefix} Preparado bloque: Archivo '{ruta_rel}', Bloque '{nombre_b}' (L{l_ini}-{l_fin}).")
     
-    # Contexto general de archivos (adicional al específico de bloques)
     archivos_para_leer_contexto_general_rel = []
     if archivos_principal_limpios: archivos_para_leer_contexto_general_rel.extend(archivos_principal_limpios)
     archivos_para_leer_contexto_general_rel.extend(archivos_ctx_ejecucion_limpios)
@@ -762,70 +757,64 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
     contexto_general_archivos_str = ""
     tokens_contexto_general = 0
     if archivos_para_leer_contexto_general_rel:
-        # Rutas ya son relativas, limpias y validadas
         archivos_abs_ctx_general = [os.path.join(ruta_repo, f_rel) for f_rel in archivos_para_leer_contexto_general_rel]
         resultado_lectura_ctx_general = analizadorCodigo.leerArchivos(archivos_abs_ctx_general, ruta_repo, api_provider=api_provider)
-        contexto_general_archivos_str = resultado_lectura_ctx_general['contenido']
+        contexto_general_archivos_str = resultado_lectura_ctx_general['contenido'] # No se usa en el prompt granular, pero sí para tokens
         tokens_contexto_general = resultado_lectura_ctx_general['tokens']
-        logging.info(f"{logPrefix} Contexto general leído de {len(archivos_para_leer_contexto_general_rel)} archivo(s).")
+        logging.info(f"{logPrefix} Contexto general leído de {len(archivos_para_leer_contexto_general_rel)} archivo(s) para cálculo de tokens.")
     else:
         logging.info(f"{logPrefix} No se definieron archivos para contexto general.")
 
     tokens_mision_y_tarea_desc = analizadorCodigo.contarTokensTexto(contenido_mision_actual_md + tarea_actual_info.get('descripcion', ''), api_provider)
-    # Tokens de los bloques de código objetivo ya están implícitos en su contenido que se pasará
     tokens_bloques_objetivo = analizadorCodigo.contarTokensTexto(json.dumps(bloques_codigo_input_para_ia), api_provider)
     tokens_estimados = 800 + tokens_contexto_general + tokens_mision_y_tarea_desc + tokens_bloques_objetivo
 
     gestionar_limite_tokens(tokens_estimados, api_provider)
 
-    # El prompt para ejecutar_tarea_especifica_mision NO espera contexto_general_archivos_str, sino los bloques.
-    # La mision_markdown_completa ya tiene la info de contexto de archivos si la IA la necesita.
     resultado_ejecucion_tarea = analizadorCodigo.ejecutar_tarea_especifica_mision(
         tarea_actual_info, 
-        contenido_mision_actual_md, # Contiene toda la misión para contexto
-        bloques_codigo_input_para_ia, # Lista de dicts de bloques
+        contenido_mision_actual_md, 
+        bloques_codigo_input_para_ia, 
         api_provider
     )
     registrar_tokens_usados(resultado_ejecucion_tarea.get("tokens_consumidos_api", tokens_estimados) if resultado_ejecucion_tarea else tokens_estimados)
 
-    contenido_mision_post_tarea = contenido_mision_actual_md  # Inicializar
+    contenido_mision_post_tarea = contenido_mision_actual_md  
 
     # --- INICIO NUEVA LÓGICA DE ENRUTAMIENTO Y APLICACIÓN ---
-    exito_aplicar = False
-    msg_err_aplicar = None
-    aplicador_usado = None # Para logging ('granular' o 'sobrescritura')
+    exito_aplicar = False # Solo relevante para el aplicador granular
+    msg_err_aplicar = None # Solo relevante para el aplicador granular
+    aplicador_usado = None 
 
-    # 1. Validar la respuesta de la IA
     if not resultado_ejecucion_tarea or not isinstance(resultado_ejecucion_tarea, dict):
         logging.error(f"{logPrefix} IA no generó una respuesta de cambios válida (nula o no es dict). Respuesta: {resultado_ejecucion_tarea}")
         manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
             manejadorHistorial.formatearEntradaHistorial(
                 outcome=f"PASO2_ERROR_TAREA_IA_FORMATO:{nombre_rama_mision}", decision=tarea_actual_info, 
                 error_message="IA no generó respuesta válida (nula o no dict)",
-                result_details={"respuesta_ia_raw": resultado_ejecucion_tarea})
+                result_details={"respuesta_ia_raw": resultado_ejecucion_tarea, "aplicador_usado": aplicador_usado})
         ])
         contenido_mision_post_tarea = manejadorMision.marcar_tarea_como_completada(
             contenido_mision_actual_md, tarea_id, "FALLIDA_TEMPORALMENTE", incrementar_intentos_si_fallida_temp=True
         )
-        # Guardar MD y commitear
         try:
             with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f: f.write(contenido_mision_post_tarea)
             if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' FALLIDA_TEMPORALMENTE (IA_FORMATO)", [nombre_archivo_mision]):
                 logging.error(f"{logPrefix} No se pudo commitear {nombre_archivo_mision} (tarea fallida IA_FORMATO).")
         except Exception as e:
             logging.error(f"{logPrefix} Error guardando/commiteando {nombre_archivo_mision} (tarea fallida IA_FORMATO): {e}")
-            return "error_critico_actualizando_mision", contenido_mision_actual_md # Error más grave
+            return "error_critico_actualizando_mision", contenido_mision_actual_md 
         return "tarea_fallida", contenido_mision_post_tarea
 
-    # 2. Manejo de advertencia SIN cambios propuestos
-    # (advertencia Y (ni modificaciones no vacías) Y (ni archivos_modificados no vacíos))
     adv = resultado_ejecucion_tarea.get("advertencia_ejecucion")
     tiene_modificaciones_granulares = "modificaciones" in resultado_ejecucion_tarea and \
                                       isinstance(resultado_ejecucion_tarea["modificaciones"], list) and \
                                       len(resultado_ejecucion_tarea["modificaciones"]) > 0
-    tiene_archivos_sobrescribir = "archivos_modificados" in resultado_ejecucion_tarea and \
-                                    isinstance(resultado_ejecucion_tarea["archivos_modificados"], dict) and \
-                                    len(resultado_ejecucion_tarea["archivos_modificados"]) > 0
+    
+    # Chequeo si 'archivos_modificados' existe y es un dict no vacío
+    archivos_modificados_dict = resultado_ejecucion_tarea.get("archivos_modificados")
+    tiene_archivos_sobrescribir = isinstance(archivos_modificados_dict, dict) and bool(archivos_modificados_dict)
+
 
     if adv and not tiene_modificaciones_granulares and not tiene_archivos_sobrescribir:
         logging.warning(f"{logPrefix} IA advirtió: {adv}. Tarea no resultó en cambios propuestos. Marcando como SALTADA.")
@@ -842,12 +831,11 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
         manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
             manejadorHistorial.formatearEntradaHistorial(
                 outcome=f"PASO2_TAREA_SALTADA_IA_ADV:{nombre_rama_mision}", decision=tarea_actual_info, 
-                result_details={"advertencia": adv})
+                result_details={"advertencia": adv, "aplicador_usado": aplicador_usado})
         ])
         _, _, hay_pendientes_despues_salto = manejadorMision.parsear_mision_orion(contenido_mision_post_tarea)
         return "mision_completada" if not hay_pendientes_despues_salto else "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
     
-    # 3. Decidir qué aplicador usar
     if tiene_modificaciones_granulares:
         aplicador_usado = "granular"
         logging.info(f"{logPrefix} Respuesta de IA contiene 'modificaciones' ({len(resultado_ejecucion_tarea['modificaciones'])} ops). Usando aplicador granular.")
@@ -855,20 +843,47 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
             resultado_ejecucion_tarea, ruta_repo
         )
     elif tiene_archivos_sobrescribir:
-        aplicador_usado = "sobrescritura"
-        logging.info(f"{logPrefix} Respuesta de IA contiene 'archivos_modificados' ({len(resultado_ejecucion_tarea['archivos_modificados'])} archivos). Usando aplicador de sobrescritura.")
-        exito_aplicar, msg_err_aplicar = aplicadorCambios.aplicarCambiosSobrescrituraV2(
-            resultado_ejecucion_tarea["archivos_modificados"], ruta_repo,
-            accionOriginal=f"modificar_segun_tarea_mision:{nombre_rama_mision}", paramsOriginal=tarea_actual_info
+        # --- INICIO MODIFICACIÓN C.3 ---
+        aplicador_usado = "ninguno_protocolo_violado" 
+        logging.critical(f"{logPrefix} ADVERTENCIA SEVERA: IA violó protocolo granular. Devolvió 'archivos_modificados' en lugar de 'modificaciones'. Tarea ID: {tarea_id}. Contenido de 'archivos_modificados': {str(archivos_modificados_dict)[:200]}...")
+        
+        contenido_mision_post_tarea = manejadorMision.marcar_tarea_como_completada(
+            contenido_mision_actual_md, tarea_id, "FALLIDA_TEMPORALMENTE", incrementar_intentos_si_fallida_temp=True
         )
+        if not contenido_mision_post_tarea:
+            logging.error(f"{logPrefix} Error crítico actualizando misión MD tras violación de protocolo IA.")
+            return "error_critico_actualizando_mision", contenido_mision_actual_md
+
+        try:
+            with open(ruta_mision_actual_md, 'w', encoding='utf-8') as f:
+                f.write(contenido_mision_post_tarea)
+            if not manejadorGit.hacerCommitEspecifico(
+                ruta_repo, 
+                f"Misión '{nombre_rama_mision}' Tarea '{tarea_id}' FALLIDA_TEMPORALMENTE (IA_PROTOCOLO_SOBRESCRITURA_NO_PERMITIDO)", 
+                [nombre_archivo_mision] 
+            ):
+                logging.error(f"{logPrefix} No se pudo commitear {nombre_archivo_mision} (tarea fallida IA_PROTOCOLO_SOBRESCRITURA).")
+        except Exception as e:
+            logging.error(f"{logPrefix} Error guardando/commiteando {nombre_archivo_mision} (tarea fallida IA_PROTOCOLO_SOBRESCRITURA): {e}")
+            return "error_critico_actualizando_mision", contenido_mision_actual_md
+        
+        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+            manejadorHistorial.formatearEntradaHistorial(
+                outcome=f"PASO2_TAREA_FALLIDA_IA_PROTOCOLO_SOBRESCRITURA:{nombre_rama_mision}", 
+                decision=tarea_actual_info, 
+                error_message="IA devolvió 'archivos_modificados' en lugar de 'modificaciones'. No se aplicaron cambios.",
+                result_details={"respuesta_ia_raw": resultado_ejecucion_tarea, "aplicador_usado": aplicador_usado}
+            )
+        ])
+        return "tarea_fallida", contenido_mision_post_tarea
+        # --- FIN MODIFICACIÓN C.3 ---
     else:
-        # La IA devolvió un dict, no hubo advertencia que causara salto, pero no hay un formato de cambio reconocido.
         logging.error(f"{logPrefix} IA devolvió un diccionario pero sin 'modificaciones' (lista no vacía) ni 'archivos_modificados' (dict no vacío). Respuesta: {resultado_ejecucion_tarea}")
         manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
             manejadorHistorial.formatearEntradaHistorial(
                 outcome=f"PASO2_ERROR_TAREA_IA_NO_CAMBIOS_RECONOCIDOS:{nombre_rama_mision}", decision=tarea_actual_info,
                 error_message="IA devolvió dict pero sin formato de cambios reconocido.",
-                result_details={"respuesta_ia_raw": resultado_ejecucion_tarea})
+                result_details={"respuesta_ia_raw": resultado_ejecucion_tarea, "aplicador_usado": aplicador_usado})
         ])
         contenido_mision_post_tarea = manejadorMision.marcar_tarea_como_completada(
             contenido_mision_actual_md, tarea_id, "FALLIDA_TEMPORALMENTE", incrementar_intentos_si_fallida_temp=True
@@ -882,7 +897,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
             return "error_critico_actualizando_mision", contenido_mision_actual_md
         return "tarea_fallida", contenido_mision_post_tarea
 
-    # 4. Manejo de resultado de aplicación
+    # Esta sección solo se alcanza si aplicador_usado == "granular"
     if not exito_aplicar:
         logging.error(f"{logPrefix} Falló aplicación de cambios ({aplicador_usado}): {msg_err_aplicar}")
         manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
@@ -904,9 +919,9 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
             return "error_critico_actualizando_mision", contenido_mision_actual_md
         return "tarea_fallida", contenido_mision_post_tarea
 
-    # 5. Éxito en la aplicación
+    # Éxito en la aplicación (solo si aplicador_usado == "granular")
     logging.info(f"{logPrefix} Cambios de IA aplicados exitosamente usando aplicador '{aplicador_usado}'.")
-    if adv: # Si hubo una advertencia pero los cambios se aplicaron igual.
+    if adv: 
         logging.warning(f"{logPrefix} Advertencia de IA (aunque los cambios se aplicaron): {adv}")
 
     commit_msg = f"Tarea ID {tarea_id} ({tarea_titulo[:50]}) completada (Misión {nombre_rama_mision})"
@@ -926,13 +941,9 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
     if not manejadorGit.hacerCommitEspecifico(ruta_repo, f"Actualizar Misión '{nombre_rama_mision}', Tarea '{tarea_id}' a COMPLETADA", [nombre_archivo_mision]):
         logging.error(f"{logPrefix} No se pudo commitear actualización de {nombre_archivo_mision} (estado completado).")
 
-    # Preparar detalles para el historial
     detalles_resultado_historial = {"aplicador_usado": aplicador_usado, "advertencia_ia": adv if adv else "Ninguna"}
-    if aplicador_usado == "granular":
+    if aplicador_usado == "granular": # Única opción que llega aquí con éxito
         detalles_resultado_historial["operaciones_solicitadas"] = len(resultado_ejecucion_tarea.get("modificaciones", []))
-        # Podríamos añadir las rutas afectadas aquí si es útil
-    elif aplicador_usado == "sobrescritura":
-        detalles_resultado_historial["archivos_solicitados"] = list(resultado_ejecucion_tarea.get("archivos_modificados", {}).keys())
     
     manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
         manejadorHistorial.formatearEntradaHistorial(
@@ -942,7 +953,6 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
 
     _, _, hay_pendientes_actualizada = manejadorMision.parsear_mision_orion(contenido_mision_post_tarea)
     return "mision_completada" if not hay_pendientes_actualizada else "tarea_ejecutada_continuar_mision", contenido_mision_post_tarea
-
 # --- Función Principal de Fase del Agente (MODIFICADO) ---
 def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
     logPrefix = "_intentarCrearMisionDesdeTodoMD:"
@@ -976,11 +986,113 @@ def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
         if not mision_dict or not mision_dict.get("nombre_clave_mision") or not mision_dict.get("contenido_markdown_mision"):
             logging.warning(f"{logPrefix} IA no generó misión válida desde TODO.md. Respuesta: {mision_dict}")
             manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
-                manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_ERROR_GENERACION", error_message="IA no generó misión válida desde TODO.md")])
+                manejadorHistorial.formatearEntradaHistorial(outcome=f"PASO_TODO_ERROR_GENERACION_IA", error_message="IA no generó misión válida desde TODO.md")])
             return False
 
         nombre_clave = mision_dict["nombre_clave_mision"]
         contenido_md = mision_dict["contenido_markdown_mision"]
+        
+        # --- INICIO VALIDACIÓN GRANULAR (A.4.2) ---
+        logging.info(f"{logPrefix} Validando estructura granular de la misión '{nombre_clave}' generada desde TODO.md.")
+        _, lista_tareas_val, _ = manejadorMision.parsear_mision_orion(contenido_md)
+        
+        validacion_granular_exitosa = True
+        detalle_error_validacion = "Error desconocido durante validación granular."
+        tarea_fallida_id_val = None
+        bloque_fallido_nombre_val = None
+
+        if not lista_tareas_val:
+            if "### Tarea" in contenido_md:
+                validacion_granular_exitosa = False
+                detalle_error_validacion = "El parser de misiones no pudo extraer tareas, aunque el MD parece contenerlas."
+                logging.error(f"{logPrefix} {detalle_error_validacion} Misión: {nombre_clave}")
+            # Si no hay '### Tarea' y lista_tareas_val es vacía, es un fallo para misión desde TODO.md que siempre debe tener tareas.
+            else:
+                validacion_granular_exitosa = False
+                detalle_error_validacion = "Misión generada desde TODO.md no contiene ninguna sección '### Tarea'."
+                logging.error(f"{logPrefix} {detalle_error_validacion} Misión: {nombre_clave}")
+                
+        for tarea_info in lista_tareas_val if lista_tareas_val else []: # Bucle solo si lista_tareas_val no es None/vacío
+            if not isinstance(tarea_info, dict):
+                validacion_granular_exitosa = False
+                detalle_error_validacion = f"Elemento en lista_tareas no es un diccionario. Tarea: {tarea_info}"
+                tarea_fallida_id_val = "N/A (formato incorrecto)"
+                break
+            
+            tarea_fallida_id_val = tarea_info.get("id", "ID_DESCONOCIDO")
+
+            if 'bloques_codigo_objetivo' not in tarea_info:
+                validacion_granular_exitosa = False
+                detalle_error_validacion = "Clave 'bloques_codigo_objetivo' ausente en la tarea."
+                break
+            if not isinstance(tarea_info['bloques_codigo_objetivo'], list):
+                validacion_granular_exitosa = False
+                detalle_error_validacion = "'bloques_codigo_objetivo' no es una lista."
+                break
+            if not tarea_info['bloques_codigo_objetivo']: # Lista vacía es error
+                validacion_granular_exitosa = False
+                detalle_error_validacion = "'bloques_codigo_objetivo' está vacía."
+                break
+
+            for bloque in tarea_info['bloques_codigo_objetivo']:
+                bloque_fallido_nombre_val = bloque.get("nombre_bloque", "NOMBRE_BLOQUE_DESCONOCIDO")
+                if not isinstance(bloque, dict):
+                    validacion_granular_exitosa = False
+                    detalle_error_validacion = "Elemento en 'bloques_codigo_objetivo' no es un diccionario."
+                    break
+                
+                campos_requeridos_bloque = {
+                    "archivo": (str, True), "nombre_bloque": (str, True),
+                    "linea_inicio": (int, lambda x: x >= 1),
+                    "linea_fin": (int, None) 
+                }
+                for campo, (tipo_esperado, validacion_extra) in campos_requeridos_bloque.items():
+                    if campo not in bloque:
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = f"Bloque '{bloque_fallido_nombre_val}' no tiene clave '{campo}'."
+                        break
+                    if not isinstance(bloque[campo], tipo_esperado):
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = f"Clave '{campo}' en bloque '{bloque_fallido_nombre_val}' no es de tipo {tipo_esperado.__name__} (es {type(bloque[campo]).__name__})."
+                        break
+                    if isinstance(validacion_extra, bool) and validacion_extra and not bloque[campo]:
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = f"Clave '{campo}' (string) en bloque '{bloque_fallido_nombre_val}' está vacía."
+                        break
+                    if callable(validacion_extra) and not validacion_extra(bloque[campo]):
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = f"Clave '{campo}' en bloque '{bloque_fallido_nombre_val}' no pasó validación específica ({bloque[campo]})."
+                        break
+                if not validacion_granular_exitosa: break
+                
+                linea_inicio_val = bloque['linea_inicio']
+                linea_fin_val = bloque['linea_fin']
+                if not (linea_fin_val >= linea_inicio_val):
+                    validacion_granular_exitosa = False
+                    detalle_error_validacion = f"En bloque '{bloque_fallido_nombre_val}', linea_fin ({linea_fin_val}) debe ser >= linea_inicio ({linea_inicio_val})."
+                    break
+            if not validacion_granular_exitosa: break
+        
+        if not validacion_granular_exitosa:
+            logging.critical(f"{logPrefix} VALIDACIÓN GRANULAR FALLIDA para misión '{nombre_clave}' (desde TODO.md). Razón: {detalle_error_validacion}. Tarea ID (aprox): {tarea_fallida_id_val}, Bloque (aprox): {bloque_fallido_nombre_val}")
+            
+            # Acción Correctiva: NO crear rama, NO guardar misión/estado.
+            manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+                manejadorHistorial.formatearEntradaHistorial(
+                    outcome=f"PASO_TODO_ERROR_VALIDACION_GRANULAR:{nombre_clave}",
+                    error_message="La misión generada desde TODO.md no cumple con la estructura granular esperada.",
+                    result_details={"tarea_fallida_id": tarea_fallida_id_val, 
+                                    "bloque_fallido_nombre": bloque_fallido_nombre_val, 
+                                    "detalle_error_validacion": detalle_error_validacion,
+                                    "fuente_mision": "TODO.md"
+                                    }
+                )
+            ])
+            return False # Falla la creación de misión desde TODO.md
+        else:
+            logging.info(f"{logPrefix} Validación granular de misión '{nombre_clave}' (desde TODO.md) EXITOSA.")
+        # --- FIN VALIDACIÓN GRANULAR ---
+
         nombre_archivo_mision = f"{nombre_clave}.md"
         rama_base = manejadorGit.obtener_rama_actual(settings.RUTACLON) or settings.RAMATRABAJO
 
@@ -988,151 +1100,259 @@ def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
             logging.error(f"{logPrefix} No se pudo crear/cambiar a rama '{nombre_clave}' desde '{rama_base}'.")
             return False
 
-        with open(os.path.join(settings.RUTACLON, nombre_archivo_mision), 'w', encoding='utf-8') as f:
-            f.write(contenido_md)
-
-        _, _, hay_pendientes = manejadorMision.parsear_mision_orion(contenido_md)
-        if not hay_pendientes:
-            logging.error(f"{logPrefix} ERROR: Misión '{nombre_clave}' desde TODO.md generada SIN TAREAS. Limpiando.")
+        try:
+            with open(os.path.join(settings.RUTACLON, nombre_archivo_mision), 'w', encoding='utf-8') as f:
+                f.write(contenido_md)
+        except Exception as e_write_md:
+            logging.error(f"{logPrefix} Error guardando archivo de misión '{nombre_archivo_mision}': {e_write_md}")
+            # Intentar volver a la rama base y eliminar la rama de misión si se creó
             manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, rama_base)
             manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave, local=True)
+            return False
+
+        # Verificar si hay tareas pendientes después de la validación granular (que ya valida si lista_tareas_val existe y tiene elementos)
+        # Si la validación granular pasó, y lista_tareas_val no era vacía, hay_pendientes debería ser true si alguna tarea está PENDIENTE.
+        _, _, hay_pendientes = manejadorMision.parsear_mision_orion(contenido_md) # Re-parsear por si acaso
+        if not hay_pendientes: # Esto también cubriría el caso de que la validación granular pasara con lista_tareas_val vacía (lo cual no debería ocurrir por la lógica de validación)
+            logging.error(f"{logPrefix} ERROR: Misión '{nombre_clave}' desde TODO.md generada SIN TAREAS PENDIENTES (o ninguna tarea en absoluto después de validación). Limpiando.")
+            manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, rama_base)
+            manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave, local=True)
+            manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+                manejadorHistorial.formatearEntradaHistorial(
+                    outcome=f"PASO_TODO_ERROR_MISION_SIN_TAREAS_PENDIENTES:{nombre_clave}",
+                    error_message="Misión generada desde TODO.md no tiene tareas pendientes (o ninguna tarea en absoluto).",
+                    result_details={"fuente_mision": "TODO.md"}
+                )
+            ])
             return False
         
         if not manejadorGit.hacerCommitEspecifico(settings.RUTACLON, f"Crear misión desde TODO.md: {nombre_clave}", [nombre_archivo_mision]):
             logging.error(f"{logPrefix} No se pudo hacer commit de {nombre_archivo_mision}.")
-            # No se limpia la rama para debug manual
+            # No se limpia la rama para debug manual si el commit falla pero el archivo se creó.
             return False
 
-        logging.info(f"{logPrefix} Misión '{nombre_clave}' generada y commiteada desde TODO.md.")
+        logging.info(f"{logPrefix} Misión '{nombre_clave}' generada, validada y commiteada desde TODO.md.")
         guardar_estado_mision_activa(nombre_clave)
-        manejadorGit.hacerPush(settings.RUTACLON, nombre_clave, setUpstream=True)
+        manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+            manejadorHistorial.formatearEntradaHistorial(
+                outcome=f"PASO_TODO_MISION_GENERADA:{nombre_clave}",
+                result_details={"archivo_mision": nombre_archivo_mision}
+            )
+        ])
+        if modo_automatico: # Solo hacer push si el modo automático está activo
+            manejadorGit.hacerPush(settings.RUTACLON, nombre_clave, setUpstream=True)
         return True # Misión creada exitosamente
 
     except Exception as e:
         logging.error(f"{logPrefix} Error procesando TODO.md: {e}", exc_info=True)
+        # Limpieza de rama si se creó antes de una excepción no manejada
+        nombre_clave_potencial = locals().get("nombre_clave")
+        if nombre_clave_potencial and manejadorGit.obtener_rama_actual(settings.RUTACLON) == nombre_clave_potencial:
+            rama_base_local = locals().get("rama_base", settings.RAMATRABAJO)
+            manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, rama_base_local)
+            manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_potencial, local=True)
         return False
     
-def _intentarCrearMisionDesdeSeleccionArchivo(self, archivos_seleccionados_data):
-    # Lógica para seleccionar el mejor archivo guía y generar la misión
-    # ... (código existente) ...
+def _intentarCrearMisionDesdeSeleccionArchivo(api_provider: str, modo_automatico: bool, registro_archivos_analizados: dict):
+    logPrefix = "_intentarCrearMisionDesdeSeleccionArchivo:"
+    MAX_INTENTOS_SELECCION = 5
 
-    intentos_creacion_mision = 0
-    max_intentos_creacion_mision = settings.MAX_INTENTOS_GENERAR_MISION_POR_ARCHIVO_GUIA
-    mejor_archivo_guia = None
-    mision_creada_exitosamente = False
+    for intento in range(1, MAX_INTENTOS_SELECCION + 1):
+        logging.info(f"{logPrefix} Iniciando intento de selección de archivo #{intento}/{MAX_INTENTOS_SELECCION}...")
 
-    archivos_ordenados_por_potencial = sorted(
-        archivos_seleccionados_data,
-        key=lambda x: (
-            x.get('tipo_contenido', ''),
-            -x.get('puntaje_heuristico', 0)
-        )
-    )
+        res_paso1_1, archivo_sel, ctx_sel, decision_ia_1_1 = paso1_1_seleccion_y_decision_inicial(
+            settings.RUTACLON, api_provider, registro_archivos_analizados)
 
-    for data_archivo in archivos_ordenados_por_potencial:
-        if intentos_creacion_mision >= max_intentos_creacion_mision:
-            self.logger.warning(f"Se alcanzó el máximo de {max_intentos_creacion_mision} intentos para generar misión desde un archivo guía. Pasando al siguiente archivo si existe.")
-            intentos_creacion_mision = 0 # Reiniciar para el próximo archivo guía potencial
-            # continue # Esta línea causaba que no se probara el siguiente mejor archivo si el actual fallaba MAX_INTENTOS
+        if res_paso1_1 == "generar_mision":
+            logging.info(f"{logPrefix} Archivo '{archivo_sel}' seleccionado. Generando misión...")
+            res_paso1_2, contenido_mision_generada_md, nombre_clave_generado = paso1_2_generar_mision(
+                settings.RUTACLON, archivo_sel, ctx_sel, decision_ia_1_1, api_provider)
 
-        nombre_archivo_guia = data_archivo['ruta_completa_archivo']
-        self.logger.info(f"Intentando generar misión desde el archivo guía: {nombre_archivo_guia}")
-        mejor_archivo_guia = nombre_archivo_guia # Actualizar el mejor archivo guía al intentar
-
-        for intento_actual in range(max_intentos_creacion_mision):
-            self.logger.info(f"Intento {intento_actual + 1}/{max_intentos_creacion_mision} para el archivo guía: {nombre_archivo_guia}")
-
-            nombre_clave_mision, contenido_markdown_mision, contenido_raw_mision = self.paso1_2_generar_mision(
-                archivos_seleccionados_data=[data_archivo] # Procesar un archivo a la vez
-            )
-
-            if not nombre_clave_mision or not contenido_markdown_mision:
-                self.logger.error(f"Fallo al generar el contenido de la misión para el archivo: {nombre_archivo_guia}. Intento {intento_actual + 1}.")
-                # Registrar fallo en historial (si aplica según la lógica de paso1_2_generar_mision)
-                # manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision if nombre_clave_mision else "DESCONOCIDA", "PASO1.2_FALLO_GENERACION", {"archivo_guia": nombre_archivo_guia, "intento": intento_actual + 1, "error": "No se generó nombre_clave_mision o contenido_markdown_mision"})
-                intentos_creacion_mision += 1
-                if intento_actual + 1 == max_intentos_creacion_mision:
-                    self.logger.warning(f"Todos los intentos ({max_intentos_creacion_mision}) fallaron para el archivo guía: {nombre_archivo_guia}.")
-                continue # Probar el siguiente intento con el mismo archivo guía
-
-            # --- INICIO VALIDACIÓN GRANULAR A.4 ---
-            try:
-                mision_parseada = self.manejadorMision.parsear_mision_orion(contenido_markdown_mision)
-                if not mision_parseada or 'lista_tareas' not in mision_parseada:
-                    raise ValueError("La misión parseada es inválida o no contiene 'lista_tareas'.")
-
-                validacion_granular_ok = True
-                for tarea_info in mision_parseada['lista_tareas']:
-                    if not isinstance(tarea_info, dict) or 'bloques_codigo_objetivo' not in tarea_info:
-                        self.logger.error(f"Misión: {nombre_clave_mision}, Tarea ID: {tarea_info.get('id', 'N/A')} - Falta 'bloques_codigo_objetivo' o la tarea no es un diccionario.")
-                        validacion_granular_ok = False
-                        break
-                    
-                    bloques = tarea_info['bloques_codigo_objetivo']
-                    if not isinstance(bloques, list) or not bloques:
-                        self.logger.error(f"Misión: {nombre_clave_mision}, Tarea ID: {tarea_info.get('id', 'N/A')} - 'bloques_codigo_objetivo' debe ser una lista no vacía.")
-                        validacion_granular_ok = False
-                        break
-
-                    for i, bloque in enumerate(bloques):
-                        if not (isinstance(bloque, dict) and
-                                'archivo' in bloque and isinstance(bloque['archivo'], str) and bloque['archivo'] and
-                                'nombre_bloque' in bloque and isinstance(bloque['nombre_bloque'], str) and bloque['nombre_bloque'] and
-                                'linea_inicio' in bloque and isinstance(bloque['linea_inicio'], int) and bloque['linea_inicio'] >= 1 and
-                                'linea_fin' in bloque and isinstance(bloque['linea_fin'], int) and
-                                (bloque['linea_fin'] >= bloque['linea_inicio'] or (bloque['linea_inicio'] == 1 and bloque['linea_fin'] >= 0))): # Permitir linea_fin 0 o 1 si linea_inicio es 1 para archivos nuevos
-                            self.logger.error(f"Misión: {nombre_clave_mision}, Tarea ID: {tarea_info.get('id', 'N/A')}, Bloque #{i+1} - Estructura de bloque inválida. Bloque: {bloque}")
-                            validacion_granular_ok = False
-                            break
-                    if not validacion_granular_ok:
-                        break
+            if res_paso1_2 == "mision_generada_ok" and nombre_clave_generado and contenido_mision_generada_md:
+                # --- INICIO VALIDACIÓN GRANULAR (A.4) ---
+                logging.info(f"{logPrefix} Validando estructura granular de la misión '{nombre_clave_generado}'.")
+                _, lista_tareas_val, _ = manejadorMision.parsear_mision_orion(contenido_mision_generada_md)
                 
-                if not validacion_granular_ok:
-                    self.logger.error(f"Misión: {nombre_clave_mision} - Falló la validación de estructura granular. Se descartará esta generación de misión.")
-                    self.manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision, "PASO1.2_ERROR_VALIDACION_GRANULAR", {"archivo_guia": nombre_archivo_guia, "intento": intento_actual + 1, "detalle": "La estructura de bloques_codigo_objetivo no es válida."})
+                validacion_granular_exitosa = True
+                detalle_error_validacion = "Error desconocido durante validación granular."
+                tarea_fallida_id_val = None
+                bloque_fallido_nombre_val = None
+
+                if not lista_tareas_val: # Si parsear_mision_orion devolvió una lista vacía o None para tareas
+                    if "### Tarea" in contenido_mision_generada_md: # Si el MD parece tener tareas pero el parser no las sacó
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = "El parser de misiones no pudo extraer tareas, aunque el MD parece contenerlas."
+                        logging.error(f"{logPrefix} {detalle_error_validacion} Misión: {nombre_clave_generado}")
+                    # Si no hay '### Tarea' y lista_tareas_val es vacía, podría ser una misión sin tareas (ej. solo metadatos), lo cual es raro pero no necesariamente un fallo *granular*.
+                    # La lógica más abajo (decision_ia_1_1.get("necesita_refactor") and not hay_pendientes) lo capturaría si se esperaba refactor.
+                    # Para la validación granular, si no hay tareas, no hay bloques que validar.
                     
-                    # Limpieza si se creó una rama (basado en la lógica de paso1_2_generar_mision que podría crearla)
-                    # Si la rama de misión se crea DENTRO de paso1_2_generar_mision y esta falla la validación,
-                    # necesitamos asegurarnos de que se elimine. Asumimos que `paso1_2_generar_mision`
-                    # retorna `nombre_clave_mision` que es el nombre de la rama.
-                    if self.manejadorGit.ramaExiste(nombre_clave_mision):
-                        self.logger.info(f"Cambiando a la rama de trabajo '{settings.RAMA_TRABAJO}' y eliminando la rama de misión fallida '{nombre_clave_mision}'.")
-                        self.manejadorGit.cambiarRama(settings.RAMA_TRABAJO)
-                        self.manejadorGit.eliminarRama(nombre_clave_mision, local=True, remota=False) # No eliminar remota si no se pusheo
+                for tarea_info in lista_tareas_val if lista_tareas_val else []:
+                    if not isinstance(tarea_info, dict):
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = f"Elemento en lista_tareas no es un diccionario. Tarea: {tarea_info}"
+                        tarea_fallida_id_val = "N/A (formato incorrecto)"
+                        break
                     
-                    intentos_creacion_mision += 1
-                    continue # Al siguiente intento con el MISMO archivo guía
-            
-            except Exception as e:
-                self.logger.critical(f"Misión: {nombre_clave_mision} - Error crítico durante la validación granular: {e}", exc_info=True)
-                self.manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision, "PASO1.2_ERROR_VALIDACION_GRANULAR_EXCEPCION", {"archivo_guia": nombre_archivo_guia, "intento": intento_actual + 1, "error": str(e)})
-                if self.manejadorGit.ramaExiste(nombre_clave_mision):
-                    self.logger.info(f"Cambiando a la rama de trabajo '{settings.RAMA_TRABAJO}' y eliminando la rama de misión fallida '{nombre_clave_mision}' debido a excepción.")
-                    self.manejadorGit.cambiarRama(settings.RAMA_TRABAJO)
-                    self.manejadorGit.eliminarRama(nombre_clave_mision, local=True, remota=False)
-                intentos_creacion_mision += 1
-                continue # Al siguiente intento con el MISMO archivo guía
-            # --- FIN VALIDACIÓN GRANULAR A.4 ---
+                    tarea_fallida_id_val = tarea_info.get("id", "ID_DESCONOCIDO")
 
-            self.manejadorMision.guardar_mision_activa(nombre_clave_mision)
-            self.manejadorMision.guardar_definicion_mision(nombre_clave_mision, contenido_markdown_mision, contenido_raw_mision)
-            self.manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision, "PASO1.2_COMPLETADO", {"archivo_guia": nombre_archivo_guia, "intento_exitoso": intento_actual + 1})
+                    if 'bloques_codigo_objetivo' not in tarea_info:
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = "Clave 'bloques_codigo_objetivo' ausente en la tarea."
+                        break
+                    if not isinstance(tarea_info['bloques_codigo_objetivo'], list):
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = "'bloques_codigo_objetivo' no es una lista."
+                        break
+                    if not tarea_info['bloques_codigo_objetivo']: # Lista vacía
+                        validacion_granular_exitosa = False
+                        detalle_error_validacion = "'bloques_codigo_objetivo' está vacía."
+                        break
 
-            self.logger.info(f"Misión '{nombre_clave_mision}' generada y guardada exitosamente desde '{nombre_archivo_guia}'.")
-            mision_creada_exitosamente = True
-            break # Salir del bucle de intentos para este archivo guía
+                    for bloque in tarea_info['bloques_codigo_objetivo']:
+                        bloque_fallido_nombre_val = bloque.get("nombre_bloque", "NOMBRE_BLOQUE_DESCONOCIDO")
+                        if not isinstance(bloque, dict):
+                            validacion_granular_exitosa = False
+                            detalle_error_validacion = "Elemento en 'bloques_codigo_objetivo' no es un diccionario."
+                            break
+                        
+                        campos_requeridos_bloque = {
+                            "archivo": (str, True), "nombre_bloque": (str, True),
+                            "linea_inicio": (int, lambda x: x >= 1),
+                            "linea_fin": (int, None) # Validado con linea_inicio después
+                        }
+                        for campo, (tipo_esperado, validacion_extra) in campos_requeridos_bloque.items():
+                            if campo not in bloque:
+                                validacion_granular_exitosa = False
+                                detalle_error_validacion = f"Bloque '{bloque_fallido_nombre_val}' no tiene clave '{campo}'."
+                                break
+                            if not isinstance(bloque[campo], tipo_esperado):
+                                validacion_granular_exitosa = False
+                                detalle_error_validacion = f"Clave '{campo}' en bloque '{bloque_fallido_nombre_val}' no es de tipo {tipo_esperado.__name__} (es {type(bloque[campo]).__name__})."
+                                break
+                            if isinstance(validacion_extra, bool) and validacion_extra and not bloque[campo]: # Para strings no vacíos
+                                validacion_granular_exitosa = False
+                                detalle_error_validacion = f"Clave '{campo}' (string) en bloque '{bloque_fallido_nombre_val}' está vacía."
+                                break
+                            if callable(validacion_extra) and not validacion_extra(bloque[campo]):
+                                validacion_granular_exitosa = False
+                                detalle_error_validacion = f"Clave '{campo}' en bloque '{bloque_fallido_nombre_val}' no pasó validación específica ({bloque[campo]})."
+                                break
+                        if not validacion_granular_exitosa: break
+                        
+                        # Validación específica para linea_fin vs linea_inicio
+                        linea_inicio_val = bloque['linea_inicio']
+                        linea_fin_val = bloque['linea_fin']
+                        if not (linea_fin_val >= linea_inicio_val):
+                            validacion_granular_exitosa = False
+                            detalle_error_validacion = f"En bloque '{bloque_fallido_nombre_val}', linea_fin ({linea_fin_val}) debe ser >= linea_inicio ({linea_inicio_val})."
+                            break
+                    if not validacion_granular_exitosa: break
+                
+                if not validacion_granular_exitosa:
+                    logging.critical(f"{logPrefix} VALIDACIÓN GRANULAR FALLIDA para misión '{nombre_clave_generado}'. Razón: {detalle_error_validacion}. Tarea ID (aprox): {tarea_fallida_id_val}, Bloque (aprox): {bloque_fallido_nombre_val}")
+                    
+                    # Acción Correctiva
+                    logging.info(f"{logPrefix} Revirtiendo creación de misión '{nombre_clave_generado}' debido a fallo de validación granular.")
+                    rama_actual_antes_cleanup = manejadorGit.obtener_rama_actual(settings.RUTACLON)
+                    if rama_actual_antes_cleanup != settings.RAMATRABAJO:
+                        if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
+                            logging.error(f"{logPrefix} CRÍTICO: No se pudo cambiar a RAMATRABAJO ('{settings.RAMATRABAJO}') para limpiar la rama fallida '{nombre_clave_generado}'. Puede requerir intervención manual.")
+                            # No continuar con 'continue' si esto falla, podría dejar el repo en mal estado para el siguiente ciclo.
+                            # Mejor devolver False para que el script termine.
+                            return False # Fallo crítico de la fase.
 
-        if mision_creada_exitosamente:
-            break # Salir del bucle de archivos guía
+                    if manejadorGit.existe_rama(settings.RUTACLON, nombre_clave_generado, local_only=True):
+                         if not manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True):
+                            logging.warning(f"{logPrefix} No se pudo eliminar la rama de misión local '{nombre_clave_generado}' tras fallo de validación. Puede requerir intervención manual.")
+                    else:
+                        logging.info(f"{logPrefix} La rama de misión '{nombre_clave_generado}' no existía localmente para ser eliminada (o ya fue eliminada por `paso1_2_generar_mision` en un flujo de error interno no esperado).")
 
-    if not mision_creada_exitosamente:
-        self.logger.error("No se pudo crear una misión válida después de intentar con todos los archivos guía seleccionados.")
-        # Asegurarse de que no haya una misión activa si ninguna se creó
-        if self.manejadorMision.obtener_mision_activa() and not self.manejadorMision.verificar_existencia_mision_md(self.manejadorMision.obtener_mision_activa()):
-            self.manejadorMision.limpiar_mision_activa()
-        return False
+                    # No guardar .active_mission (ya que la misión no se considera creada)
+                    # El archivo .md de la misión fue creado y commiteado por paso1_2_generar_mision,
+                    # pero la rama será eliminada, por lo que el archivo MD "desaparecerá" con ella.
 
-    return True
+                    manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+                        manejadorHistorial.formatearEntradaHistorial(
+                            outcome=f"PASO1.2_ERROR_VALIDACION_GRANULAR:{nombre_clave_generado}",
+                            error_message="La misión no cumple con la estructura granular esperada.",
+                            result_details={"tarea_fallida_id": tarea_fallida_id_val, 
+                                            "bloque_fallido_nombre": bloque_fallido_nombre_val, 
+                                            "detalle_error_validacion": detalle_error_validacion,
+                                            "archivo_principal_decision": archivo_sel
+                                            }
+                        )
+                    ])
+                    logging.info(f"{logPrefix} Reintentando selección de archivo (intento {intento}/{MAX_INTENTOS_SELECCION}).")
+                    continue # Al siguiente intento del bucle de MAX_INTENTOS_SELECCION
+                else:
+                    logging.info(f"{logPrefix} Validación granular de misión '{nombre_clave_generado}' EXITOSA.")
+                # --- FIN VALIDACIÓN GRANULAR ---
+
+                # La lógica original de _intentarCrearMisionDesdeSeleccionArchivo continúa aquí si la validación granular fue exitosa
+                # No se usa el contenido_mision_generada_md leído del archivo, sino el devuelto por paso1_2
+                # porque la validación ya lo usó.
+                
+                # Validar que la misión generada tiene tareas si se esperaba un refactor
+                # Esta validación es diferente de la granular, se enfoca en si hay tareas en absoluto.
+                _, _, hay_pendientes = manejadorMision.parsear_mision_orion(contenido_mision_generada_md)
+                if decision_ia_1_1.get("necesita_refactor") and not hay_pendientes:
+                    logging.error(f"{logPrefix} INCONSISTENCIA: IA indicó refactor para '{archivo_sel}' pero misión '{nombre_clave_generado}' no tiene tareas. Limpiando y reintentando.")
+                    # Limpieza similar a la de fallo de validación granular
+                    rama_actual_antes_cleanup_nopending = manejadorGit.obtener_rama_actual(settings.RUTACLON)
+                    if rama_actual_antes_cleanup_nopending != settings.RAMATRABAJO:
+                         if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
+                            logging.error(f"{logPrefix} CRÍTICO (no_pendientes): No se pudo cambiar a RAMATRABAJO. Abortando.")
+                            return False
+                    
+                    if manejadorGit.existe_rama(settings.RUTACLON, nombre_clave_generado, local_only=True):
+                        manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
+                    
+                    manejadorHistorial.guardarHistorial(manejadorHistorial.cargarHistorial() + [
+                        manejadorHistorial.formatearEntradaHistorial(
+                            outcome=f"PASO1.2_ERROR_MISION_SIN_TAREAS:{nombre_clave_generado}",
+                            error_message="IA indicó refactor pero misión generada no tiene tareas.",
+                            result_details={"archivo_principal_decision": archivo_sel}
+                        )
+                    ])
+                    continue  # Siguiente intento del bucle
+
+                guardar_estado_mision_activa(nombre_clave_generado)
+                logging.info(f"{logPrefix} Nueva misión '{nombre_clave_generado}' creada y validada. Fase completada.")
+                if modo_automatico:
+                    manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_generado, setUpstream=True)
+                return True  # Misión creada exitosamente, termina la función
+
+            else:  # Error en paso1_2_generar_mision
+                logging.error(f"{logPrefix} Error generando misión para '{archivo_sel}'. Limpiando si es necesario y reintentando con otro archivo.")
+                # paso1_2_generar_mision ya intenta limpiar la rama si falla ANTES de crear el commit del MD.
+                # Si falla DESPUÉS de crear la rama pero ANTES del commit, nombre_clave_generado podría tener valor.
+                # Es importante que el `continue` aquí no guarde estado de misión activa.
+                rama_actual_antes_cleanup_errgen = manejadorGit.obtener_rama_actual(settings.RUTACLON)
+                if rama_actual_antes_cleanup_errgen != settings.RAMATRABAJO:
+                     if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
+                        logging.error(f"{logPrefix} CRÍTICO (err_generacion): No se pudo cambiar a RAMATRABAJO. Abortando.")
+                        return False
+
+                if nombre_clave_generado and manejadorGit.existe_rama(settings.RUTACLON, nombre_clave_generado, local_only=True):
+                    logging.info(f"{logPrefix} Eliminando rama '{nombre_clave_generado}' debido a fallo en `paso1_2_generar_mision`.")
+                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
+                continue  # Siguiente intento del bucle
+
+        elif res_paso1_1 == "reintentar_seleccion":
+            logging.info(f"{logPrefix} Intento #{intento}: IA rechazó el archivo o era inválido. Buscando otro.")
+            continue  # Siguiente intento del bucle
+
+        elif res_paso1_1 == "ciclo_terminado_sin_accion":
+            logging.warning(f"{logPrefix} No se encontraron más archivos para analizar. Finalizando fase.")
+            break  # Salir del bucle for
+
+        else: # Resultado inesperado (ej. error crítico en paso1.1)
+            logging.error(f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Fase de creación fallida.")
+            return False  # Fallo crítico
+
+    logging.info(f"{logPrefix} No se generó ninguna misión nueva tras {MAX_INTENTOS_SELECCION} intentos (o se completó el ciclo). Fase completada.")
+    return True # La fase es exitosa aunque no se haya creado nada.
 
 def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivos_analizados: dict):
     logPrefix = "_crearNuevaMision:"
