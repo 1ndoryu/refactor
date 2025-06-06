@@ -995,16 +995,16 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         "    b.  **`ruta_archivo`**: (String) Ruta relativa al archivo afectado (ej: `src/utils/helpers.js`).",
         "    c.  **Campos específicos por `tipo_operacion`**:",
         "        i.  **Si `tipo_operacion` es `REEMPLAZAR_BLOQUE`**: ",
-        "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a reemplazar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron, si estás reemplazando un bloque existente.",
-        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a reemplazar. DEBE CORRESPONDER a `linea_fin_original` del bloque que te pasaron.",
-        "            -   **`nuevo_contenido`**: (String) El código completo que reemplazará el bloque original. Si el bloque es una función, debe ser la función completa.",
-        "               - Si la tarea es crear un archivo NUEVO, puedes usar `REEMPLAZAR_BLOQUE` con `linea_inicio: 1`, `linea_fin: 1` (o 0, pero usa 1) y `nuevo_contenido` siendo el contenido completo del nuevo archivo.",
+        "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a reemplazar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron, si estás reemplazando un bloque existente. **ESTE CAMPO ES OBLIGATORIO.**",
+        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a reemplazar. DEBE CORRESPONDER a `linea_fin_original` del bloque que te pasaron. **ESTE CAMPO ES OBLIGATORIO.**",
+        "            -   **`nuevo_contenido`**: (String) El código completo que reemplazará el bloque original. Si el bloque es una función, debe ser la función completa. **ESTE CAMPO ES OBLIGATORIO.**",
+        "               - Si la tarea es crear un archivo NUEVO, usa `REEMPLAZAR_BLOQUE` con `linea_inicio: 1`, `linea_fin: 1` (o 0, pero usa 1) y `nuevo_contenido` siendo el contenido completo del nuevo archivo. **TODOS LOS CAMPOS (`linea_inicio`, `linea_fin`, `nuevo_contenido`) SON OBLIGATORIOS IGUALMENTE.**",
         "        ii. **Si `tipo_operacion` es `AGREGAR_BLOQUE`**: ",
-        "            -   **`insertar_despues_de_linea`**: (Integer) Número de línea (1-indexed) en el archivo original DESPUÉS de la cual se insertará el `nuevo_contenido`. Usa `0` para insertar al principio del archivo.",
-        "            -   **`nuevo_contenido`**: (String) El código completo del nuevo bloque a agregar.",
+        "            -   **`insertar_despues_de_linea`**: (Integer) Número de línea (1-indexed) en el archivo original DESPUÉS de la cual se insertará el `nuevo_contenido`. Usa `0` para insertar al principio del archivo. **ESTE CAMPO ES OBLIGATORIO.**",
+        "            -   **`nuevo_contenido`**: (String) El código completo del nuevo bloque a agregar. **ESTE CAMPO ES OBLIGATORIO.**",
         "        iii.**Si `tipo_operacion` es `ELIMINAR_BLOQUE`**: ",
-        "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a eliminar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron.",
-        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a eliminar.",
+        "            -   **`linea_inicio`**: (Integer) Número de línea (1-indexed) en el archivo original donde comienza el bloque a eliminar. DEBE CORRESPONDER a `linea_inicio_original` del bloque que te pasaron. **ESTE CAMPO ES OBLIGATORIO.**",
+        "            -   **`linea_fin`**: (Integer) Número de línea (1-indexed) en el archivo original donde termina el bloque a eliminar. **ESTE CAMPO ES OBLIGATORIO.**",
         "            -   El campo `nuevo_contenido` se ignora o puede ser `null` o `\"\"`.",
         "3.  **`advertencia_ejecucion`**: (String o Null) Si no puedes realizar la tarea de forma segura o si hay ambigüedades importantes, explica el problema aquí. Si todo está bien, usa `null`.",
         "4.  **IMPORTANTE SOBRE LÍNEAS**: Todas las referencias a `linea_inicio`, `linea_fin`, e `insertar_despues_de_linea` en TU RESPUESTA JSON deben ser números de línea relativos al ARCHIVO COMPLETO ORIGINAL, no a los fragmentos de `contenido_actual_bloque` que se te proporcionan. Usa los `linea_inicio_original` y `linea_fin_original` de los bloques de entrada como referencia para esto.",
@@ -1090,45 +1090,78 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         respuestaJson = _limpiarYParsearJson(textoRespuesta, logPrefix)
 
         if not respuestaJson:
-            return None
+            tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+            return {"modificaciones": [], "advertencia_ejecucion": "Fallo al parsear JSON de la IA.", "tokens_consumidos_api": tokens_prompt_estimados_error }
 
-        # Validación básica del JSON de respuesta
         if "modificaciones" not in respuestaJson or not isinstance(respuestaJson["modificaciones"], list):
             log.error(f"{logPrefix} Respuesta JSON no tiene 'modificaciones' como lista o falta. Recibido: {respuestaJson}")
-            # Si hay advertencia, la devolvemos aunque 'modificaciones' falte o sea inválido
-            if "advertencia_ejecucion" in respuestaJson and isinstance(respuestaJson["advertencia_ejecucion"], str):
-                log.warning(f"{logPrefix} IA devolvió advertencia: {respuestaJson['advertencia_ejecucion']}")
-                return {"modificaciones": [], "advertencia_ejecucion": respuestaJson['advertencia_ejecucion']}
-            return None
+            adv = respuestaJson.get("advertencia_ejecucion", "Respuesta JSON no tiene 'modificaciones' como lista o falta.")
+            if not isinstance(adv, str): adv = str(adv) # Asegurar que la advertencia sea string
+            tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+            return {"modificaciones": [], "advertencia_ejecucion": adv, "tokens_consumidos_api": tokens_prompt_estimados_error}
 
         for i, op in enumerate(respuestaJson["modificaciones"]):
             if not isinstance(op, dict) or "tipo_operacion" not in op or "ruta_archivo" not in op:
-                log.error(f"{logPrefix} Operación de modificación inválida #{i+1}: {op}. Faltan campos clave.")
-                # Podríamos invalidar toda la respuesta o intentar procesar las válidas. Por ahora, invalidamos si una es mala.
-                return {"modificaciones": [], "advertencia_ejecucion": f"Operación de modificación inválida #{i+1}: {op}"}
+                log.error(f"{logPrefix} Operación de modificación inválida #{i+1}: {op}. Faltan campos clave (tipo_operacion o ruta_archivo).")
+                tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+                return {"modificaciones": [], "advertencia_ejecucion": f"Operación de modificación inválida #{i+1}: {op}. Faltan campos clave.", "tokens_consumidos_api": tokens_prompt_estimados_error}
             
-            tipo_op = op["tipo_operacion"]
+            tipo_op = op.get("tipo_operacion")
+
             if tipo_op == "REEMPLAZAR_BLOQUE":
-                if not all(k in op for k in ["linea_inicio", "linea_fin", "nuevo_contenido"]):
-                    log.error(f"{logPrefix} Operación REEMPLAZAR_BLOQUE inválida #{i+1}: {op}. Faltan campos.")
-                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación REEMPLAZAR_BLOQUE inválida #{i+1}, faltan campos."}
+                if "linea_fin" not in op and op.get("linea_inicio") == 1:
+                    autocorregido_linea_fin = False
+                    for bloque_in in bloques_codigo_input:
+                        if bloque_in.get("ruta_archivo") == op.get("ruta_archivo") and \
+                           bloque_in.get("linea_inicio_original") == 1 and \
+                           (bloque_in.get("linea_fin_original") == 1 or bloque_in.get("linea_fin_original") == 0):
+                            op["linea_fin"] = bloque_in.get("linea_fin_original", 1)
+                            log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' (creación/L1) no tenía 'linea_fin'. "
+                                        f"Autocorregido a '{op['linea_fin']}' basado en el bloque de entrada original (L{bloque_in.get('linea_inicio_original')}-L{bloque_in.get('linea_fin_original')}).")
+                            autocorregido_linea_fin = True
+                            break
+                    
+                    if not autocorregido_linea_fin:
+                        op["linea_fin"] = 1
+                        log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' (creación/L1) no tenía 'linea_fin'. "
+                                    f"No se encontró bloque de entrada exacto para inferir. Autocorregido 'linea_fin' a '1'.")
+                
+                campos_necesarios_reemplazar = ["linea_inicio", "linea_fin", "nuevo_contenido"]
+                campos_faltantes = [k for k in campos_necesarios_reemplazar if k not in op]
+                if campos_faltantes:
+                    log.error(f"{logPrefix} Operación REEMPLAZAR_BLOQUE inválida #{i+1} en '{op.get('ruta_archivo')}': {op}. Faltan campos: {campos_faltantes} (post-autocorrección).")
+                    tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación REEMPLAZAR_BLOQUE inválida #{i+1} en '{op.get('ruta_archivo')}', faltan campos: {campos_faltantes}.", "tokens_consumidos_api": tokens_prompt_estimados_error}
+            
             elif tipo_op == "AGREGAR_BLOQUE":
-                if not all(k in op for k in ["insertar_despues_de_linea", "nuevo_contenido"]):
-                    log.error(f"{logPrefix} Operación AGREGAR_BLOQUE inválida #{i+1}: {op}. Faltan campos.")
-                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación AGREGAR_BLOQUE inválida #{i+1}, faltan campos."}
+                campos_necesarios_agregar = ["insertar_despues_de_linea", "nuevo_contenido"]
+                campos_faltantes = [k for k in campos_necesarios_agregar if k not in op]
+                if campos_faltantes:
+                    log.error(f"{logPrefix} Operación AGREGAR_BLOQUE inválida #{i+1}: {op}. Faltan campos: {campos_faltantes}.")
+                    tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación AGREGAR_BLOQUE inválida #{i+1}, faltan campos: {campos_faltantes}.", "tokens_consumidos_api": tokens_prompt_estimados_error}
+            
             elif tipo_op == "ELIMINAR_BLOQUE":
-                if not all(k in op for k in ["linea_inicio", "linea_fin"]):
-                    log.error(f"{logPrefix} Operación ELIMINAR_BLOQUE inválida #{i+1}: {op}. Faltan campos.")
-                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación ELIMINAR_BLOQUE inválida #{i+1}, faltan campos."}
+                campos_necesarios_eliminar = ["linea_inicio", "linea_fin"]
+                campos_faltantes = [k for k in campos_necesarios_eliminar if k not in op]
+                if campos_faltantes:
+                    log.error(f"{logPrefix} Operación ELIMINAR_BLOQUE inválida #{i+1}: {op}. Faltan campos: {campos_faltantes}.")
+                    tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+                    return {"modificaciones": [], "advertencia_ejecucion": f"Operación ELIMINAR_BLOQUE inválida #{i+1}, faltan campos: {campos_faltantes}.", "tokens_consumidos_api": tokens_prompt_estimados_error}
+            
+            elif tipo_op is None:
+                 log.error(f"{logPrefix} Operación inválida #{i+1}: 'tipo_operacion' es None o no está. Operación: {op}")
+                 tokens_prompt_estimados_error = contarTokensTexto(promptCompleto, api_provider)
+                 return {"modificaciones": [], "advertencia_ejecucion": f"Operación inválida #{i+1}, 'tipo_operacion' es None o falta.", "tokens_consumidos_api": tokens_prompt_estimados_error}
+            
             # (opcional) `nuevo_contenido` puede ser `None` para ELIMINAR_BLOQUE, la schema ya lo permite.
 
         num_modificaciones = len(respuestaJson["modificaciones"])
         adv = respuestaJson.get("advertencia_ejecucion")
         log.info(f"{logPrefix} Ejecución de tarea completada por IA. Modificaciones: {num_modificaciones}. Advertencia: {adv if adv else 'Ninguna'}")
         
-        # Añadir tokens consumidos estimado (debería ser calculado por la IA o estimado de otra forma)
         tokens_prompt = contarTokensTexto(promptCompleto, api_provider)
-        tokens_respuesta_estimados = contarTokensTexto(json.dumps(respuestaJson), api_provider) # Estimación
+        tokens_respuesta_estimados = contarTokensTexto(json.dumps(respuestaJson), api_provider)
         respuestaJson["tokens_consumidos_api"] = tokens_prompt + tokens_respuesta_estimados 
         
         return respuestaJson
@@ -1138,8 +1171,8 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         _manejar_excepcion_api(e, api_provider, logPrefix, locals().get('respuesta'))
         tokens_prompt = contarTokensTexto(promptCompleto, api_provider)
         return {"modificaciones": [], 
-                "advertencia_ejecucion": f"Error interno procesando la tarea: {e}",
-                "tokens_consumidos_api": tokens_prompt } # Devuelve al menos los tokens del prompt en error
+                "advertencia_ejecucion": f"Error interno procesando la tarea: {str(e)}",
+                "tokens_consumidos_api": tokens_prompt }
 
 # --- Funciones de Ayuda Internas (ya existen en el original, asegurarse de que estén completas) ---
 def _extraerTextoRespuesta(respuesta, logPrefix):
