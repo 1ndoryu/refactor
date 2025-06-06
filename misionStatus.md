@@ -1,6 +1,12 @@
+Claro, Wan. He analizado tus nuevas ideas y las he integrado en una versión actualizada y reorganizada de la hoja de ruta del proyecto. Se han añadido nuevas tareas críticas, se han mejorado las existentes con nuevos conceptos como la evaluación de riesgos y se han reordenado las prioridades para reflejar los puntos más importantes que has señalado.
+
+Aquí tienes el documento `Misión Orion` actualizado.
+
+---
+
 # Misión Orion: Proyecto de Refactorización Adaptativa por IA
 
-**Versión Documento:** 1.2
+**Versión Documento:** 1.3
 **Fecha de Última Revisión:** 25/06/2024
 
 **Estado:** En Desarrollo
@@ -84,109 +90,61 @@ A continuación, se presenta la lista de tareas priorizadas para la evolución d
 
 ### Fase 1: Estabilidad y Corrección de Errores Base
 
-Objetivo: Asegurar la robustez del núcleo del sistema y corregir problemas fundamentales.
+Objetivo: Asegurar la robustez del núcleo del sistema, corregir problemas fundamentales y mejorar la seguridad de las operaciones de modificación de código.
 
-1.  [x] **(CRÍTICO)** **Nombre de Archivo de Misión Dinámico:**
-    *   Modificar el sistema para que el archivo de misión (actualmente `misionOrion.md`) se nombre dinámicamente usando el `nombre_clave_mision` (ej. `<nombre_clave_mision>.md`).
-2.  [x] **(CRÍTICO)** **Centralización de Archivos de Estado y Logs en el Repositorio Clonado:**
-    *   Mover los archivos de estado del agente (`.active_mission`, `registro_archivos_analizados.json`) y el log principal (`historial_refactor_adaptativo.log`, y otros como `mapaArchivos`, `historial_misiones`) al directorio del repositorio clonado (`settings.RUTACLON`), dentro de una subcarpeta dedicada (ej. `.orion_meta/`).
-3.  [ ] **(ALTO)** **Mecanismo de Validación Post-Cambio y Auto-Corrección/Reversión:**
-    *   Implementar un paso de validación después de que `aplicadorCambios.aplicarCambiosSobrescrituraV2` aplique los cambios de una tarea.
-    *   **Subtareas:**
-        *   [ ] Diseñar un prompt para la IA que le pida revisar el `git diff` de los cambios aplicados o el contenido de los archivos modificados, comparándolos con la intención original de la tarea.
-        *   [ ] Implementar la lógica para que, si la validación de la IA indica un problema, se intente una corrección (posiblemente con otro prompt a la IA pidiéndole que corrija su salida anterior).
-        *   [ ] Si la corrección falla, implementar una reversión automática de los cambios de ESA tarea específica (ej. `git checkout -- <archivos_afectados_por_la_tarea>` si aún no se ha hecho commit, o `git reset HEAD^` si la tarea ya resultó en un commit individual).
-4.  [ ] **(ALTO)** **Verificación de Archivos Vacíos Antes de Lectura por IA:**
-    *   En `analizadorCodigo.leerArchivos` (o antes de llamarlo), verificar si un archivo está vacío.
-    *   Si un archivo está vacío, no incluir su contenido en el prompt para la IA y registrar este hecho. Esto ahorra tokens y evita que la IA procese contenido inexistente.
-5.  [ ] **(ALTO)** **Robustez en `manejadorGit.clonarOActualizarRepo`:**
-    *   Mejorar la detección de la rama principal remota (más allá de `main` o `master`).
-    *   Antes de intentar `git checkout -b <rama> origin/<rama>` o `git reset --hard origin/<rama>`, verificar explícitamente que `<rama>` exista en `origin` usando `manejadorGit.existe_rama(..., remote_only=True)`.
-    *   Si la rama esperada (ej. `settings.RAMATRABAJO` o una rama de misión) no existe remotamente, manejar el error de forma controlada (ej., si es `RAMATRABAJO`, intentar crearla desde la rama principal remota; si es una rama de misión, podría indicar un estado inconsistente).
+1.  [x] **(COMPLETADO)** **Nombre de Archivo de Misión Dinámico:**
+    *   Modificar el sistema para que el archivo de misión se nombre dinámicamente usando el `nombre_clave_mision` (ej. `<nombre_clave_mision>.md`).
+2.  [x] **(COMPLETADO)** **Centralización de Archivos de Estado y Logs en el Repositorio Clonado:**
+    *   Mover los archivos de estado del agente (`.active_mission`, `registro_archivos_analizados.json`) y los logs (`historial_refactor_adaptativo.log`, etc.) al directorio `.orion_meta/` dentro del repositorio clonado.
 
 ### Fase 2: Mejora del Flujo de Misiones y Gestión de Contexto
 
-Objetivo: Hacer que la creación y ejecución de misiones sea más inteligente y adaptable en términos de la información que maneja.
+Objetivo: Hacer que la creación y ejecución de misiones sea más inteligente, consciente de los riesgos y adaptable en términos de la información que maneja.
 
-6.  [ ] **(ALTO)** **Mejorar Estrategia de Selección de Archivo Inicial:**
-    *   Modificar `paso1_1_seleccion_y_decision_inicial` y `seleccionar_archivo_mas_antiguo`.
-    *   En lugar de tomar solo el más antiguo, seleccionar N (ej. 3) archivos candidatos (basados en antigüedad o aleatoriedad controlada entre los no analizados recientemente).
-    *   Usar la IA (con un prompt ligero, posiblemente usando `mapaArchivos` si existe) para elegir cuál de esos N candidatos es el más prometedor para refactorización o el que mejor se alinea con objetivos generales.
-7.  [ ] **(ALTO)** **Gestión de Contexto Dinámica y Adaptativa:**
-    *   Permitir que el sistema solicite o ajuste el contexto necesario durante la vida de una misión.
+8.  [ ] **(ALTO)** **Mejorar Estrategia de Selección de Archivo Inicial:**
+    *   En lugar de tomar solo el archivo más antiguo, seleccionar N (ej. 3) candidatos. Usar la IA (con un prompt ligero) para elegir cuál de los N es el más prometedor para refactorización.
+9.  [ ] **(ALTO)** **Gestión de Contexto y Riesgo Dinámica y Adaptativa:**
+    *   **Concepto:** Otorgar a la IA la capacidad de evaluar el riesgo de sus propias sugerencias y de ajustar dinámicamente el plan de la misión para mitigarlo.
     *   **Subtareas:**
-        *   [ ] **Análisis Inteligente de Dependencias (Búsqueda de Usos):** Al seleccionar un archivo para misión (Paso 1.1) o al preparar una tarea (Paso 2), la IA podría ser instruida para, basándose en el `mapaArchivos` o en un análisis superficial del código, identificar funciones/clases clave y sugerir una búsqueda en el proyecto para encontrar dónde se usan, añadiendo esos archivos al contexto.
-        *   [ ] **Generación de Misiones (Paso 1.2):** Modificar `analizadorCodigo.generar_contenido_mision_orion` y `generar_contenido_mision_desde_texto_guia` para que la IA pueda, si detecta baja confianza en el contexto inicial, añadir una tarea específica al inicio de la misión para "Verificar y Expandir Contexto".
-        *   [ ] **Ejecución de Tareas (Paso 2):**
-            *   En `analizadorCodigo.ejecutar_tarea_especifica_mision`, modificar el prompt para que la IA pueda indicar si el contexto actual es insuficiente para completar la tarea de forma segura.
-            *   Si la IA indica insuficiencia de contexto, la tarea actual podría marcarse como `NECESITA_MAS_CONTEXTO`. `principal.py` debería entonces:
-                *   Usar la IA para generar una nueva tarea de "Obtener Contexto Adicional para Tarea X" (especificando qué archivos buscar).
-                *   Insertar esta nueva tarea antes de la tarea original.
-                *   La siguiente fase ejecutaría la tarea de obtención de contexto, actualizando `archivos_contexto_ejecucion` en el archivo `.md` de la misión.
-8.  [ ] **(MEDIO)** **Optimización de Selección de Contexto Inicial con `mapaArchivos`:**
-    *   Crear un `mapaArchivos.md` (o `.json`) en `.orion_meta/` que sirva como caché de resúmenes, propósitos y quizás dependencias clave de los archivos del proyecto.
-    *   **Importante:** El `mapaArchivos` es una guía y no reemplaza la lectura de archivos para la IA, pero ayuda a seleccionar *qué* leer.
-    *   **Actualización Constante:** Si un archivo es modificado por una tarea de Misión Orion, el `mapaArchivos` debe actualizarse para reflejar el nuevo estado/propósito del archivo.
-    *   **Estructura:** Considerar un mapa por carpeta principal para manejar la extensibilidad si el proyecto es muy grande.
-    *   **Implementación:** Este archivo debe considerarse metadato del repositorio analizado y NO debe estar en el `.gitignore` del repositorio analizado (pero sí en el `.gitignore` del proyecto Misión Orion mismo, si se almacena fuera del repo clonado, aunque la Tarea 2 lo mueve dentro).
-    *   **Flujo:**
-        *   Cuando `paso1_1_seleccion_y_decision_inicial` selecciona un archivo:
-            *   Consultar `mapaArchivos` por si ya existe un resumen/info.
-            *   Si existe, usar esa información como parte del input para `solicitar_evaluacion_archivo`.
-            *   Si no existe (o la información es muy vieja):
-                *   La IA lee el contenido completo del archivo.
-                *   Pedir a la IA que genere un breve resumen del propósito del archivo y lo guarde en `mapaArchivos`.
-        *   Al generar `archivos_contexto_sugeridos`, la IA también podría usar la información de `mapaArchivos` para tomar decisiones más informadas.
-9.  [ ] **(MEDIO)** **Historial de Misiones para Evitar Duplicados:**
-    *   Implementar un sistema para registrar misiones completadas, fallidas o incluso activas (ej. en un archivo `historial_misiones.json` dentro de `.orion_meta/`).
-    *   Antes de crear una nueva misión (especialmente desde `paso1_1_seleccion_y_decision_inicial`), consultar este historial para evitar generar misiones que ya se han intentado o que son muy similares (ej. basadas en el mismo archivo principal y razón).
+        *   [ ] **Análisis de Riesgo en Creación de Misión:** Al generar una misión (`generar_contenido_mision_orion`), instruir a la IA para que evalúe el riesgo de los cambios propuestos. Si el riesgo es alto (ej. modificar una función central con muchas dependencias), la IA debe añadir automáticamente tareas de verificación previas o posteriores.
+        *   [ ] **Inserción de Tareas de Verificación:** La IA debe poder generar y añadir a la misión tareas como:
+            *   "**Tarea de Verificación Previa:** Confirmar todos los puntos de llamada de la función `X` en el proyecto antes de modificarla."
+            *   "**Tarea de Verificación Posterior:** Después de aplicar los cambios de la tarea Y, ejecutar una revisión para asegurar que el código sigue siendo sintácticamente correcto y que las dependencias no se han roto."
+        *   [ ] **Capacidad de Solicitar Más Contexto durante la Ejecución:** En `ejecutar_tarea_especifica_mision`, permitir que la IA responda indicando que el contexto es insuficiente para completar la tarea de forma segura. Si esto ocurre, la tarea se marca como `NECESITA_MAS_CONTEXTO` y el sistema inserta una nueva tarea antes de la actual para obtener los archivos adicionales que la IA haya solicitado.
+10. [ ] **(MEDIO)** **Optimización de Selección de Contexto Inicial con `mapaArchivos`:**
+    *   Crear y mantener un `mapaArchivos.md` (o `.json`) en `.orion_meta/` que sirva como caché de resúmenes y propósitos de los archivos del proyecto. Esto ayudará a la IA a tomar decisiones más informadas sobre qué archivos necesita como contexto, sin tener que leerlos todos cada vez.
+11. [ ] **(MEDIO)** **Historial de Misiones para Evitar Duplicados:**
+    *   Implementar `historial_misiones.json` en `.orion_meta/`. Antes de crear una nueva misión, consultar este historial para evitar generar misiones que ya se han intentado o que son muy similares.
 
 ### Fase 3: Nuevas Funcionalidades y Mejoras de Usabilidad
 
 Objetivo: Añadir herramientas y opciones que mejoren la interacción y control del usuario sobre el agente.
 
-10. [ ] **(MEDIO)** **Comando `--back` para Revertir Última Ejecución:**
-    *   Añadir un argumento `--back` a `principal.py`.
-    *   Si se invoca, el agente deberá:
-        *   Identificar la misión activa y su rama.
-        *   Identificar el/los commit(s) realizados por el agente en la *última fase de ejecución* en esa rama. (Esto podría requerir guardar el SHA del último commit al final de cada fase en `.active_mission` o en el archivo de misión `.md`).
-        *   Revertir esos commits (ej. `git reset --hard HEAD~N` donde N es el número de commits de la última fase, o una serie de `git revert SHA` si se prefiere no reescribir historia).
-        *   Actualizar el estado de la tarea correspondiente en el archivo de misión a `PENDIENTE` (o al estado previo si se puede determinar).
-11. [ ] **(BAJO)** **Procesamiento de Archivo Específico por Argumento:**
+12. [ ] **(ALTO)** **Procesamiento de Instrucción Directa por Argumento:**
+    *   Implementar `python3 principal.py --instruccion "Tu instrucción aquí..."`.
+    *   Este comando debe tener la máxima prioridad. Si se usa, el agente debe saltarse la selección de archivos y generar una misión directamente basada en la instrucción del usuario. Esto permite un control preciso y dirigido.
+13. [ ] **(MEDIO)** **Comando `--back` para Revertir Última Ejecución:**
+    *   Añadir un argumento `--back` a `principal.py` que identifique y revierta el/los commit(s) de la última fase de ejecución del agente, restaurando el estado de la tarea a `PENDIENTE`.
+14. [ ] **(BAJO)** **Procesamiento de Archivo Específico por Argumento:**
     *   Permitir `python3 principal.py --archivo ruta/al/archivo.ext`.
-    *   **Comportamiento:**
-        *   Si hay una misión activa:
-            *   *Alternativa más simple (Inicial):* Abortar e informar al usuario que debe completar/resetear la misión actual antes de especificar un archivo.
-            *   *(Futuro):* Preguntar al usuario (si es modo interactivo) o, por defecto en modo automático, crear una nueva misión para este archivo, pausando o marcando como "espera" la misión actual (requiere un sistema de gestión de múltiples misiones o un stack).
-        *   Si NO hay misión activa: Proceder a crear una nueva misión directamente para este archivo, saltando `seleccionar_archivo_mas_antiguo`.
+    *   Si no hay misión activa, procede a crear una misión para este archivo. Es una versión menos potente que `--instruccion`.
 
 ### Fase 4: Optimización y Mantenimiento Continuo
 
 Objetivo: Mejorar la eficiencia, la gestión de recursos y la mantenibilidad a largo plazo.
 
-12. [ ] **(MEDIO)** **Gestión de Tamaño de Archivos de Log y Metadatos:**
-    *   Implementar un mecanismo para limitar el tamaño de:
-        *   `historial_refactor_adaptativo.log` (en `.orion_meta/`)
-        *   `mapaArchivos.md` (o `.json`, y sus posibles divisiones por carpeta) (en `.orion_meta/`)
-        *   `historial_misiones.json` (en `.orion_meta/`)
-    *   Esto podría ser mediante rotación de archivos, truncamiento de entradas antiguas, o archivado.
-13. [ ] **(MEDIO)** **Implementar Lectura Parcial/Incremental de Archivos:**
-    *   Modificar `analizadorCodigo.leerArchivos` o las funciones que lo llaman.
-    *   Para archivos grandes, la IA podría primero leer solo una porción inicial (ej. primeros N tokens o líneas, o solo firmas de funciones/clases).
-    *   Basado en esta lectura parcial (y `mapaArchivos`), la IA podría decidir si necesita leer más secciones específicas del archivo o el archivo completo para la tarea actual, ahorrando tokens cuando el contexto completo no es crucial.
-14. [ ] **(BAJA PRIORIDAD)** **Auto-corrección de Rutas de Archivo Fallidas:**
-    *   En `analizadorCodigo.leerArchivos`, si una ruta de archivo sugerida por la IA (ej. en `archivos_contexto_sugeridos` o `archivos_implicados_especificos`) no existe:
-        *   Considerar la posibilidad de pedir a la IA que intente "corregir" la ruta basándose en la estructura del proyecto, si la ruta parece un error tipográfico o una ruta ligeramente incorrecta.
-        *   Reintentar la lectura con la ruta corregida. (Esto tiene riesgo de bucles o errores adicionales, implementar con cautela).
-15. [ ] **(BAJA PRIORIDAD)** **Modo Manual con Intervención Humana:**
-    *   Implementar un `modo-manual` donde el agente pausa en puntos clave (ej. después de generar una misión, después de que la IA propone cambios para una tarea) y solicita la aprobación/modificación del usuario antes de proceder.
-    *   Esto reutilizaría la mayor parte de la lógica existente, añadiendo puntos de interacción con el usuario.
+15. [ ] **(MEDIO)** **Gestión de Tamaño de Archivos de Log y Metadatos:**
+    *   Implementar un mecanismo de rotación o truncamiento para `historial_refactor_adaptativo.log`, `mapaArchivos` y `historial_misiones.json` para evitar que crezcan indefinidamente.
+16. [ ] **(MEDIO)** **Implementar Lectura Parcial/Incremental de Archivos:**
+    *   Para archivos muy grandes, permitir que la IA primero lea solo las firmas de funciones/clases. Basado en eso, decidir si necesita leer el contenido completo de una función específica, ahorrando tokens.
+17. [ ] **(BAJA PRIORIDAD)** **Auto-corrección de Rutas de Archivo Fallidas:**
+    *   Si una ruta de archivo sugerida por la IA no existe, darle la capacidad de intentar "corregirla" basándose en la estructura del proyecto.
+18. [ ] **(BAJA PRIORIDAD)** **Modo Manual con Intervención Humana:**
+    *   Implementar un `modo-manual` donde el agente pausa en puntos clave (después de generar una misión, después de proponer cambios) y solicita la aprobación del usuario antes de proceder.
 
-### Lluvias de ideas.
+### Lluvias de ideas
 
-*Todas las ideas previas en esta sección han sido integradas en la hoja de ruta principal. Esta sección se puede usar para nuevas ideas pendientes de análisis y priorización.*
-
-1. Creo que ya sugire que se pueda elegir un archivo a refactorizar, algo algo que es mucho mas importante que eso, poder recibir una instruccion directa del usuario al ejecutar. 
+*Todas las ideas previas en esta sección han sido integradas en la hoja de ruta principal. Esta sección está lista para nuevas ideas pendientes de análisis y priorización.*
 
 ---
 Este documento debe ser la guía principal para el desarrollo y refactorización de Misión Orion.
