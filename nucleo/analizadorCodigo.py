@@ -1109,22 +1109,31 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
             tipo_op = op.get("tipo_operacion")
 
             if tipo_op == "REEMPLAZAR_BLOQUE":
-                if "linea_fin" not in op and op.get("linea_inicio") == 1:
-                    autocorregido_linea_fin_reemplazar = False
-                    for bloque_in in bloques_codigo_input:
-                        if bloque_in.get("ruta_archivo") == op.get("ruta_archivo") and \
-                           bloque_in.get("linea_inicio_original") == 1 and \
-                           ("linea_fin_original" in bloque_in and (bloque_in.get("linea_fin_original") == 1 or bloque_in.get("linea_fin_original") == 0)):
-                            op["linea_fin"] = bloque_in.get("linea_fin_original", 1)
-                            log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' (creación/L1) no tenía 'linea_fin'. "
-                                        f"Autocorregido a '{op['linea_fin']}' basado en el bloque de entrada original (L{bloque_in.get('linea_inicio_original')}-L{bloque_in.get('linea_fin_original')}).")
-                            autocorregido_linea_fin_reemplazar = True
-                            break
-                    
-                    if not autocorregido_linea_fin_reemplazar:
-                        op["linea_fin"] = 1 # Default a 1 si no se pudo inferir para creación L1
-                        log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' (creación/L1) no tenía 'linea_fin'. "
-                                    f"No se encontró bloque de entrada exacto para inferir. Autocorregido 'linea_fin' a '1'.")
+                if "linea_fin" not in op and "linea_inicio" in op:
+                    op_linea_inicio = op.get("linea_inicio")
+                    autocorregido_con_exito_desde_input = False
+
+                    if isinstance(op_linea_inicio, int):
+                        for bloque_in in bloques_codigo_input:
+                            if bloque_in.get("ruta_archivo") == op.get("ruta_archivo") and \
+                               bloque_in.get("linea_inicio_original") == op_linea_inicio and \
+                               "linea_fin_original" in bloque_in:
+                                op["linea_fin"] = bloque_in.get("linea_fin_original")
+                                log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' L{op_linea_inicio} no tenía 'linea_fin'. "
+                                            f"Autocorregido a '{op['linea_fin']}' basado en el bloque de entrada original (L{bloque_in.get('linea_inicio_original')}-L{bloque_in.get('linea_fin_original')}).")
+                                autocorregido_con_exito_desde_input = True
+                                break
+                        
+                        if not autocorregido_con_exito_desde_input and op_linea_inicio == 1:
+                            op["linea_fin"] = 1 
+                            log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' (potencial creación/L1) no tenía 'linea_fin'. "
+                                        f"No se pudo inferir de un bloque de entrada exacto (o el bloque de entrada no tenía 'linea_fin_original'). Autocorregido 'linea_fin' a '1' como fallback.")
+                            autocorregido_con_exito_desde_input = True
+                        elif not autocorregido_con_exito_desde_input:
+                            log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' L{op_linea_inicio} no tenía 'linea_fin' y no se pudo inferir del bloque de entrada. "
+                                        "Esto probablemente causará un error en la validación de campos faltantes.")
+                    else:
+                         log.warning(f"{logPrefix} Operación REEMPLAZAR_BLOQUE #{i+1} en '{op.get('ruta_archivo')}' no tenía 'linea_fin' y 'linea_inicio' ('{op_linea_inicio}') no es un entero válido. No se puede autocorregir.")
                 
                 campos_necesarios_reemplazar = ["linea_inicio", "linea_fin", "nuevo_contenido"]
                 campos_faltantes = [k for k in campos_necesarios_reemplazar if k not in op]
@@ -1142,10 +1151,10 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
                     return {"modificaciones": [], "advertencia_ejecucion": f"Operación AGREGAR_BLOQUE inválida #{i+1}, faltan campos: {campos_faltantes}.", "tokens_consumidos_api": tokens_prompt_estimados_error}
             
             elif tipo_op == "ELIMINAR_BLOQUE":
-                if "linea_fin" not in op and "linea_inicio" in op: # Intentar autocorrección si falta linea_fin
+                if "linea_fin" not in op and "linea_inicio" in op: 
                     autocorregido_linea_fin_eliminar = False
                     op_linea_inicio = op.get("linea_inicio")
-                    if isinstance(op_linea_inicio, int): # Solo si linea_inicio es válida
+                    if isinstance(op_linea_inicio, int): 
                         for bloque_in in bloques_codigo_input:
                             if bloque_in.get("ruta_archivo") == op.get("ruta_archivo") and \
                                bloque_in.get("linea_inicio_original") == op_linea_inicio and \
@@ -1187,7 +1196,7 @@ def ejecutar_tarea_especifica_mision(tarea_info: dict, mision_markdown_completa:
         return {"modificaciones": [], 
                 "advertencia_ejecucion": f"Error interno procesando la tarea: {str(e)}",
                 "tokens_consumidos_api": tokens_prompt }
-        
+
 # --- Funciones de Ayuda Internas (ya existen en el original, asegurarse de que estén completas) ---
 def _extraerTextoRespuesta(respuesta, logPrefix):
     textoRespuesta = ""
