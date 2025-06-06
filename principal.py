@@ -667,7 +667,7 @@ def paso2_ejecutar_tarea_mision(ruta_repo, nombre_rama_mision, api_provider, mod
                 logging.warning(f"{logPrefix} Bloque de código objetivo en MD para tarea '{tarea_id}' mal formado o incompleto: {bloque_info_md}. Se omite este bloque.")
                 continue
             
-            ruta_archivo_bloque_abs_validada = analizadorCodigo._validar_y_normalizar_ruta(ruta_archivo_bloque_rel, ruta_repo, asegurar_existencia=False) # No asegurar existencia aquí, se hará al leer
+            ruta_archivo_bloque_abs_validada = aplicadorCambios._validar_y_normalizar_ruta(ruta_archivo_bloque_rel, ruta_repo, asegurar_existencia=False) # No asegurar existencia aquí, se hará al leer
             if not ruta_archivo_bloque_abs_validada:
                 logging.warning(f"{logPrefix} Ruta de archivo para bloque '{nombre_bloque_md}' ('{ruta_archivo_bloque_rel}') inválida. Se omite este bloque.")
                 continue
