@@ -25,7 +25,7 @@ Los archivos sugeridos (`manejadorMision.py`, `analizadorCodigo.py`, `principal.
 ---
 ### Tarea RFL-001: Estandarizar llamadas de Logging en manejadorHistorial.py
 - **ID:** RFL-001
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Modificar todas las llamadas a `logging.info`, `logging.error` y `logging.warning` en `nucleo/manejadorHistorial.py` para usar la instancia `log` predefinida (`log.info`, `log.error`, `log.warning`) y asegurar la consistencia del logging.
 - **Archivos Implicados Específicos:** nucleo/manejadorHistorial.py
 - **Intentos:** 0
