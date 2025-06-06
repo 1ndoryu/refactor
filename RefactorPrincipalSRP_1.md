@@ -26,7 +26,7 @@
 ---
 ### Tarea SRP-003: Extraer Gestión de Estado de Misión Activa
 - **ID:** SRP-003
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Mover las funciones 'cargar_estado_mision_activa', 'guardar_estado_mision_activa' y 'limpiar_estado_mision_activa', junto con la constante 'ACTIVE_MISSION_STATE_FILE', a un nuevo módulo 'nucleo/mission_state_manager.py'. Actualizar las llamadas en 'principal.py' para importar desde el nuevo módulo. Esto centraliza la gestión del estado de la misión.
 - **Archivos Implicados Específicos (Opcional):** principal.py, nucleo/mission_state_manager.py
 - **Intentos:** 0
