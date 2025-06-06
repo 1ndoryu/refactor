@@ -28,7 +28,7 @@ Se necesita contexto adicional para asegurar que la refactorización no rompa la
 ---
 ### Tarea TSK-AC-001: Eliminar `aplicarCambiosSobrescrituraV1noUse` y sus referencias
 - **ID:** TSK-AC-001
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Eliminar la función `aplicarCambiosSobrescrituraV1noUse` de `nucleo/aplicadorCambios.py` ya que está marcada como 'noUse' y es una duplicación de `aplicarCambiosSobrescrituraV2`. Además, eliminar o adaptar las llamadas y pruebas a esta función en `nucleo/test_aplicarCambios.py` para asegurar que no se introduzcan regresiones.
 - **Archivos Implicados Específicos:** nucleo/aplicadorCambios.py, nucleo/test_aplicarCambios.py
 - **Intentos:** 0
