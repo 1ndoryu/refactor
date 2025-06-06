@@ -1,26 +1,22 @@
-### 3. [ ] (CRÍTICO) Implementación de Cambios Atómicos (Nivel Función/Método) con Mapeo de Líneas, esta tarea de total relevancia.
-### PUEDES AÑADIR MAS TAREAS SI ES NECESARIO PARA QUE TODO FUNCIONE BIEN
+### 3. [ ] (CRÍTICO) Implementación y **Priorización Estricta** de Cambios Atómicos (Nivel Función/Método) con Mapeo de Líneas
 
-*   **Problema:** El método actual de devolver el contenido completo de un archivo para aplicar un cambio es propenso a errores, como la eliminación accidental de código no relacionado. Los intentos anteriores de cambios granulares fallaron porque la IA no lograba identificar con precisión el bloque de código a modificar (ej. por diferencias mínimas en el nombre de la función).
+*   **Problema:** El método actual de devolver el contenido completo de un archivo para aplicar un cambio es propenso a errores, como la eliminación accidental de código no relacionado. Los intentos anteriores de cambios granulares fallaron porque la IA no lograba identificar con precisión el bloque de código a modificar. Se busca **priorizar y, temporalmente, forzar** el uso del mecanismo granular.
 
-*   **Solución Estratégica:** Reestructurar el flujo de trabajo en tres fases para asegurar una precisión quirúrgica. La creación de la misión ahora incluirá la **identificación y mapeo exacto de los bloques de código objetivo mediante números de línea**. La ejecución de la tarea operará únicamente sobre esos bloques, y un nuevo aplicador de cambios usará el mapa de líneas para realizar el reemplazo, preservando el resto del archivo.
+*   **Solución Estratégica:** Reestructurar y reforzar el flujo de trabajo en tres fases para asegurar una precisión quirúrgica. La creación de la misión ahora incluirá la **identificación y mapeo exacto de los bloques de código objetivo mediante números de línea**. La ejecución de la tarea operará únicamente sobre esos bloques, y un nuevo aplicador de cambios usará el mapa de líneas para realizar el reemplazo, preservando el resto del archivo. La aplicación de cambios se restringirá temporalmente para favorecer este flujo.
 
 *   **Subtareas Detalladas:**
 
-    #### Paso A: Planificación Precisa en la Creación de la Misión
-
-    El objetivo es modificar `analizadorCodigo.generar_contenido_mision_orion` para que la misión generada contenga un mapa exacto de los bloques de código que se pretenden modificar.
+    #### Paso A: Planificación Precisa y **Obligatoriamente Granular** en la Creación de la Misión
 
     1.  **[COMPLETADA] Pre-procesamiento del Contexto con Números de Línea:**
-        *   Crear una nueva función de ayuda, por ejemplo `_inyectar_numeros_linea(contenido_codigo)`, que tome el texto de un archivo y le anteponga un número de línea a cada línea (ej. `1: <?php\n2: function miFuncion()...`).
-        *   Antes de pasar el contexto de los archivos a `generar_contenido_mision_orion`, aplicarles esta función.
+        *   Función `_inyectar_numeros_linea(contenido_codigo)` creada y aplicada antes de `generar_contenido_mision_orion`.
 
-    2.  **[COMPLETADA] Modificar el Prompt de `generar_contenido_mision_orion`:**
-        *   Instruir a la IA para que, al definir una tarea, identifique los bloques de código específicos (funciones, métodos) que deben ser modificados.
-        *   Exigir a la IA que, utilizando el código con números de línea que se le proporciona, extraiga la siguiente información para cada bloque objetivo y la formatee en una nueva sección dentro de la tarea en el Markdown.
+    2.  **[COMPLETADA] Modificar el Prompt de `analizadorCodigo.generar_contenido_mision_orion`:**
+        *   Instruido a la IA para identificar bloques y extraer información de `Bloques de Código Objetivo` usando el código numerado.
 
     3.  **[COMPLETADA] Evolucionar el Formato de Tarea en el Archivo de Misión (`.md`):**
-        *   Añadir una nueva sección obligatoria a la estructura de cada tarea llamada `Bloques de Código Objetivo`.
+        *   Se añadió la sección obligatoria `Bloques de Código Objetivo` a cada tarea.
+        *   **Nota sobre archivos nuevos:** El prompt para `generar_contenido_mision_orion` ya instruye a la IA para usar `Línea Inicio: 1` y `Línea Fin: 1` (o una estimación baja) para bloques que representan la creación de un archivo nuevo. El `contenido_actual_bloque` para estos casos sería indicativo de un archivo nuevo (ej., vacío o una nota).
 
         ```markdown
         ---
@@ -35,78 +31,86 @@
             - **Nombre Bloque:** `procesarFormulario`
             - **Línea Inicio:** 45
             - **Línea Fin:** 82
-          - **Archivo:** `app/modelo.php`
-            - **Nombre Bloque:** `Usuario` (para indicar una clase)
-            - **Línea Inicio:** 12 #creo que esto no debería de ir porque si el archivo todavía no existe, no debería pues saber cuales son las lineas por logica, no se, tengo dudas. O debe manejarse de varias formas dependiendo de que si el archivo existe o no, o evaluarse despues.
-            - **Línea Fin:** 150
+          - **Archivo:** `app/modelo.php`  # Asumimos que este archivo ya existe para agregar un método
+            - **Nombre Bloque:** `Usuario` # Podría ser la clase donde se añade el método
+            - **Línea Inicio:** 12 # Línea de inicio de la clase Usuario
+            - **Línea Fin:** 150 # Línea de fin de la clase Usuario
+                                 # (La IA en el Paso B decidiría la inserción con AGREGAR_BLOQUE)
+          - **Archivo:** `app/nuevo_servicio.php` # Ejemplo de bloque para archivo nuevo
+            - **Nombre Bloque:** `ContenidoInicialNuevoServicio`
+            - **Línea Inicio:** 1
+            - **Línea Fin:** 1 # O una estimación pequeña del contenido a generar
         ---
         ```
 
-    #### Paso B: Ejecución Enfocada de la Tarea
+    4.  **[ ] (NUEVO - PARA FORZAR GRANULARIDAD) Validación Estricta Post-Generación de Misión:**
+        *   **Ubicación:** En `principal.py`, específicamente en las funciones `_intentarCrearMisionDesdeSeleccionArchivo` (dentro del bucle, después de llamar a `paso1_2_generar_mision`) y `_intentarCrearMisionDesdeTodoMD` (después de llamar a `analizadorCodigo.generar_contenido_mision_desde_texto_guia`).
+        *   **Lógica:** Después de que la IA genere `contenido_markdown_mision` y ANTES de guardar el archivo `.md` o commitear la nueva rama de misión:
+            *   Invocar `manejadorMision.parsear_mision_orion` sobre el `contenido_markdown_mision` generado.
+            *   Para cada tarea (`tarea_info`) en la `lista_tareas` devuelta:
+                *   Verificar que `tarea_info` sea un diccionario y contenga la clave `bloques_codigo_objetivo`.
+                *   Verificar que el valor de `bloques_codigo_objetivo` sea una lista no vacía.
+                *   Verificar que cada elemento (representando un bloque) dentro de la lista `bloques_codigo_objetivo` sea un diccionario y contenga todas las claves requeridas: `archivo` (string no vacío), `nombre_bloque` (string no vacío), `linea_inicio` (integer >= 1), `linea_fin` (integer >= `linea_inicio`, o `linea_fin` >= 0 si `linea_inicio` es 1 para creación de archivo).
+            *   **Si alguna de estas verificaciones falla para CUALQUIER tarea:**
+                *   Loguear un ERROR crítico indicando la misión (`nombre_clave_mision`) y la tarea/bloque específico que no cumple con la estructura granular esperada.
+                *   **Acción Correctiva (Temporal - Para Forzar Granularidad):** Considerar la generación de la misión como fallida.
+                    *   No guardar el archivo `.md` de la misión.
+                    *   No guardar/actualizar `.active_mission`.
+                    *   Si se había creado una rama de misión, cambiar a la rama de trabajo principal (`settings.RAMATRABAJO`) y eliminar la rama de misión recién creada (usar `manejadorGit.eliminarRama(..., local=True)`).
+                    *   En `_intentarCrearMisionDesdeSeleccionArchivo`, esto debería llevar a `continue` en el bucle de intentos para probar con otro archivo.
+                    *   En `_intentarCrearMisionDesdeTodoMD`, esto significa que la función retorna `False` (fallo en crear misión desde TODO.md).
+                *   Registrar este fallo de validación estructural en `manejadorHistorial` con un `outcome` distintivo (ej., `PASO1.2_ERROR_VALIDACION_GRANULAR`).
+        *   **Siguientes Pasos:** Implementar esta lógica de validación en `principal.py` en las funciones `_intentarCrearMisionDesdeSeleccionArchivo` y `_intentarCrearMisionDesdeTodoMD`.
 
-    El objetivo es modificar `analizadorCodigo.ejecutar_tarea_especifica_mision` para que trabaje de forma atómica.
+    #### Paso B: Ejecución **Estrictamente Granular** de la Tarea
 
-    1.  **[x] Modificar el Input de la Función:**
-        *   La función ya no recibirá el contenido completo de todos los archivos de contexto. En su lugar, `principal.py` deberá usar el mapa de `Bloques de Código Objetivo` para extraer y pasar a la IA únicamente los fragmentos de código relevantes para la tarea. Esto reduce drásticamente el uso de tokens.
+    1.  **[COMPLETADA] Modificar el Input de la Función `analizadorCodigo.ejecutar_tarea_especifica_mision`:**
+        *   La función ahora recibe los `bloques_codigo_input` extraídos por `principal.py` (usando el mapa de `Bloques de Código Objetivo` del `.md`).
 
-    2.  **[x] Modificar el Prompt de `ejecutar_tarea_especifica_mision`:**
-        *   El prompt instruirá a la IA para que devuelva un JSON que describa una lista de *operaciones de modificación*, en lugar del contenido de archivos completos.
+    2.  **[COMPLETADA Y REFORZADA] Modificar el Prompt de `analizadorCodigo.ejecutar_tarea_especifica_mision`:**
+        *   El prompt ya instruye a la IA para que devuelva un JSON que describa una lista de `modificaciones`.
+        *   Se ha verificado que el prompt es explícito sobre cómo manejar la creación de archivos nuevos usando `REEMPLAZAR_BLOQUE` con `linea_inicio: 1`, `linea_fin: 1` y `nuevo_contenido` siendo el contenido completo. También se especifica el `response_schema` para Gemini.
 
-    3.  **[x] Definir el Nuevo Formato de Respuesta JSON de la IA:**
-        *   La IA deberá generar una estructura como la siguiente:
+    3.  **[COMPLETADA] Definir el Nuevo Formato de Respuesta JSON de la IA:**
+        *   Estructura con `modificaciones` (lista de operaciones: `REEMPLAZAR_BLOQUE`, `AGREGAR_BLOQUE`, `ELIMINAR_BLOQUE`) y `advertencia_ejecucion`.
 
-        ```json
-        {
-          "modificaciones": [
-            {
-              "tipo_operacion": "REEMPLAZAR_BLOQUE",
-              "ruta_archivo": "app/controlador.php",
-              "linea_inicio": 45,
-              "linea_fin": 82,
-              "nuevo_contenido": "/* ... nuevo código completo para la función procesarFormulario ... */"
-            },
-            {
-              "tipo_operacion": "AGREGAR_BLOQUE",
-              "ruta_archivo": "app/modelo.php",
-              "insertar_despues_de_linea": 150,
-              "nuevo_contenido": "  public function validarEmail($email) {\n    // ... nueva lógica de validación ...\n  }\n"
-            }
-          ],
-          "advertencia_ejecucion": null
-        }
-        ```
-        *   `tipo_operacion` puede ser `REEMPLAZAR_BLOQUE`, `AGREGAR_BLOQUE`, `ELIMINAR_BLOQUE`.
+    #### Paso C: Aplicación **Quirúrgica Obligatoria** de Cambios
 
-    #### Paso C: Aplicación Quirúrgica de Cambios
+    1.  **[COMPLETADA] Crear Nueva Función `aplicadorCambios.aplicarCambiosGranulares`:**
+        *   Interpreta el JSON con la lista de `modificaciones` y aplica los cambios al sistema de archivos.
 
-    El objetivo es crear un nuevo aplicador en `aplicadorCambios.py` que sepa interpretar la nueva estructura de datos de la IA.
+    2.  **[COMPLETADA] Preservar `aplicadorCambios.aplicarCambiosSobrescrituraV2`:**
+        *   Se mantiene para uso futuro explícito o si se revierte la política de "forzar granularidad", pero temporalmente no se usará como fallback automático.
 
-    1.  **[x] Crear Nueva Función `aplicadorCambios.aplicarCambiosGranulares`:**
-        *   Esta nueva función recibirá el objeto JSON con la lista de `modificaciones`.
-        *   Para cada operación en la lista:
-            *   Leerá el archivo objetivo en una lista de líneas de Python.
-            *   **Para `REEMPLAZAR_BLOQUE`:** Creará una nueva lista de líneas reemplazando el rango `[linea_inicio-1:linea_fin]` con el `nuevo_contenido`.
-            *   **Para `AGREGAR_BLOQUE`:** Insertará el `nuevo_contenido` en la lista en la posición `insertar_despues_de_linea`.
-            *   **Para `ELIMINAR_BLOQUE`:** Idéntico a `REEMPLAZAR_BLOQUE` pero con `nuevo_contenido` vacío.
-            *   Finalmente, unirá la lista de líneas modificada y sobrescribirá el archivo.
+    3.  **[ ] (MODIFICAR - PARA FORZAR GRANULARIDAD) Actualizar `principal.py` para Enrutamiento Inteligente (con restricción temporal):**
+        *   **Ubicación:** En `principal.py`, dentro de la función `paso2_ejecutar_tarea_mision`, después de la llamada a `analizadorCodigo.ejecutar_tarea_especifica_mision`.
+        *   **Lógica Actual (a modificar):** El script actualmente inspecciona la respuesta de la IA. Si contiene `"modificaciones"`, llama a `aplicarCambiosGranulares`. Si contiene `"archivos_modificados"`, llama a `aplicarCambiosSobrescrituraV2`.
+        *   **Nueva Lógica (Temporal - Para Forzar Granularidad):**
+            *   Si la respuesta de la IA (`resultado_ejecucion_tarea`) contiene la clave `"modificaciones"` y su valor es una lista (posiblemente vacía si solo hay una advertencia):
+                *   Proceder a llamar a `aplicadorCambios.aplicarCambiosGranulares`.
+                *   Loguear que se usó el aplicador granular.
+            *   Si la respuesta de la IA contiene la clave `"archivos_modificados"` (y es un diccionario no vacío):
+                *   Loguear una ADVERTENCIA SEVERA indicando que la IA devolvió el formato de sobrescritura (`archivos_modificados`) a pesar de las instrucciones de priorizar el formato granular (`modificaciones`). Incluir detalles de la tarea (ID, título).
+                *   **Acción (Temporal):** NO llamar a `aplicadorCambios.aplicarCambiosSobrescrituraV2`.
+                *   En su lugar, tratar esta respuesta como una falla de la IA para seguir el protocolo granular.
+                *   Actualizar `contenido_mision_post_tarea` marcando la tarea actual como `FALLIDA_TEMPORALMENTE` (usar `manejadorMision.marcar_tarea_como_completada` con `incrementar_intentos_si_fallida_temp=True`).
+                *   Guardar y commitear el archivo `.md` de la misión con este nuevo estado de tarea.
+                *   El estado de retorno de `paso2_ejecutar_tarea_mision` debería ser `"tarea_fallida"` para que `_procesarMisionExistente` actúe en consecuencia (generalmente deteniendo el script para esta fase, permitiendo reintentos en la siguiente).
+            *   Si la respuesta no contiene ni `"modificaciones"` (como lista) ni `"archivos_modificados"` (como dict), o es inválida (ej. no es un dict):
+                *   Tratar como un error de formato de respuesta de la IA (esta parte de la lógica ya existe y debería marcar la tarea como `FALLIDA_TEMPORALMENTE`).
+        *   **Siguientes Pasos:** Implementar esta lógica de enrutamiento modificado en `principal.py`, función `paso2_ejecutar_tarea_mision`.
 
-    2.  **[x] Preservar `aplicadorCambios.aplicarCambiosSobrescrituraV2`:**
-        *   Esta función se mantendrá intacta. Será útil para tareas que legítimamente necesiten crear o reescribir archivos pequeños desde cero.
-
-    3.  **[ ] Actualizar `principal.py` para Enrutamiento Inteligente:**
-        *   Después de la llamada a `ejecutar_tarea_especifica_mision`, el script inspeccionará la respuesta de la IA.
-        *   Si la respuesta contiene la clave `"modificaciones"`, llamará a `aplicarCambiosGranulares`.
-        *   Si contiene la clave `"archivos_modificados"`, llamará a `aplicarCambiosSobrescrituraV2` (manteniendo la compatibilidad con el flujo antiguo o tareas que lo requieran).
-
-
-
-### Lluvias de ideas
-
-*Todas las ideas previas en esta sección han sido integradas en la hoja de ruta principal. Esta sección está lista para nuevas ideas pendientes de análisis y priorización.*
+    4.  **[COMPLETADA - VERIFICAR] Loguear el Aplicador Utilizado o el Fallo de Formato:** ()
+        *   **Acción:** Se ha confirmado que `paso2_ejecutar_tarea_mision` en `principal.py` ya loguea el `aplicador_usado`. Con la modificación de C.3, si se recibe `archivos_modificados`, se logueará la advertencia y el motivo del fallo de la tarea (IA no siguió protocolo granular).
+        *   Este logging es crucial para monitorizar la frecuencia con la que la IA intenta desviarse del flujo granular.
+        *   [x] Implementada la validación en _intentarCrearMisionDesdeSeleccionArchiv
 
 ---
-Este documento debe ser la guía principal para el desarrollo y refactorización de Misión Orion.
----
+
+**Próximos Pasos:**
+
+Implementar A.4 (continuación): Implementar la misma lógica de validación estricta en la función _intentarCrearMisionDesdeTodoMD en principal.py.
+Implementar C.3: La modificación del enrutamiento en principal.py (paso2_ejecutar_tarea_mision) para tratar el formato archivos_modificados como un fallo temporal de la tarea.
 
 *PROMPT HELPER DE WAN*
 

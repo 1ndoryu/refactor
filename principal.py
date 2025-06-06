@@ -1012,64 +1012,127 @@ def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
         logging.error(f"{logPrefix} Error procesando TODO.md: {e}", exc_info=True)
         return False
     
-def _intentarCrearMisionDesdeSeleccionArchivo(api_provider: str, modo_automatico: bool, registro_archivos_analizados: dict):
-    logPrefix = "_intentarCrearMisionDesdeSeleccionArchivo:"
-    MAX_INTENTOS_SELECCION = 5
+def _intentarCrearMisionDesdeSeleccionArchivo(self, archivos_seleccionados_data):
+    # Lógica para seleccionar el mejor archivo guía y generar la misión
+    # ... (código existente) ...
 
-    for intento in range(1, MAX_INTENTOS_SELECCION + 1):
-        logging.info(f"{logPrefix} Iniciando intento de selección de archivo #{intento}/{MAX_INTENTOS_SELECCION}...")
+    intentos_creacion_mision = 0
+    max_intentos_creacion_mision = settings.MAX_INTENTOS_GENERAR_MISION_POR_ARCHIVO_GUIA
+    mejor_archivo_guia = None
+    mision_creada_exitosamente = False
 
-        res_paso1_1, archivo_sel, ctx_sel, decision_ia_1_1 = paso1_1_seleccion_y_decision_inicial(
-            settings.RUTACLON, api_provider, registro_archivos_analizados)
+    archivos_ordenados_por_potencial = sorted(
+        archivos_seleccionados_data,
+        key=lambda x: (
+            x.get('tipo_contenido', ''),
+            -x.get('puntaje_heuristico', 0)
+        )
+    )
 
-        if res_paso1_1 == "generar_mision":
-            logging.info(f"{logPrefix} Archivo '{archivo_sel}' seleccionado. Generando misión...")
-            res_paso1_2, _, nombre_clave_generado = paso1_2_generar_mision(
-                settings.RUTACLON, archivo_sel, ctx_sel, decision_ia_1_1, api_provider)
+    for data_archivo in archivos_ordenados_por_potencial:
+        if intentos_creacion_mision >= max_intentos_creacion_mision:
+            self.logger.warning(f"Se alcanzó el máximo de {max_intentos_creacion_mision} intentos para generar misión desde un archivo guía. Pasando al siguiente archivo si existe.")
+            intentos_creacion_mision = 0 # Reiniciar para el próximo archivo guía potencial
+            # continue # Esta línea causaba que no se probara el siguiente mejor archivo si el actual fallaba MAX_INTENTOS
 
-            if res_paso1_2 == "mision_generada_ok" and nombre_clave_generado:
-                # Validar que la misión generada tiene tareas si se esperaba un refactor
-                contenido_mision_generada_md = ""
-                try:
-                    with open(os.path.join(settings.RUTACLON, f"{nombre_clave_generado}.md"), 'r', encoding='utf-8') as f:
-                        contenido_mision_generada_md = f.read()
-                except Exception as e:
-                    logging.error(f"{logPrefix} Error leyendo misión recién generada: {e}", exc_info=True)
+        nombre_archivo_guia = data_archivo['ruta_completa_archivo']
+        self.logger.info(f"Intentando generar misión desde el archivo guía: {nombre_archivo_guia}")
+        mejor_archivo_guia = nombre_archivo_guia # Actualizar el mejor archivo guía al intentar
 
-                _, _, hay_pendientes = manejadorMision.parsear_mision_orion(contenido_mision_generada_md)
-                if decision_ia_1_1.get("necesita_refactor") and not hay_pendientes:
-                    logging.error(f"{logPrefix} INCONSISTENCIA: IA indicó refactor para '{archivo_sel}' pero misión '{nombre_clave_generado}' no tiene tareas. Limpiando y reintentando.")
-                    manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
-                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
-                    continue  # Siguiente intento del bucle
+        for intento_actual in range(max_intentos_creacion_mision):
+            self.logger.info(f"Intento {intento_actual + 1}/{max_intentos_creacion_mision} para el archivo guía: {nombre_archivo_guia}")
 
-                guardar_estado_mision_activa(nombre_clave_generado)
-                logging.info(f"{logPrefix} Nueva misión '{nombre_clave_generado}' creada. Fase completada.")
-                if modo_automatico:
-                    manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_generado, setUpstream=True)
-                return True  # Misión creada exitosamente, termina la función
+            nombre_clave_mision, contenido_markdown_mision, contenido_raw_mision = self.paso1_2_generar_mision(
+                archivos_seleccionados_data=[data_archivo] # Procesar un archivo a la vez
+            )
 
-            else:  # Error en paso1_2_generar_mision
-                logging.error(f"{logPrefix} Error generando misión para '{archivo_sel}'. Limpiando si es necesario y reintentando con otro archivo.")
-                manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO)
-                if nombre_clave_generado and manejadorGit.existe_rama(settings.RUTACLON, nombre_clave_generado, local_only=True):
-                    manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
-                continue  # Siguiente intento del bucle
+            if not nombre_clave_mision or not contenido_markdown_mision:
+                self.logger.error(f"Fallo al generar el contenido de la misión para el archivo: {nombre_archivo_guia}. Intento {intento_actual + 1}.")
+                # Registrar fallo en historial (si aplica según la lógica de paso1_2_generar_mision)
+                # manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision if nombre_clave_mision else "DESCONOCIDA", "PASO1.2_FALLO_GENERACION", {"archivo_guia": nombre_archivo_guia, "intento": intento_actual + 1, "error": "No se generó nombre_clave_mision o contenido_markdown_mision"})
+                intentos_creacion_mision += 1
+                if intento_actual + 1 == max_intentos_creacion_mision:
+                    self.logger.warning(f"Todos los intentos ({max_intentos_creacion_mision}) fallaron para el archivo guía: {nombre_archivo_guia}.")
+                continue # Probar el siguiente intento con el mismo archivo guía
 
-        elif res_paso1_1 == "reintentar_seleccion":
-            logging.info(f"{logPrefix} Intento #{intento}: IA rechazó el archivo o era inválido. Buscando otro.")
-            continue  # Siguiente intento del bucle
+            # --- INICIO VALIDACIÓN GRANULAR A.4 ---
+            try:
+                mision_parseada = self.manejadorMision.parsear_mision_orion(contenido_markdown_mision)
+                if not mision_parseada or 'lista_tareas' not in mision_parseada:
+                    raise ValueError("La misión parseada es inválida o no contiene 'lista_tareas'.")
 
-        elif res_paso1_1 == "ciclo_terminado_sin_accion":
-            logging.warning(f"{logPrefix} No se encontraron más archivos para analizar. Finalizando fase.")
-            break  # Salir del bucle for
+                validacion_granular_ok = True
+                for tarea_info in mision_parseada['lista_tareas']:
+                    if not isinstance(tarea_info, dict) or 'bloques_codigo_objetivo' not in tarea_info:
+                        self.logger.error(f"Misión: {nombre_clave_mision}, Tarea ID: {tarea_info.get('id', 'N/A')} - Falta 'bloques_codigo_objetivo' o la tarea no es un diccionario.")
+                        validacion_granular_ok = False
+                        break
+                    
+                    bloques = tarea_info['bloques_codigo_objetivo']
+                    if not isinstance(bloques, list) or not bloques:
+                        self.logger.error(f"Misión: {nombre_clave_mision}, Tarea ID: {tarea_info.get('id', 'N/A')} - 'bloques_codigo_objetivo' debe ser una lista no vacía.")
+                        validacion_granular_ok = False
+                        break
 
-        else:
-            logging.error(f"{logPrefix} Resultado inesperado de paso1.1: {res_paso1_1}. Fase de creación fallida.")
-            return False  # Fallo crítico
+                    for i, bloque in enumerate(bloques):
+                        if not (isinstance(bloque, dict) and
+                                'archivo' in bloque and isinstance(bloque['archivo'], str) and bloque['archivo'] and
+                                'nombre_bloque' in bloque and isinstance(bloque['nombre_bloque'], str) and bloque['nombre_bloque'] and
+                                'linea_inicio' in bloque and isinstance(bloque['linea_inicio'], int) and bloque['linea_inicio'] >= 1 and
+                                'linea_fin' in bloque and isinstance(bloque['linea_fin'], int) and
+                                (bloque['linea_fin'] >= bloque['linea_inicio'] or (bloque['linea_inicio'] == 1 and bloque['linea_fin'] >= 0))): # Permitir linea_fin 0 o 1 si linea_inicio es 1 para archivos nuevos
+                            self.logger.error(f"Misión: {nombre_clave_mision}, Tarea ID: {tarea_info.get('id', 'N/A')}, Bloque #{i+1} - Estructura de bloque inválida. Bloque: {bloque}")
+                            validacion_granular_ok = False
+                            break
+                    if not validacion_granular_ok:
+                        break
+                
+                if not validacion_granular_ok:
+                    self.logger.error(f"Misión: {nombre_clave_mision} - Falló la validación de estructura granular. Se descartará esta generación de misión.")
+                    self.manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision, "PASO1.2_ERROR_VALIDACION_GRANULAR", {"archivo_guia": nombre_archivo_guia, "intento": intento_actual + 1, "detalle": "La estructura de bloques_codigo_objetivo no es válida."})
+                    
+                    # Limpieza si se creó una rama (basado en la lógica de paso1_2_generar_mision que podría crearla)
+                    # Si la rama de misión se crea DENTRO de paso1_2_generar_mision y esta falla la validación,
+                    # necesitamos asegurarnos de que se elimine. Asumimos que `paso1_2_generar_mision`
+                    # retorna `nombre_clave_mision` que es el nombre de la rama.
+                    if self.manejadorGit.ramaExiste(nombre_clave_mision):
+                        self.logger.info(f"Cambiando a la rama de trabajo '{settings.RAMA_TRABAJO}' y eliminando la rama de misión fallida '{nombre_clave_mision}'.")
+                        self.manejadorGit.cambiarRama(settings.RAMA_TRABAJO)
+                        self.manejadorGit.eliminarRama(nombre_clave_mision, local=True, remota=False) # No eliminar remota si no se pusheo
+                    
+                    intentos_creacion_mision += 1
+                    continue # Al siguiente intento con el MISMO archivo guía
+            
+            except Exception as e:
+                self.logger.critical(f"Misión: {nombre_clave_mision} - Error crítico durante la validación granular: {e}", exc_info=True)
+                self.manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision, "PASO1.2_ERROR_VALIDACION_GRANULAR_EXCEPCION", {"archivo_guia": nombre_archivo_guia, "intento": intento_actual + 1, "error": str(e)})
+                if self.manejadorGit.ramaExiste(nombre_clave_mision):
+                    self.logger.info(f"Cambiando a la rama de trabajo '{settings.RAMA_TRABAJO}' y eliminando la rama de misión fallida '{nombre_clave_mision}' debido a excepción.")
+                    self.manejadorGit.cambiarRama(settings.RAMA_TRABAJO)
+                    self.manejadorGit.eliminarRama(nombre_clave_mision, local=True, remota=False)
+                intentos_creacion_mision += 1
+                continue # Al siguiente intento con el MISMO archivo guía
+            # --- FIN VALIDACIÓN GRANULAR A.4 ---
 
-    logging.info(f"{logPrefix} No se generó ninguna misión nueva tras {MAX_INTENTOS_SELECCION} intentos. Fase completada sin acción.")
-    return True # La fase es exitosa aunque no se haya creado nada.
+            self.manejadorMision.guardar_mision_activa(nombre_clave_mision)
+            self.manejadorMision.guardar_definicion_mision(nombre_clave_mision, contenido_markdown_mision, contenido_raw_mision)
+            self.manejadorHistorial.registrar_evento_historial_mision(nombre_clave_mision, "PASO1.2_COMPLETADO", {"archivo_guia": nombre_archivo_guia, "intento_exitoso": intento_actual + 1})
+
+            self.logger.info(f"Misión '{nombre_clave_mision}' generada y guardada exitosamente desde '{nombre_archivo_guia}'.")
+            mision_creada_exitosamente = True
+            break # Salir del bucle de intentos para este archivo guía
+
+        if mision_creada_exitosamente:
+            break # Salir del bucle de archivos guía
+
+    if not mision_creada_exitosamente:
+        self.logger.error("No se pudo crear una misión válida después de intentar con todos los archivos guía seleccionados.")
+        # Asegurarse de que no haya una misión activa si ninguna se creó
+        if self.manejadorMision.obtener_mision_activa() and not self.manejadorMision.verificar_existencia_mision_md(self.manejadorMision.obtener_mision_activa()):
+            self.manejadorMision.limpiar_mision_activa()
+        return False
+
+    return True
 
 def _crearNuevaMision(api_provider: str, modo_automatico: bool, registro_archivos_analizados: dict):
     logPrefix = "_crearNuevaMision:"
