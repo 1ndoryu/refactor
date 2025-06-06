@@ -18,7 +18,7 @@ Adicionalmente, la función `seleccionar_archivo_mas_antiguo` podría beneficiar
 ---
 ### Tarea SRP-P2-CtxPrep: Extraer Preparacion Contexto en paso2_ejecutar_tarea_mision
 - **ID:** SRP-P2-CtxPrep
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Extraer la lógica de limpieza y validación de rutas de archivo, así como la lectura y preparación de los `bloques_codigo_input_para_ia` de la función `paso2_ejecutar_tarea_mision` a una nueva función auxiliar, por ejemplo, `_preparar_contexto_para_ia_tarea`. Esta nueva función debería encapsular la lógica de `limpiar_lista_rutas` (ya sea moviéndola como función top-level o anidándola dentro de la nueva función extraída) y retornar el `bloques_codigo_input_para_ia` y el `contexto_general_archivos_str` junto con sus tokens.
 - **Archivos Implicados Específicos:** Ninguno
 - **Intentos:** 0
