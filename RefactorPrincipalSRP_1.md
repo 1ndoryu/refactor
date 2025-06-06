@@ -19,7 +19,7 @@
 ---
 ### Tarea SRP-002: Extraer Gestión de Registro de Archivos Analizados
 - **ID:** SRP-002
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** Mover las funciones 'cargar_registro_archivos', 'guardar_registro_archivos' y 'seleccionar_archivo_mas_antiguo', junto con la constante 'REGISTRO_ARCHIVOS_ANALIZADOS_PATH', a un nuevo módulo 'nucleo/file_registry.py'. Actualizar todas las referencias en 'principal.py' para importar y usar estas funciones desde el nuevo módulo. Esto mejora la separación de responsabilidades para el seguimiento de archivos.
 - **Archivos Implicados Específicos (Opcional):** principal.py, nucleo/file_registry.py
 - **Intentos:** 0
