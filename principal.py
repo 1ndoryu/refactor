@@ -8,7 +8,7 @@ import argparse
 import subprocess
 import time
 import signal
-import re  # Para parseo robusto de misionOrion.md
+import re
 from datetime import datetime
 from config import settings
 from nucleo import manejadorGit
@@ -16,11 +16,11 @@ from nucleo import analizadorCodigo
 from nucleo import aplicadorCambios
 from nucleo import manejadorHistorial
 from nucleo import manejadorMision
-from nucleo import token_manager # NEW IMPORT
+from nucleo import token_manager
+from nucleo import file_registry # NEW IMPORT
 
 # --- Nuevas Constantes y Variables Globales ---
-REGISTRO_ARCHIVOS_ANALIZADOS_PATH = os.path.join(
-    settings.RUTACLON, ".orion_meta", "registro_archivos_analizados.json")
+# REGISTRO_ARCHIVOS_ANALIZADOS_PATH moved to nucleo/file_registry.py
 # TOKEN_LIMIT_PER_MINUTE and token_usage_window moved to token_manager.py
 
 # --- Archivo para persistir el estado de la misión activa ---
@@ -34,86 +34,86 @@ class TimeoutException(Exception):
     """Excepción para indicar que el tiempo límite de ejecución fue alcanzado."""
     pass
 
-# --- Funciones para el registro de archivos analizados (NUEVO) ---
-def cargar_registro_archivos():
-    if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
-        try:
-            with open(REGISTRO_ARCHIVOS_ANALIZADOS_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            logging.error(
-                f"Error decodificando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}. Se creará uno nuevo.")
-        except Exception as e:
-            logging.error(
-                f"Error cargando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}: {e}. Se creará uno nuevo.")
-    return {}
+# --- Funciones para el registro de archivos analizados (MOVED TO nucleo/file_registry.py) ---
+# def cargar_registro_archivos():
+#     if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
+#         try:
+#             with open(REGISTRO_ARCHIVOS_ANALIZADOS_PATH, 'r', encoding='utf-8') as f:
+#                 return json.load(f)
+#         except json.JSONDecodeError:
+#             logging.error(
+#                 f"Error decodificando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}. Se creará uno nuevo.")
+#         except Exception as e:
+#             logging.error(
+#                 f"Error cargando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}: {e}. Se creará uno nuevo.")
+#     return {}
 
 
-def guardar_registro_archivos(registro):
-    try:
-        # Asegura que el directorio .orion_meta exista ANTES de intentar abrir el archivo.
-        # REGISTRO_ARCHIVOS_ANALIZADOS_PATH se asume que ya apunta a la nueva ubicación
-        # (settings.RUTACLON/.orion_meta/registro_archivos_analizados.json).
-        os.makedirs(os.path.dirname(
-            REGISTRO_ARCHIVOS_ANALIZADOS_PATH), exist_ok=True)
-        with open(REGISTRO_ARCHIVOS_ANALIZADOS_PATH, 'w', encoding='utf-8') as f:
-            json.dump(registro, f, indent=4)
-    except Exception as e:
-        # El mensaje de error utilizará el valor actualizado de REGISTRO_ARCHIVOS_ANALIZADOS_PATH
-        logging.error(
-            f"Error guardando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}: {e}")
+# def guardar_registro_archivos(registro):
+#     try:
+#         # Asegura que el directorio .orion_meta exista ANTES de intentar abrir el archivo.
+#         # REGISTRO_ARCHIVOS_ANALIZADOS_PATH se asume que ya apunta a la nueva ubicación
+#         # (settings.RUTACLON/.orion_meta/registro_archivos_analizados.json).
+#         os.makedirs(os.path.dirname(
+#             REGISTRO_ARCHIVOS_ANALIZADOS_PATH), exist_ok=True)
+#         with open(REGISTRO_ARCHIVOS_ANALIZADOS_PATH, 'w', encoding='utf-8') as f:
+#             json.dump(registro, f, indent=4)
+#     except Exception as e:
+#         # El mensaje de error utilizará el valor actualizado de REGISTRO_ARCHIVOS_ANALIZADOS_PATH
+#         logging.error(
+#             f"Error guardando {REGISTRO_ARCHIVOS_ANALIZADOS_PATH}: {e}")
 
 
-def seleccionar_archivo_mas_antiguo(ruta_proyecto, registro_archivos):
-    logPrefix = "seleccionar_archivo_mas_antiguo:"
-    archivos_proyecto_abs = analizadorCodigo.listarArchivosProyecto(
-        ruta_proyecto,
-        extensionesPermitidas=settings.EXTENSIONESPERMITIDAS,
-        directoriosIgnorados=settings.DIRECTORIOS_IGNORADOS
-    )
-    if not archivos_proyecto_abs:
-        logging.warning(
-            f"{logPrefix} No se encontraron archivos en el proyecto que coincidan con los criterios.")
-        return None
+# def seleccionar_archivo_mas_antiguo(ruta_proyecto, registro_archivos):
+#     logPrefix = "seleccionar_archivo_mas_antiguo:"
+#     archivos_proyecto_abs = analizadorCodigo.listarArchivosProyecto(
+#         ruta_proyecto,
+#         extensionesPermitidas=settings.EXTENSIONESPERMITIDAS,
+#         directoriosIgnorados=settings.DIRECTORIOS_IGNORADOS
+#     )
+#     if not archivos_proyecto_abs:
+#         logging.warning(
+#             f"{logPrefix} No se encontraron archivos en el proyecto que coincidan con los criterios.")
+#         return None
 
-    archivo_seleccionado_rel = None
-    timestamp_mas_antiguo = datetime.max.isoformat()
-    archivos_proyecto_relativos = []
-    for abs_path in archivos_proyecto_abs:
-        try:
-            rel_path = os.path.relpath(
-                abs_path, ruta_proyecto).replace(os.sep, '/')
-            archivos_proyecto_relativos.append(rel_path)
-        except ValueError as e:
-            logging.warning(
-                f"{logPrefix} No se pudo obtener ruta relativa para {abs_path} respecto a {ruta_proyecto}: {e}")
-            continue
+#     archivo_seleccionado_rel = None
+#     timestamp_mas_antiguo = datetime.max.isoformat()
+#     archivos_proyecto_relativos = []
+#     for abs_path in archivos_proyecto_abs:
+#         try:
+#             rel_path = os.path.relpath(
+#                 abs_path, ruta_proyecto).replace(os.sep, '/')
+#             archivos_proyecto_relativos.append(rel_path)
+#         except ValueError as e:
+#             logging.warning(
+#                 f"{logPrefix} No se pudo obtener ruta relativa para {abs_path} respecto a {ruta_proyecto}: {e}")
+#             continue
 
-    if not archivos_proyecto_relativos:
-        logging.warning(
-            f"{logPrefix} No quedaron archivos válidos después de convertir a rutas relativas.")
-        return None
+#     if not archivos_proyecto_relativos:
+#         logging.warning(
+#             f"{logPrefix} No quedaron archivos válidos después de convertir a rutas relativas.")
+#         return None
 
-    for ruta_rel_archivo in archivos_proyecto_relativos:
-        timestamp_ultima_seleccion = registro_archivos.get(ruta_rel_archivo)
-        if timestamp_ultima_seleccion is None:
-            archivo_seleccionado_rel = ruta_rel_archivo
-            logging.info(
-                f"{logPrefix} Archivo '{archivo_seleccionado_rel}' nunca antes seleccionado.")
-            break
-        if timestamp_ultima_seleccion < timestamp_mas_antiguo:
-            timestamp_mas_antiguo = timestamp_ultima_seleccion
-            archivo_seleccionado_rel = ruta_rel_archivo
+#     for ruta_rel_archivo in archivos_proyecto_relativos:
+#         timestamp_ultima_seleccion = registro_archivos.get(ruta_rel_archivo)
+#         if timestamp_ultima_seleccion is None:
+#             archivo_seleccionado_rel = ruta_rel_archivo
+#             logging.info(
+#                 f"{logPrefix} Archivo '{archivo_seleccionado_rel}' nunca antes seleccionado.")
+#             break
+#         if timestamp_ultima_seleccion < timestamp_mas_antiguo:
+#             timestamp_mas_antiguo = timestamp_ultima_seleccion
+#             archivo_seleccionado_rel = ruta_rel_archivo
 
-    if archivo_seleccionado_rel:
-        logging.info(
-            f"{logPrefix} Archivo seleccionado: {archivo_seleccionado_rel} (Última vez: {registro_archivos.get(archivo_seleccionado_rel, 'Nunca')})")
-        registro_archivos[archivo_seleccionado_rel] = datetime.now(
-        ).isoformat()
-    else:
-        logging.warning(
-            f"{logPrefix} No se pudo seleccionar un archivo.")
-    return archivo_seleccionado_rel
+#     if archivo_seleccionado_rel:
+#         logging.info(
+#             f"{logPrefix} Archivo seleccionado: {archivo_seleccionado_rel} (Última vez: {registro_archivos.get(archivo_seleccionado_rel, 'Nunca')})")
+#         registro_archivos[archivo_seleccionado_rel] = datetime.now(
+#         ).isoformat()
+#     else:
+#         logging.warning(
+#             f"{logPrefix} No se pudo seleccionar un archivo.")
+#     return archivo_seleccionado_rel
 
 # --- Funciones para el manejo del estado de la misión activa ---
 
@@ -198,7 +198,7 @@ def orchestrarEjecucionScript(args):
         # En lugar de un ciclo, ahora se ejecuta una "fase"
         fase_exitosa = ejecutarFaseDelAgente(
             api_provider_seleccionado, args.modo_automatico)
-        if fase_exitosa:  # fase_exitosa ahora significa que la fase se completó sin error crítico del agente
+        if fase_exitosa: # fase_exitosa ahora significa que la fase se completó sin error crítico del agente
             logging.info("Fase del agente completada.")
             exit_code = 0  # El script sale con 0 si la fase fue OK, se reiniciará para la siguiente fase
         else:
@@ -217,7 +217,7 @@ def orchestrarEjecucionScript(args):
         if hasattr(signal, 'SIGALRM'):
             signal.alarm(0)
         # Guardar registro de archivos siempre
-        guardar_registro_archivos(cargar_registro_archivos())
+        file_registry.guardar_registro_archivos(file_registry.cargar_registro_archivos())
         logging.info(
             "Registro de archivos analizados guardado al finalizar script.")
     return exit_code
@@ -359,11 +359,11 @@ def paso0_revisar_mision_local(ruta_repo: str, nombre_clave_mision_activa: str):
 
 def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archivos):
     logPrefix = "paso1_1_seleccion_y_decision_inicial:"
-    archivo_seleccionado_rel = seleccionar_archivo_mas_antiguo(
+    archivo_seleccionado_rel = file_registry.seleccionar_archivo_mas_antiguo(
         ruta_repo, registro_archivos)
     # No es estrictamente necesario guardar aquí, ya que se guarda al final del script,
     # pero no causa daño. Lo mantenemos por ahora.
-    guardar_registro_archivos(registro_archivos)
+    file_registry.guardar_registro_archivos(registro_archivos)
 
     if not archivo_seleccionado_rel:
         logging.warning(f"{logPrefix} No se pudo seleccionar ningún archivo.")
@@ -377,7 +377,7 @@ def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archi
         # Marcar en el registro para evitar reintentos infinitos si el archivo fue eliminado
         registro_archivos[archivo_seleccionado_rel] = datetime.now(
         ).isoformat() + "_NOT_FOUND"
-        guardar_registro_archivos(registro_archivos)
+        file_registry.guardar_registro_archivos(registro_archivos)
         return "reintentar_seleccion", None, None, None
 
     estructura_proyecto = analizadorCodigo.generarEstructuraDirectorio(
@@ -402,7 +402,7 @@ def paso1_1_seleccion_y_decision_inicial(ruta_repo, api_provider, registro_archi
     tokens_contenido = resultado_lectura['tokens']
     tokens_estructura = analizadorCodigo.contarTokensTexto(
         estructura_proyecto or "", api_provider)
-    tokens_estimados = 500 + tokens_contenido + \
+    tokens_estimados = 500 + tokens_contenido +
         tokens_estructura
 
     token_manager.gestionar_limite_tokens(tokens_estimados, api_provider)
@@ -963,7 +963,7 @@ def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
         f"{logPrefix} Repositorio listo en rama de trabajo principal: '{settings.RAMATRABAJO}'.")
     
     nombre_clave_mision_activa = cargar_estado_mision_activa()
-    registro_archivos_analizados = cargar_registro_archivos()
+    registro_archivos_analizados = file_registry.cargar_registro_archivos()
 
     # --- PROCESAR MISIÓN EXISTENTE (SI HAY) ---
     if nombre_clave_mision_activa:
@@ -1071,17 +1071,17 @@ def realizarReseteoAgente():
     # Limpiar registro de archivos analizados en su nueva ubicación
     # Esta acción depende de que REGISTRO_ARCHIVOS_ANALIZADOS_PATH esté correctamente definido
     # para apuntar a settings.RUTACLON/.orion_meta/registro_archivos_analizados.json
-    if os.path.exists(REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
+    if os.path.exists(file_registry.REGISTRO_ARCHIVOS_ANALIZADOS_PATH):
         try:
-            os.remove(REGISTRO_ARCHIVOS_ANALIZADOS_PATH)
+            os.remove(file_registry.REGISTRO_ARCHIVOS_ANALIZADOS_PATH)
             logging.info(
-                f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
+                f"{logPrefix} Archivo de registro de análisis '{file_registry.REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' eliminado.")
         except Exception as e:
             logging.error(
-                f"{logPrefix} Error eliminando '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}", exc_info=True)
+                f"{logPrefix} Error eliminando '{file_registry.REGISTRO_ARCHIVOS_ANALIZADOS_PATH}': {e}", exc_info=True)
     else:
         logging.info(
-            f"{logPrefix} Archivo de registro de análisis '{REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' no encontrado, no se requiere eliminación.")
+            f"{logPrefix} Archivo de registro de análisis '{file_registry.REGISTRO_ARCHIVOS_ANALIZADOS_PATH}' no encontrado, no se requiere eliminación.")
 
     # El archivo de logging principal (`historial_refactor_adaptativo.log`) se trunca/sobrescribe
     # en cada ejecución normal debido al modo 'w' del FileHandler en configurarLogging.
@@ -1090,101 +1090,6 @@ def realizarReseteoAgente():
     logging.info(
         f"{logPrefix} Reseteo del estado del agente (archivo .active_mission, registro_archivos_analizados.json y rama de misión local asociada si existía) completado.")
     return True
-
-
-def _procesarMisionExistente(nombreClaveMisionActiva: str, proveedorApi: str, modoAutomatico: bool):
-    logPrefix = f"_procesarMisionExistente({nombreClaveMisionActiva}):"
-    logging.info(
-        f"{logPrefix} Procesando misión existente '{nombreClaveMisionActiva}'.")
-
-    # Asegurar estar en la rama de la misión activa
-    if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, nombreClaveMisionActiva):
-        logging.error(
-            f"{logPrefix} No se pudo cambiar a la rama de misión activa '{nombreClaveMisionActiva}'. Limpiando estado.")
-        limpiar_estado_mision_activa()
-        # Si no se puede cambiar a la rama de la misión, se considera que se debe proceder a crear una nueva.
-        # El cambio a RAMATRABAJO se gestionará en el flujo principal de ejecutarFaseDelAgente si es necesario antes de crear una nueva.
-        return "PROCEDER_A_CREAR_NUEVA_MISION", True
-
-    # Se está en la rama de la misión activa. Revisar el archivo de misión específico.
-    # paso0_revisar_mision_local internamente usa nombreClaveMisionActiva para construir el nombre_archivo_mision.
-    resultadoPaso0, _, _, _ = paso0_revisar_mision_local(
-        settings.RUTACLON, nombreClaveMisionActiva)
-
-    if resultadoPaso0 == "procesar_mision_existente":
-        logging.info(
-            f"{logPrefix} Misión '{nombreClaveMisionActiva}' confirmada en rama, procesando tarea.")
-        resultadoPaso2, _ = paso2_ejecutar_tarea_mision(
-            settings.RUTACLON, nombreClaveMisionActiva, proveedorApi, modoAutomatico)
-
-        if resultadoPaso2 == "tarea_ejecutada_continuar_mision":
-            logging.info(
-                f"{logPrefix} Tarea ejecutada en '{nombreClaveMisionActiva}', quedan más tareas pendientes en la misión.")
-            if modoAutomatico:
-                manejadorGit.hacerPush(
-                    settings.RUTACLON, nombreClaveMisionActiva)
-            # La fase se considera exitosa, el script principal terminará y se reiniciará para la siguiente tarea.
-            return "CONTINUAR_PROCESAMIENTO_MISION", True
-
-        elif resultadoPaso2 == "mision_completada":
-            logging.info(
-                f"{logPrefix} Misión '{nombreClaveMisionActiva}' completada (todas las tareas procesadas).")
-            if modoAutomatico:
-                logging.info(
-                    f"{logPrefix} Modo automático: Haciendo push de la rama de misión '{nombreClaveMisionActiva}' completada.")
-                manejadorGit.hacerPush(
-                    settings.RUTACLON, nombreClaveMisionActiva)
-
-            limpiar_estado_mision_activa()
-            logging.info(
-                f"{logPrefix} Cambiando a la rama de trabajo principal '{settings.RAMATRABAJO}'.")
-            if not manejadorGit.cambiar_a_rama_existente(settings.RUTACLON, settings.RAMATRABAJO):
-                logging.error(
-                    f"{logPrefix} CRÍTICO: No se pudo cambiar a '{settings.RAMATRABAJO}' después de completar la misión '{nombreClaveMisionActiva}'.")
-                # Aunque esto es un error, la misión en sí fue procesada.
-                # El script principal saldrá, y en la próxima ejecución, clonarOActualizarRepo debería intentar arreglar la rama.
-                # Se retorna True para la fase porque la lógica de la misión concluyó.
-            return "MISION_COMPLETADA_O_FINALIZADA", True
-
-        elif resultadoPaso2 == "tarea_fallida":
-            # Una tarea falló (ej. FALLIDA_TEMPORALMENTE y se actualizaron intentos, o error de la IA).
-            # El estado de la misión se actualizó en el archivo de misión de la rama.
-            logging.error(
-                f"{logPrefix} Una tarea falló en la misión '{nombreClaveMisionActiva}'. El script se detendrá.")
-            if modoAutomatico:
-                manejadorGit.hacerPush(
-                    settings.RUTACLON, nombreClaveMisionActiva)
-            # La fase se considera exitosa en términos de que el agente realizó su ciclo,
-            # el script principal terminará y se reiniciará. La lógica de reintentos o manejo de fallos
-            # se aplicará en la siguiente ejecución al seleccionar la próxima tarea.
-            return "CONTINUAR_PROCESAMIENTO_MISION", True
-
-        else:
-            # Casos como: "error_critico_actualizando_mision", "error_critico_mision_no_encontrada", "error_critico_parseo_mision"
-            logging.error(
-                f"{logPrefix} Error crítico durante la ejecución de la tarea (paso2) para la misión '{nombreClaveMisionActiva}': {resultadoPaso2}.")
-            limpiar_estado_mision_activa()
-            # Intentar volver a un estado seguro
-            manejadorGit.cambiar_a_rama_existente(
-                settings.RUTACLON, settings.RAMATRABAJO)
-            return "ERROR_PROCESANDO_MISION", False
-
-    elif resultadoPaso0 == "mision_existente_finalizada":
-        logging.info(f"{logPrefix} Misión '{nombreClaveMisionActiva}' encontrada en la rama, pero ya estaba finalizada (sin tareas pendientes o marcada como completada). Limpiando estado.")
-        limpiar_estado_mision_activa()
-        manejadorGit.cambiar_a_rama_existente(
-            settings.RUTACLON, settings.RAMATRABAJO)
-        return "PROCEDER_A_CREAR_NUEVA_MISION", True
-
-    else:  # Casos de paso0: "no_hay_mision_local", "ignorar_mision_actual_y_crear_nueva"
-        nombre_archivo_mision_esperado = f"{nombreClaveMisionActiva}.md"
-        logging.warning(f"{logPrefix} El archivo de misión '{nombre_archivo_mision_esperado}' (esperado para la misión activa '{nombreClaveMisionActiva}') "
-                        f"no fue encontrado o no es válido según paso0_revisar_mision_local (resultado: {resultadoPaso0}). "
-                        f"Limpiando estado y procediendo a crear nueva misión.")
-        limpiar_estado_mision_activa()
-        manejadorGit.cambiar_a_rama_existente(
-            settings.RUTACLON, settings.RAMATRABAJO)
-        return "PROCEDER_A_CREAR_NUEVA_MISION", True
 
 
 if __name__ == "__main__":
