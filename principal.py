@@ -17,15 +17,15 @@ from nucleo import aplicadorCambios
 from nucleo import manejadorHistorial
 from nucleo import manejadorMision
 from nucleo import token_manager
-from nucleo import file_registry # NEW IMPORT
+from nucleo import file_registry
+from nucleo import mission_state_manager # NEW IMPORT
 
 # --- Nuevas Constantes y Variables Globales ---
 # REGISTRO_ARCHIVOS_ANALIZADOS_PATH moved to nucleo/file_registry.py
 # TOKEN_LIMIT_PER_MINUTE and token_usage_window moved to token_manager.py
 
 # --- Archivo para persistir el estado de la misión activa ---
-ACTIVE_MISSION_STATE_FILE = os.path.join(
-    settings.RUTACLON, ".orion_meta", ".active_mission")
+# ACTIVE_MISSION_STATE_FILE moved to nucleo/mission_state_manager.py
 
 # --- Fin Nuevas Constantes ---
 
@@ -115,59 +115,59 @@ class TimeoutException(Exception):
 #             f"{logPrefix} No se pudo seleccionar un archivo.")
 #     return archivo_seleccionado_rel
 
-# --- Funciones para el manejo del estado de la misión activa ---
+# --- Funciones para el manejo del estado de la misión activa (MOVED TO nucleo/mission_state_manager.py) ---
 
 
-def cargar_estado_mision_activa():
-    logPrefix = "cargar_estado_mision_activa:"
-    if os.path.exists(ACTIVE_MISSION_STATE_FILE):
-        try:
-            with open(ACTIVE_MISSION_STATE_FILE, 'r', encoding='utf-8') as f:
-                nombre_clave_mision = f.read().strip()
-                if nombre_clave_mision:
-                    logging.info(
-                        f"{logPrefix} Misión activa encontrada: '{nombre_clave_mision}'")
-                    return nombre_clave_mision
-                else:
-                    logging.warning(
-                        f"{logPrefix} Archivo de estado de misión vacío.")
-                    # Limpiar si está vacío
-                    os.remove(ACTIVE_MISSION_STATE_FILE)
-                    return None
-        except Exception as e:
-            logging.error(
-                f"{logPrefix} Error cargando estado de misión activa: {e}", exc_info=True)
-            return None
-    logging.info(
-        f"{logPrefix} No se encontró archivo de estado de misión activa.")
-    return None
+# def cargar_estado_mision_activa():
+#     logPrefix = "cargar_estado_mision_activa:"
+#     if os.path.exists(ACTIVE_MISSION_STATE_FILE):
+#         try:
+#             with open(ACTIVE_MISSION_STATE_FILE, 'r', encoding='utf-8') as f:
+#                 nombre_clave_mision = f.read().strip()
+#                 if nombre_clave_mision:
+#                     logging.info(
+#                         f"{logPrefix} Misión activa encontrada: '{nombre_clave_mision}'")
+#                     return nombre_clave_mision
+#                 else:
+#                     logging.warning(
+#                         f"{logPrefix} Archivo de estado de misión vacío.")
+#                     # Limpiar si está vacío
+#                     os.remove(ACTIVE_MISSION_STATE_FILE)
+#                     return None
+#         except Exception as e:
+#             logging.error(
+#                 f"{logPrefix} Error cargando estado de misión activa: {e}", exc_info=True)
+#             return None
+#     logging.info(
+#         f"{logPrefix} No se encontró archivo de estado de misión activa.")
+#     return None
 
 
-def guardar_estado_mision_activa(nombre_clave_mision: str):
-    logPrefix = "guardar_estado_mision_activa:"
-    try:
-        os.makedirs(os.path.dirname(ACTIVE_MISSION_STATE_FILE), exist_ok=True)
-        with open(ACTIVE_MISSION_STATE_FILE, 'w', encoding='utf-8') as f:
-            f.write(nombre_clave_mision)
-        logging.info(
-            f"{logPrefix} Estado de misión activa '{nombre_clave_mision}' guardado.")
-    except Exception as e:
-        logging.error(
-            f"{logPrefix} Error guardando estado de misión activa '{nombre_clave_mision}': {e}", exc_info=True)
+# def guardar_estado_mision_activa(nombre_clave_mision: str):
+#     logPrefix = "guardar_estado_mision_activa:"
+#     try:
+#         os.makedirs(os.path.dirname(ACTIVE_MISSION_STATE_FILE), exist_ok=True)
+#         with open(ACTIVE_MISSION_STATE_FILE, 'w', encoding='utf-8') as f:
+#             f.write(nombre_clave_mision)
+#         logging.info(
+#             f"{logPrefix} Estado de misión activa '{nombre_clave_mision}' guardado.")
+#     except Exception as e:
+#         logging.error(
+#             f"{logPrefix} Error guardando estado de misión activa '{nombre_clave_mision}': {e}", exc_info=True)
 
 
-def limpiar_estado_mision_activa():
-    logPrefix = "limpiar_estado_mision_activa:"
-    if os.path.exists(ACTIVE_MISSION_STATE_FILE):
-        try:
-            os.remove(ACTIVE_MISSION_STATE_FILE)
-            logging.info(f"{logPrefix} Estado de misión activa limpiado.")
-        except Exception as e:
-            logging.error(
-                f"{logPrefix} Error limpiando estado de misión activa: {e}", exc_info=True)
-    else:
-        logging.info(
-            f"{logPrefix} No había estado de misión activa para limpiar.")
+# def limpiar_estado_mision_activa():
+#     logPrefix = "limpiar_estado_mision_activa:"
+#     if os.path.exists(ACTIVE_MISSION_STATE_FILE):
+#         try:
+#             os.remove(ACTIVE_MISSION_STATE_FILE)
+#             logging.info(f"{logPrefix} Estado de misión activa limpiado.")
+#         except Exception as e:
+#             logging.error(
+#                 f"{logPrefix} Error limpiando estado de misión activa: {e}", exc_info=True)
+#     else:
+#         logging.info(
+#             f"{logPrefix} No había estado de misión activa para limpiar.")
 
 
 def orchestrarEjecucionScript(args):
@@ -855,7 +855,7 @@ def _intentarCrearMisionDesdeTodoMD(api_provider: str, modo_automatico: bool):
             return False
 
         logging.info(f"{logPrefix} Misión '{nombre_clave}' generada y commiteada desde TODO.md.")
-        guardar_estado_mision_activa(nombre_clave)
+        mission_state_manager.guardar_estado_mision_activa(nombre_clave)
         manejadorGit.hacerPush(settings.RUTACLON, nombre_clave, setUpstream=True)
         return True # Misión creada exitosamente
 
@@ -894,7 +894,7 @@ def _intentarCrearMisionDesdeSeleccionArchivo(api_provider: str, modo_automatico
                     manejadorGit.eliminarRama(settings.RUTACLON, nombre_clave_generado, local=True)
                     continue  # Siguiente intento del bucle
 
-                guardar_estado_mision_activa(nombre_clave_generado)
+                mission_state_manager.guardar_estado_mision_activa(nombre_clave_generado)
                 logging.info(f"{logPrefix} Nueva misión '{nombre_clave_generado}' creada. Fase completada.")
                 if modo_automatico:
                     manejadorGit.hacerPush(settings.RUTACLON, nombre_clave_generado, setUpstream=True)
@@ -962,7 +962,7 @@ def ejecutarFaseDelAgente(api_provider: str, modo_automatico: bool):
     logging.info(
         f"{logPrefix} Repositorio listo en rama de trabajo principal: '{settings.RAMATRABAJO}'.")
     
-    nombre_clave_mision_activa = cargar_estado_mision_activa()
+    nombre_clave_mision_activa = mission_state_manager.cargar_estado_mision_activa()
     registro_archivos_analizados = file_registry.cargar_registro_archivos()
 
     # --- PROCESAR MISIÓN EXISTENTE (SI HAY) ---
@@ -1020,7 +1020,7 @@ def realizarReseteoAgente():
             f"{logPrefix} Configuraciones esenciales (RUTACLON, RAMATRABAJO) no disponibles. Abortando reseteo.")
         return False  # Indicar fallo
 
-    nombre_mision_activa = cargar_estado_mision_activa()
+    nombre_mision_activa = mission_state_manager.cargar_estado_mision_activa()
 
     if nombre_mision_activa:
         logging.info(
@@ -1066,7 +1066,7 @@ def realizarReseteoAgente():
         logging.info(
             f"{logPrefix} No hay misión activa registrada en el archivo de estado. No se requiere limpieza de rama de misión específica por estado.")
 
-    limpiar_estado_mision_activa()  # Esto borra .active_mission
+    mission_state_manager.limpiar_estado_mision_activa()  # Esto borra .active_mission
 
     # Limpiar registro de archivos analizados en su nueva ubicación
     # Esta acción depende de que REGISTRO_ARCHIVOS_ANALIZADOS_PATH esté correctamente definido
@@ -1126,8 +1126,4 @@ if __name__ == "__main__":
         logging.info(
             f"Script principal (adaptativo) finalizado con código: {codigo_salida}")
         # Proceder con la orquestación normal si no es --reset
-        sys.exit(codigo_salida)
-        codigo_salida = orchestrarEjecucionScript(args)
-        logging.info(
-            f"Script principal (adaptativo) finalizado con código: {codigo_salida}")
         sys.exit(codigo_salida)
