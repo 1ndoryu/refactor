@@ -85,6 +85,88 @@ MOJIBAKE_REPLACEMENTS = {
     b'\xe2\x80\x94'.decode('latin-1', errors='ignore'): "—" # â€” -> —
 }
 
+# New helper function for deleting files/directories
+def _manejar_eliminar_operacion(target_rel, ruta_base_norm):
+    logPrefix = "_manejar_eliminar_operacion:"
+    targetAbs = _validar_y_normalizar_ruta(target_rel, ruta_base_norm, asegurar_existencia=False)
+    if targetAbs is None:
+        msg = f"Ruta inválida o insegura proporcionada para eliminación: '{target_rel}'"
+        log.error(f"{logPrefix} {msg}")
+        return False, msg
+
+    log.info(f"{logPrefix} Ejecutando eliminación: Objetivo {target_rel} (Abs: {targetAbs})")
+    if os.path.exists(targetAbs):
+        try:
+            if os.path.isfile(targetAbs) or os.path.islink(targetAbs):
+                os.remove(targetAbs)
+                log.info(f"{logPrefix} Archivo/Enlace '{target_rel}' eliminado.")
+            elif os.path.isdir(targetAbs):
+                try:
+                    os.rmdir(targetAbs)
+                    log.info(f"{logPrefix} Directorio vacío '{target_rel}' eliminado.")
+                except OSError:
+                     err = f"Directorio '{target_rel}' no está vacío. No se puede eliminar."
+                     log.error(f"{logPrefix} {err}")
+                     return False, err
+            else:
+                err = f"Objetivo '{target_rel}' existe pero no es archivo, enlace o directorio."
+                log.error(f"{logPrefix} {err}")
+                return False, err
+            return True, None
+        except Exception as e:
+            err = f"Error eliminando '{target_rel}': {e}"
+            log.error(f"{logPrefix} {err}", exc_info=True)
+            return False, err
+    else:
+        log.warning(f"{logPrefix} Objetivo '{target_rel}' no encontrado para eliminación. Se considera exitoso.")
+        return True, None
+
+# New helper function for creating directories
+def _manejar_crear_directorio_operacion(target_rel, ruta_base_norm):
+    logPrefix = "_manejar_crear_directorio_operacion:"
+    targetAbs = _validar_y_normalizar_ruta(target_rel, ruta_base_norm, asegurar_existencia=False)
+    if targetAbs is None:
+        msg = f"Ruta inválida o insegura proporcionada para creación de directorio: '{target_rel}'"
+        log.error(f"{logPrefix} {msg}")
+        return False, msg
+
+    log.info(f"{logPrefix} Ejecutando creación de directorio: {target_rel} (Abs: {targetAbs})")
+    exito_creacion = False
+    error_creacion = None
+    if os.path.exists(targetAbs):
+        if os.path.isdir(targetAbs):
+            log.warning(f"{logPrefix} Directorio '{target_rel}' ya existe.")
+            exito_creacion = True
+        else:
+            err = f"Ruta '{target_rel}' existe pero no es un directorio. No se puede crear directorio."
+            log.error(f"{logPrefix} {err}")
+            error_creacion = err
+            exito_creacion = False
+    else:
+        try:
+            os.makedirs(targetAbs, exist_ok=True)
+            log.info(f"{logPrefix} Directorio '{target_rel}' creado.")
+            exito_creacion = True
+        except Exception as e:
+            err = f"Error creando directorio '{target_rel}': {e}"
+            log.error(f"{logPrefix} {err}", exc_info=True)
+            error_creacion = err
+            exito_creacion = False
+
+    if exito_creacion:
+        gitkeep_path = os.path.join(targetAbs, '.gitkeep')
+        if not os.path.exists(gitkeep_path):
+            try:
+                with open(gitkeep_path, 'w', encoding='utf-8') as gk:
+                    pass
+                log.info(f"{logPrefix} Archivo .gitkeep creado en '{target_rel}'.")
+            except Exception as e_gk:
+                log.warning(f"{logPrefix} No se pudo crear .gitkeep en '{target_rel}': {e_gk}")
+        else:
+            log.debug(f"{logPrefix} Archivo .gitkeep ya existe en '{target_rel}'.")
+
+    return exito_creacion, error_creacion
+
 ###Este parece mejor
 def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOriginal, paramsOriginal):
     logPrefix = "aplicarCambiosSobrescrituraV2:"
@@ -97,77 +179,11 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
             msg = f"Parámetro objetivo ('archivo' o 'directorio') faltante para {accionOriginal}."
             log.error(f"{logPrefix} {msg}")
             return False, msg
-        targetAbs = _validar_y_normalizar_ruta(targetRel, rutaBaseNorm, asegurar_existencia=False)
-        if targetAbs is None:
-            msg = f"Ruta inválida o insegura proporcionada para {accionOriginal}: '{targetRel}'"
-            log.error(f"{logPrefix} {msg}")
-            return False, msg
 
         if accionOriginal == "eliminar_archivo":
-            log.info(f"{logPrefix} Ejecutando '{accionOriginal}': Objetivo {targetRel} (Abs: {targetAbs})")
-            if os.path.exists(targetAbs):
-                try:
-                    if os.path.isfile(targetAbs) or os.path.islink(targetAbs):
-                        os.remove(targetAbs)
-                        log.info(f"{logPrefix} Archivo/Enlace '{targetRel}' eliminado.")
-                    elif os.path.isdir(targetAbs):
-                        try:
-                            os.rmdir(targetAbs)
-                            log.info(f"{logPrefix} Directorio vacío '{targetRel}' eliminado.")
-                        except OSError:
-                             err = f"Directorio '{targetRel}' no está vacío. No se puede eliminar."
-                             log.error(f"{logPrefix} {err}")
-                             return False, err
-                    else:
-                        err = f"Objetivo '{targetRel}' existe pero no es archivo, enlace o directorio."
-                        log.error(f"{logPrefix} {err}")
-                        return False, err
-                    return True, None
-                except Exception as e:
-                    err = f"Error eliminando '{targetRel}': {e}"
-                    log.error(f"{logPrefix} {err}", exc_info=True)
-                    return False, err
-            else:
-                log.warning(f"{logPrefix} Objetivo '{targetRel}' no encontrado para eliminación. Se considera exitoso.")
-                return True, None
-
+            return _manejar_eliminar_operacion(targetRel, rutaBaseNorm)
         elif accionOriginal == "crear_directorio":
-            log.info(f"{logPrefix} Ejecutando '{accionOriginal}': Creando directorio {targetRel} (Abs: {targetAbs})")
-            exito_creacion = False
-            error_creacion = None
-            if os.path.exists(targetAbs):
-                if os.path.isdir(targetAbs):
-                    log.warning(f"{logPrefix} Directorio '{targetRel}' ya existe.")
-                    exito_creacion = True
-                else:
-                    err = f"Ruta '{targetRel}' existe pero no es un directorio. No se puede crear directorio."
-                    log.error(f"{logPrefix} {err}")
-                    error_creacion = err
-                    exito_creacion = False
-            else:
-                try:
-                    os.makedirs(targetAbs, exist_ok=True)
-                    log.info(f"{logPrefix} Directorio '{targetRel}' creado.")
-                    exito_creacion = True
-                except Exception as e:
-                    err = f"Error creando directorio '{targetRel}': {e}"
-                    log.error(f"{logPrefix} {err}", exc_info=True)
-                    error_creacion = err
-                    exito_creacion = False
-
-            if exito_creacion:
-                gitkeep_path = os.path.join(targetAbs, '.gitkeep')
-                if not os.path.exists(gitkeep_path):
-                    try:
-                        with open(gitkeep_path, 'w', encoding='utf-8') as gk:
-                            pass
-                        log.info(f"{logPrefix} Archivo .gitkeep creado en '{targetRel}'.")
-                    except Exception as e_gk:
-                        log.warning(f"{logPrefix} No se pudo crear .gitkeep en '{targetRel}': {e_gk}")
-                else:
-                    log.debug(f"{logPrefix} Archivo .gitkeep ya existe en '{targetRel}'.")
-
-            return exito_creacion, error_creacion
+            return _manejar_crear_directorio_operacion(targetRel, rutaBaseNorm)
 
     if not isinstance(archivos_con_contenido, list):
          err = f"Argumento 'archivos_con_contenido' no es una lista. Tipo recibido: {type(archivos_con_contenido)}"
