@@ -21,7 +21,7 @@ Se necesita contexto adicional para:
 ---
 ### Tarea RF-AC-001: Eliminar función obsoleta aplicarCambiosSobrescrituraV1noUse
 - **ID:** RF-AC-001
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** La función `aplicarCambiosSobrescrituraV1noUse` es obsoleta y no es utilizada por el flujo principal del agente (confirmado en `principal.py`). Eliminar completamente esta función para reducir la base de código y mejorar la claridad.
 - **Archivos Implicados Específicos:** Ninguno
 - **Intentos:** 0
