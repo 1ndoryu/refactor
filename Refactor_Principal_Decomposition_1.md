@@ -71,7 +71,7 @@ Se necesita contexto adicional de los archivos sugeridos para comprender las int
 ---
 ### Tarea RF-PRN-003: Extraer Gestión de Estado de Misión a nucleo/gestionMisionEstado.py
 - **ID:** RF-PRN-003
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Mover la variable global `ACTIVE_MISSION_STATE_FILE` y las funciones `cargar_estado_mision_activa`, `guardar_estado_mision_activa`, `limpiar_estado_mision_activa` a un nuevo módulo `nucleo/gestionMisionEstado.py`. Actualizar las importaciones y llamadas en `principal.py` para usar este nuevo módulo. El nuevo módulo debe importar `os`, `logging`, `datetime`, `manejadorMision`, y `settings`.
 - **Archivos Implicados Específicos:** nucleo/gestionMisionEstado.py
 - **Intentos:** 0
