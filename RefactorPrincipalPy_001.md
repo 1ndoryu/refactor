@@ -30,7 +30,7 @@ Adicionalmente, la función `seleccionar_archivo_mas_antiguo` podría beneficiar
 ---
 ### Tarea DRY-Validation: Centralizar Validacion Granular de Mision
 - **ID:** DRY-Validation
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Extraer la lógica de 'VALIDACIÓN GRANULAR' presente de forma idéntica en las funciones `_intentarCrearMisionDesdeTodoMD` y `_intentarCrearMisionDesdeSeleccionArchivo` a una nueva función auxiliar compartida, por ejemplo, `manejadorMision.validar_estructura_mision_granular(contenido_markdown_mision)`. Esta función debería devolver un booleano indicando el éxito de la validación y, opcionalmente, detalles del error. Luego, reemplazar el código duplicado en ambas funciones con llamadas a esta nueva función. La nueva función debe ser implementada en el módulo `nucleo/manejadorMision.py`.
 - **Archivos Implicados Específicos:** nucleo/manejadorMision.py
 - **Intentos:** 0
