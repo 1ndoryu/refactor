@@ -81,7 +81,7 @@
 
     El objetivo es crear un nuevo aplicador en `aplicadorCambios.py` que sepa interpretar la nueva estructura de datos de la IA.
 
-    1.  **[ ] Crear Nueva Función `aplicadorCambios.aplicarCambiosGranulares`:**
+    1.  **[x] Crear Nueva Función `aplicadorCambios.aplicarCambiosGranulares`:**
         *   Esta nueva función recibirá el objeto JSON con la lista de `modificaciones`.
         *   Para cada operación en la lista:
             *   Leerá el archivo objetivo en una lista de líneas de Python.

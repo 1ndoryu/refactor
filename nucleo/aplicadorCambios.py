@@ -552,3 +552,216 @@ def aplicarCambiosSobrescrituraV2(archivos_con_contenido, rutaBase, accionOrigin
     log.info(f"{logPrefix} Total de entradas de archivo procesadas efectivamente: {total_procesados_efectivamente} de {len(archivos_con_contenido) if archivos_con_contenido else 0}.")
 
     return True, None
+
+def aplicarCambiosGranulares(respuesta_ia_modificaciones: dict, ruta_base_repo: str) -> tuple[bool, Optional[str]]:
+    logPrefix = "aplicarCambiosGranulares:"
+    log.info(f"{logPrefix} Iniciando aplicación de cambios granulares...")
+
+    if not isinstance(respuesta_ia_modificaciones, dict) or "modificaciones" not in respuesta_ia_modificaciones:
+        msg = "Formato de respuesta IA inválido: falta la clave 'modificaciones' o no es un diccionario."
+        log.error(f"{logPrefix} {msg}")
+        return False, msg
+
+    lista_operaciones = respuesta_ia_modificaciones.get("modificaciones", [])
+    if not isinstance(lista_operaciones, list):
+        msg = "La clave 'modificaciones' no contiene una lista de operaciones."
+        log.error(f"{logPrefix} {msg}")
+        return False, msg
+
+    if not lista_operaciones:
+        # Esto puede ocurrir si la IA solo devuelve una "advertencia_ejecucion" sin modificaciones.
+        advertencia = respuesta_ia_modificaciones.get("advertencia_ejecucion")
+        if advertencia:
+            log.info(f"{logPrefix} No hay operaciones de modificación. Advertencia de la IA: {advertencia}")
+        else:
+            log.info(f"{logPrefix} No hay operaciones de modificación para aplicar.")
+        return True, None # Éxito, no se hizo nada o solo hubo advertencia.
+
+    errores_aplicacion = []
+
+    for i, operacion in enumerate(lista_operaciones):
+        log.info(f"{logPrefix} Procesando operación #{i+1}: {operacion.get('tipo_operacion')} en '{operacion.get('ruta_archivo')}'")
+
+        if not isinstance(operacion, dict):
+            msg = f"Operación #{i+1} no es un diccionario válido."
+            log.error(f"{logPrefix} {msg}")
+            errores_aplicacion.append(msg)
+            continue 
+
+        tipo_operacion = operacion.get("tipo_operacion")
+        ruta_archivo_rel = operacion.get("ruta_archivo")
+        # Para ELIMINAR_BLOQUE, nuevo_contenido podría no estar o ser None/vacío.
+        # Si no está, get() devuelve None. Si es None, split('\n') fallará.
+        # Por eso, default a "" si es None.
+        nuevo_contenido_str = operacion.get("nuevo_contenido")
+        if nuevo_contenido_str is None:
+            nuevo_contenido_str = ""
+
+
+        if not tipo_operacion or not ruta_archivo_rel:
+            msg = f"Operación #{i+1} inválida: falta 'tipo_operacion' o 'ruta_archivo'."
+            log.error(f"{logPrefix} {msg}")
+            errores_aplicacion.append(msg)
+            continue
+
+        archivo_abs = _validar_y_normalizar_ruta(ruta_archivo_rel, ruta_base_repo, asegurar_existencia=False)
+        if archivo_abs is None:
+            msg = f"Operación #{i+1}: Ruta de archivo inválida o insegura '{ruta_archivo_rel}'. Se omite."
+            log.error(f"{logPrefix} {msg}")
+            errores_aplicacion.append(msg)
+            continue
+        
+        es_creacion_archivo_con_reemplazar = (
+            tipo_operacion == "REEMPLAZAR_BLOQUE" and
+            operacion.get("linea_inicio") == 1 and
+            (operacion.get("linea_fin") == 1 or operacion.get("linea_fin") == 0)
+        )
+
+        lineas_archivo_original = []
+        archivo_existia = os.path.exists(archivo_abs)
+
+        if archivo_existia:
+            try:
+                with open(archivo_abs, 'r', encoding='utf-8') as f:
+                    lineas_archivo_original = f.readlines() 
+            except Exception as e:
+                msg = f"Operación #{i+1}: Error leyendo archivo existente '{ruta_archivo_rel}': {e}. Se omite."
+                log.error(f"{logPrefix} {msg}", exc_info=True)
+                errores_aplicacion.append(msg)
+                continue
+        elif not es_creacion_archivo_con_reemplazar and tipo_operacion != "REEMPLAZAR_BLOQUE": # REEMPLAZAR_BLOQUE puede crear
+             # Si no es creación y el archivo no existe, es un error para AGREGAR o ELIMINAR.
+             # Para REEMPLAZAR, solo es error si NO es el caso de creación.
+            msg = f"Operación #{i+1}: Archivo '{ruta_archivo_rel}' no encontrado para operación '{tipo_operacion}'. Se omite."
+            log.error(f"{logPrefix} {msg}")
+            errores_aplicacion.append(msg)
+            continue
+        
+        if not nuevo_contenido_str: 
+            lineas_nuevo_contenido = []
+        else:
+            # Si nuevo_contenido_str termina con \n, split('\n') producirá un elemento vacío al final.
+            # Al añadir '\n' a cada elemento, ese último elemento vacío se convertirá en '\n'.
+            # Esto preserva correctamente una línea vacía final si la IA la generó.
+            lineas_nuevo_contenido = [line + '\n' for line in nuevo_contenido_str.split('\n')]
+            # Ejemplo: "foo\nbar\n".split('\n') -> ['foo', 'bar', '']
+            # -> ['foo\n', 'bar\n', '\n'] que es correcto.
+            # Ejemplo: "foo\nbar".split('\n') -> ['foo', 'bar']
+            # -> ['foo\n', 'bar\n'] que es correcto.
+            # Caso especial: si nuevo_contenido_str es solo "\n", split da ['', '']. Luego ['\n', '\n']. Esto es un bug.
+            # Si nuevo_contenido_str es "\n", debería ser solo una línea vacía.
+            if nuevo_contenido_str == "\n":
+                lineas_nuevo_contenido = ["\n"]
+            # Caso especial: si nuevo_contenido_str es "" (ya cubierto arriba)
+            # Caso especial: si nuevo_contenido_str no tiene \n, split da [contenido]. Luego [contenido\n]. Ok.
+
+        lineas_modificadas = list(lineas_archivo_original)
+
+        if tipo_operacion == "REEMPLAZAR_BLOQUE":
+            linea_inicio = operacion.get("linea_inicio")
+            linea_fin = operacion.get("linea_fin")
+            
+            # Validar linea_inicio y linea_fin
+            valid_indices = isinstance(linea_inicio, int) and isinstance(linea_fin, int) and linea_inicio >= 1
+            if not valid_indices or (linea_fin < linea_inicio and not (linea_inicio == 1 and linea_fin == 0)): # linea_fin puede ser 0 solo si linea_inicio es 1 (creación)
+                 # Si linea_inicio es 1 y linea_fin es 0, es un caso especial para creación, trataremos linea_fin como 0 para el slice
+                if not (es_creacion_archivo_con_reemplazar and linea_inicio == 1 and linea_fin == 0):
+                    msg = f"Operación #{i+1} (REEMPLAZAR_BLOQUE): 'linea_inicio' ({linea_inicio}) o 'linea_fin' ({linea_fin}) inválidas."
+                    log.error(f"{logPrefix} {msg}")
+                    errores_aplicacion.append(msg)
+                    continue
+
+            idx_inicio_slice = linea_inicio - 1
+            idx_fin_slice = linea_fin if linea_fin != 0 else 0 # linea_fin 0 se trata como 0 para slice
+
+            if idx_inicio_slice < 0: # Debería ser prevenido por linea_inicio >= 1
+                idx_inicio_slice = 0
+
+            if es_creacion_archivo_con_reemplazar or not archivo_existia :
+                lineas_modificadas = lineas_nuevo_contenido
+                log.info(f"{logPrefix} REEMPLAZAR_BLOQUE (creación/sobrescritura total) en '{ruta_archivo_rel}'.")
+            elif idx_inicio_slice > len(lineas_modificadas) or idx_fin_slice > len(lineas_modificadas) or idx_inicio_slice > idx_fin_slice:
+                msg = (f"Operación #{i+1} (REEMPLAZAR_BLOQUE): Rango de líneas [{linea_inicio}-{linea_fin}] "
+                       f"(slice [{idx_inicio_slice}-{idx_fin_slice}]) fuera de los límites del archivo '{ruta_archivo_rel}' "
+                       f"(total líneas: {len(lineas_modificadas)}).")
+                log.error(f"{logPrefix} {msg}")
+                errores_aplicacion.append(msg)
+                continue
+            else:
+                lineas_modificadas = lineas_modificadas[:idx_inicio_slice] + \
+                                     lineas_nuevo_contenido + \
+                                     lineas_modificadas[idx_fin_slice:]
+                log.info(f"{logPrefix} REEMPLAZAR_BLOQUE en '{ruta_archivo_rel}' líneas {linea_inicio}-{linea_fin}.")
+
+        elif tipo_operacion == "AGREGAR_BLOQUE":
+            insertar_despues_de_linea = operacion.get("insertar_despues_de_linea")
+            if not isinstance(insertar_despues_de_linea, int) or insertar_despues_de_linea < 0:
+                msg = f"Operación #{i+1} (AGREGAR_BLOQUE): 'insertar_despues_de_linea' inválida: {insertar_despues_de_linea}."
+                log.error(f"{logPrefix} {msg}")
+                errores_aplicacion.append(msg)
+                continue
+
+            idx_insercion = insertar_despues_de_linea 
+            
+            if idx_insercion > len(lineas_modificadas):
+                msg = (f"Operación #{i+1} (AGREGAR_BLOQUE): 'insertar_despues_de_linea' ({insertar_despues_de_linea}) "
+                       f"fuera de los límites del archivo '{ruta_archivo_rel}' (total líneas: {len(lineas_modificadas)}). "
+                       f"Se agregará al final.")
+                log.warning(f"{logPrefix} {msg}")
+                idx_insercion = len(lineas_modificadas) 
+            
+            lineas_modificadas = lineas_modificadas[:idx_insercion] + \
+                                 lineas_nuevo_contenido + \
+                                 lineas_modificadas[idx_insercion:]
+            log.info(f"{logPrefix} AGREGAR_BLOQUE en '{ruta_archivo_rel}' después de línea {insertar_despues_de_linea} (índice {idx_insercion}).")
+
+        elif tipo_operacion == "ELIMINAR_BLOQUE":
+            linea_inicio = operacion.get("linea_inicio")
+            linea_fin = operacion.get("linea_fin")
+            if not isinstance(linea_inicio, int) or not isinstance(linea_fin, int) or linea_inicio <= 0 or linea_fin < linea_inicio:
+                msg = f"Operación #{i+1} (ELIMINAR_BLOQUE): 'linea_inicio' o 'linea_fin' inválidas: {linea_inicio}, {linea_fin}."
+                log.error(f"{logPrefix} {msg}")
+                errores_aplicacion.append(msg)
+                continue
+
+            idx_inicio_slice = linea_inicio - 1
+            idx_fin_slice = linea_fin
+
+            if idx_inicio_slice >= len(lineas_modificadas) or idx_fin_slice > len(lineas_modificadas) or idx_inicio_slice > idx_fin_slice :
+                msg = (f"Operación #{i+1} (ELIMINAR_BLOQUE): Rango de líneas [{linea_inicio}-{linea_fin}] "
+                       f"(slice [{idx_inicio_slice}-{idx_fin_slice}]) fuera de los límites del archivo '{ruta_archivo_rel}' "
+                       f"(total líneas: {len(lineas_modificadas)}).")
+                log.error(f"{logPrefix} {msg}")
+                errores_aplicacion.append(msg)
+                continue
+            
+            lineas_modificadas = lineas_modificadas[:idx_inicio_slice] + \
+                                 lineas_modificadas[idx_fin_slice:]
+            log.info(f"{logPrefix} ELIMINAR_BLOQUE en '{ruta_archivo_rel}' líneas {linea_inicio}-{linea_fin}.")
+        
+        else:
+            msg = f"Operación #{i+1}: Tipo de operación desconocido o no soportado: '{tipo_operacion}'."
+            log.error(f"{logPrefix} {msg}")
+            errores_aplicacion.append(msg)
+            continue
+
+        try:
+            dir_padre = os.path.dirname(archivo_abs)
+            if dir_padre: 
+                os.makedirs(dir_padre, exist_ok=True)
+                
+            with open(archivo_abs, 'w', encoding='utf-8') as f_write:
+                f_write.writelines(lineas_modificadas)
+            log.info(f"{logPrefix} Archivo '{ruta_archivo_rel}' (Abs: '{archivo_abs}') modificado y guardado exitosamente.")
+        except Exception as e:
+            msg = f"Operación #{i+1}: Error escribiendo archivo modificado '{ruta_archivo_rel}': {e}."
+            log.error(f"{logPrefix} {msg}", exc_info=True)
+            errores_aplicacion.append(msg)
+
+    if errores_aplicacion:
+        error_summary = f"Proceso de aplicación granular completado con {len(errores_aplicacion)} error(es): {'; '.join(errores_aplicacion)}"
+        log.error(f"{logPrefix} {error_summary}")
+        return False, error_summary
+    
+    log.info(f"{logPrefix} Todas las {len(lista_operaciones)} operaciones granulares aplicadas exitosamente (o no se requirieron cambios).")
+    return True, None
