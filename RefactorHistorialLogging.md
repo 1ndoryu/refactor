@@ -57,7 +57,7 @@ Los archivos sugeridos (`manejadorMision.py`, `analizadorCodigo.py`, `principal.
 ---
 ### Tarea RFL-002: Refactorizar formatearEntradaHistorial para retornar un diccionario
 - **ID:** RFL-002
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Modificar la función `formatearEntradaHistorial` en `nucleo/manejadorHistorial.py` para que, en lugar de construir y retornar una cadena de texto formateada, construya y retorne un diccionario de Python. Este diccionario debe contener las claves `timestamp`, `outcome`, `decision`, `result_details`, `verification_details` y `error_message`, con sus respectivos valores. La serialización a JSON se realizará en la función `guardarHistorial`.
 - **Archivos Implicados Específicos:** nucleo/manejadorHistorial.py
 - **Intentos:** 0
