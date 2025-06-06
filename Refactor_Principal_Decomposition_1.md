@@ -19,7 +19,7 @@ Se necesita contexto adicional de los archivos sugeridos para comprender las int
 ---
 ### Tarea RF-PRN-001: Extraer Gestión de Tokens a nucleo/gestionTokens.py
 - **ID:** RF-PRN-001
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Mover la variable global `token_usage_window` y las funciones `gestionar_limite_tokens` y `registrar_tokens_usados` a un nuevo módulo `nucleo/gestionTokens.py`. Actualizar las importaciones y llamadas en `principal.py` para usar este nuevo módulo. El nuevo módulo debe importar `datetime`, `timedelta` y `settings`.
 - **Archivos Implicados Específicos:** nucleo/gestionTokens.py
 - **Intentos:** 0
