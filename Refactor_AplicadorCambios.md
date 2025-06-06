@@ -33,7 +33,7 @@ Se necesita contexto adicional para:
 ---
 ### Tarea RF-AC-002: Extraer lógica de gestión de archivos/directorios en aplicarCambiosSobrescrituraV2
 - **ID:** RF-AC-002
-- **Estado:** PENDIENTE
+- **Estado:** COMPLETADA
 - **Descripción:** La función `aplicarCambiosSobrescrituraV2` contiene lógica para `eliminar_archivo` y `crear_directorio` directamente. Extraer esta lógica en funciones auxiliares privadas (ej. `_manejar_operacion_archivo_directorio`) para mejorar la modularidad y reducir la complejidad de la función principal.
 - **Archivos Implicados Específicos:** Ninguno
 - **Intentos:** 0
