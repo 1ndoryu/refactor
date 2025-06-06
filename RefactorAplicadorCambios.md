@@ -76,7 +76,7 @@ Se necesita contexto adicional para asegurar que la refactorización no rompa la
 ---
 ### Tarea TSK-AC-002: Extraer funciones de manejo de archivos en `aplicadorCambios.py`
 - **ID:** TSK-AC-002
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Extraer la lógica duplicada de eliminación de archivos y creación de directorios de `aplicarCambiosSobrescrituraV2` en dos nuevas funciones auxiliares privadas en `nucleo/aplicadorCambios.py`: `_manejar_eliminacion_archivo(target_abs: str, target_rel: str)` y `_manejar_creacion_directorio(target_abs: str, target_rel: str)`. Ambas funciones deben incluir la validación de ruta, comprobación de existencia y manejo de errores, así como la creación del archivo `.gitkeep` en el caso de directorios. Reemplazar el código original en `aplicarCambiosSobrescrituraV2` con llamadas a estas nuevas funciones.
 - **Archivos Implicados Específicos:** Ninguno
 - **Intentos:** 0
