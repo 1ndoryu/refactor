@@ -92,7 +92,7 @@ Se necesita contexto adicional para asegurar que la refactorización no rompa la
 ---
 ### Tarea TSK-AC-003: Extraer función de procesamiento de contenido en `aplicadorCambios.py`
 - **ID:** TSK-AC-003
-- **Estado:** PENDIENTE
+- **Estado:** SALTADA
 - **Descripción:** Crear una nueva función auxiliar privada `_procesar_contenido_ia(contenido_raw: Any) -> str` en `nucleo/aplicadorCambios.py`. Esta función debe encapsular la lógica de conversión de contenido no-string (ej. dicts) a JSON string y la corrección de secuencias Mojibake. `aplicarCambiosSobrescrituraV2` debe llamar a esta nueva función para obtener el contenido final procesado antes de escribirlo en el disco.
 - **Archivos Implicados Específicos:** Ninguno
 - **Intentos:** 0
